@@ -1,1 +1,7 @@
-abc
+#MOTIVATION
+
+	Many buildings over the years become more and more structurally unstable. Even though they present increasing security risks, their demolition can have a significant setback from financial and environmental aspects. For this reason a data driven approach on health monitoring should apply, so we could prioritize which ones are in most critical states. More specifically, a methodology of vibration measurements during normal operation would be enough to provide us with the right data. These data will come from multiple buildings, each building will have multiple sensors and each sensor will provide hundreds of measurements each second. This amount of data seems inefficient and unmanageable at first. The way to address this kind of situation lies in leveraging the capabilities of Machine Learning using Anomaly Detection Algorithms. But still remains the problem of deliverability to our remote targets. The solution to this kind of challenge will be Edge Computing Devices (1 for each building), that will complete the deployment of our sophisticated architecture. In this way the overwhelmingly large amount of data will exist locally, and after the local use of some ML Model, only the interesting data will be sent to our Database for further analysis. So the main 2 key points to investigate in this thesis would be:
+
+##Manage multiple deployments of edge computing devices at large scale.
+##Integrate Anomaly Detection ML Algorithm on each device for better data manipulation
+
