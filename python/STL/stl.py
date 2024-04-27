@@ -10,7 +10,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 # Specify file paths relative to the script directory
 folder_path = os.path.join(script_directory, "../datasets")
 results_file_path = os.path.join(
-    script_directory, "destributionResults.txt")
+    script_directory, "destributionResults.out")
 # List all files in the folder
 files = os.listdir(folder_path)
 for file in files:
@@ -38,7 +38,7 @@ for file in files:
         plt.plot(ts, label='Original')
         plt.legend()
 
-        window_size = 500  # Adjust window size as needed
+        window_size = 3740  # Adjust window size as needed
         smoothed_trend = decomposition.trend.rolling(
             window=window_size, min_periods=1).mean()
         plt.subplot(8, 1, 2)
@@ -53,11 +53,6 @@ for file in files:
 
         plt.subplot(8, 1, 4)
         plt.plot(decomposition.resid, label='Residual')
-        plt.legend()
-
-        plt.subplot(8, 1, 5)
-        plt.plot(decomposition.resid,
-                 label='Residual - Seasonal')
         plt.legend()
 
         """ plt.subplot(8, 1, 6)
