@@ -20,3 +20,39 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+// EdgeGroup table
+model EdgeGroup {
+  GroupID            String       @id
+  InfrastructureType String
+  AssociatedDevices  Int
+  // Connection with AnomalyEvent
+  anomalies         AnomalyEvent[]
+  createdAt         DateTime @default(now())
+  HasDevices        EdgeDevice[]
+}
+
+// EdgeDevice table
+model EdgeDevice {
+  EdgeID         String       @id
+  GroupID        String
+  InGroup        EdgeGroup    @relation(fields:[GroupID],references:[GroupID])
+  Status         String
+  SensorsNumber Int
+  // Connection with AnomalyEvent
+  anomalies      AnomalyEvent[]
+  createdAt         DateTime @default(now())
+}
+
+// AnomalyEvent table
+model AnomalyEvent {
+  ID                  Int      @id @default(autoincrement())
+  EdgeID              String
+  GroupID             String
+  MLMethodUsed        String
+  AnomalyDatapoints   String
+  AnomalyDatapointsNo Int
+  // Connections with EdgeGroup and EdgeDevice
+  edgeGroup   EdgeGroup   @relation(fields: [GroupID], references: [GroupID])
+  edgeDevice  EdgeDevice  @relation(fields: [EdgeID], references: [EdgeID])
+  createdAt         DateTime @default(now())
+}

@@ -112,7 +112,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
 
             <ul className="mb-6 flex flex-col gap-1.5">
               {/* <!-- Menu Item Dashboard --> */}
-              <SidebarLinkGroup
+              {/* <SidebarLinkGroup
                 activeCondition={
                   pathname === "/" || pathname.includes("dashboard")
                 }
@@ -177,9 +177,9 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                             fill=""
                           />
                         </svg>
-                      </Link>
-                      {/* <!-- Dropdown Menu Start --> */}
-                      <div
+                      </Link> */}
+              {/* <!-- Dropdown Menu Start --> */}
+              {/* <div
                         className={`translate transform overflow-hidden ${
                           !open && "hidden"
                         }`}
@@ -196,20 +196,20 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                             </Link>
                           </li>
                         </ul>
-                      </div>
-                      {/* <!-- Dropdown Menu End --> */}
-                    </React.Fragment>
+                      </div> */}
+              {/* <!-- Dropdown Menu End --> */}
+              {/* </React.Fragment>
                   );
                 }}
-              </SidebarLinkGroup>
+              </SidebarLinkGroup> */}
               {/* <!-- Menu Item Dashboard --> */}
 
-              {/* <!-- Menu Item Calendar --> */}
+              {/* <!-- Menu Item Calendar (will be my Dashboard) --> */}
               <li>
                 <Link
-                  href="/calendar"
+                  href="/"
                   className={`group relative flex items-center gap-2.5 rounded-sm px-4 py-2 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-                    pathname.includes("calendar") &&
+                    pathname.includes("dashboard") &&
                     "bg-graydark dark:bg-meta-4"
                   }`}
                 >
@@ -226,7 +226,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                       fill=""
                     />
                   </svg>
-                  Calendar
+                  Dashboard
                 </Link>
               </li>
               {/* <!-- Menu Item Calendar --> */}
