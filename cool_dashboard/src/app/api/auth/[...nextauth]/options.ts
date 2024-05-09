@@ -43,6 +43,7 @@ export const options: NextAuthOptions = {
           email: user.email,
           userName: user.userName,
           randomKey: "Hey cool",
+          role: user.role,
         };
         /* return await signInWithEmailAndPassword(
             auth,
@@ -77,11 +78,11 @@ export const options: NextAuthOptions = {
       },
     }),
   ],
-  /* pages: {
-    signIn: "/signIn",
-  }, */
+  pages: {
+    signIn: "/auth/login",
+  },
   callbacks: {
-    jwt: ({ token, user }) => {
+    async jwt({ token, user }) {
       console.log("JWT Callback", { token, user });
       if (user) {
         const u = user as unknown as any;
@@ -89,18 +90,23 @@ export const options: NextAuthOptions = {
           ...token,
           id: u.id,
           randomKey: u.randomKey,
+          userName: u.userName,
+          role: u.role,
         };
       }
       return token;
     },
-    session: ({ session, token }) => {
+    async session({ session, token }) {
       console.log("Session Callback", { session, token });
       return {
         ...session,
         user: {
           ...session.user,
-          id: token.id,
-          randomKey: token.randomKey,
+          id: token.id as string,
+          randomKey: token.randomKey as string,
+          role: token.role as string,
+          userName: token.userName as string,
+          email: token.email as string,
         },
       };
     },

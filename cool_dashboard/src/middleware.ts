@@ -9,5 +9,9 @@ export const config = {
     "/settings",
     "/chart",
     "/ui/:path*",
+    "/",
   ],
+  pages: {
+    signIn: "/auth/login",
+  },
 };

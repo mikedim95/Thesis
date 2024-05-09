@@ -2,8 +2,8 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRef } from "react";
-import { Metadata } from "next";
+/* import { useRef } from "react";
+import { Metadata } from "next"; */
 import DefaultLayout from "@/components/Layouts/DefaultLayout";
 import { createUser } from "@/utils/server/_actions";
 import { redirect } from "next/navigation";
@@ -14,8 +14,6 @@ import { redirect } from "next/navigation";
 }; */
 
 export default function SignUp() {
-  const formRef = useRef<HTMLFormElement>(null);
-
   async function handleSubmit(formData: FormData) {
     const username = formData.get("Username") as string;
     const email = formData.get("Email") as string;

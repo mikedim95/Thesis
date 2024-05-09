@@ -1,15 +1,31 @@
+"use client";
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Metadata } from "next";
+/* import { Metadata } from "next"; */
 import DefaultLayout from "@/components/Layouts/DefaultLayout";
-
-export const metadata: Metadata = {
+import { signIn } from "next-auth/react";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+/* export const metadata: Metadata = {
   title: "Next.js SignIn Page | TailAdmin - Next.js Dashboard Template",
   description: "This is Next.js Signin Page TailAdmin Dashboard Template",
-};
+}; */
 
-const Login: React.FC = () => {
+export default function Login() {
+  async function handleSubmit(formData: FormData) {
+    const email = formData.get("Email") as string;
+    const password = formData.get("Password") as string;
+    console.log(" email, password");
+    console.log(email, password);
+    const res = await signIn("credentials", {
+      email: email,
+      password: password,
+      redirect: true,
+    });
+    /* redirect("/auth/login"); */
+    console.log(res);
+  }
   return (
     <DefaultLayout>
       <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
@@ -170,7 +186,7 @@ const Login: React.FC = () => {
                 Sign In to TailAdmin
               </h2>
 
-              <form>
+              <form action={handleSubmit}>
                 <div className="mb-4">
                   <label className="mb-2.5 block font-medium text-black dark:text-white">
                     Email
@@ -179,6 +195,7 @@ const Login: React.FC = () => {
                     <input
                       type="email"
                       placeholder="Enter your email"
+                      name="Email"
                       className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-black outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
                     />
 
@@ -210,6 +227,7 @@ const Login: React.FC = () => {
                     <input
                       type="password"
                       placeholder="6+ Characters, 1 Capital letter"
+                      name="Password"
                       className="w-full rounded-lg border border-stroke bg-transparent py-4 pl-6 pr-10 text-white outline-none focus:border-primary focus-visible:shadow-none dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
                     />
 
@@ -260,6 +278,4 @@ const Login: React.FC = () => {
       </div>
     </DefaultLayout>
   );
-};
-
-export default Login;
+}

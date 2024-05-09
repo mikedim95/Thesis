@@ -2,7 +2,8 @@
 import { User } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { hash } from "bcrypt";
-
+import { getServerSession } from "next-auth/next";
+import { options } from "../../app/api/auth/[...nextauth]/options";
 export async function createUser(
   userName: string,
   email: string,
@@ -15,13 +16,14 @@ export async function createUser(
     } else {
       var hashedPassword = (await hash(password, 12)) as string;
       password = hashedPassword;
-      console.log("server action");
+
       console.log(userName, email, password);
       const user = await prisma.user.create({
         data: {
           userName,
           email,
-          password, // Note: You should hash the password before storing it
+          password,
+          role: "admin", // Note: You should hash the password before storing it
         },
       });
       console.log("User created:", user);
@@ -52,6 +54,17 @@ export async function userExists(email: string) {
     } else {
       return false;
     }
+  } catch (error) {
+    return { error };
+  }
+}
+export async function sessionGetter() {
+  try {
+    const session = await getServerSession(options);
+    console.log("server action");
+    console.log(session?.user);
+    console.log("server action");
+    return session?.user;
   } catch (error) {
     return { error };
   }

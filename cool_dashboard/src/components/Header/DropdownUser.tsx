@@ -2,12 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
+import { signOut, useSession } from "next-auth/react";
 const DropdownUser = () => {
+  const { data: session } = useSession();
+  const userName = session?.user?.userName;
+  const email = session?.user?.email;
+  const role = session?.user?.role;
+
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const trigger = useRef<any>(null);
   const dropdown = useRef<any>(null);
-
+  /* useEffect(() => {
+    const { data: session } = useSession();
+    console.log("from header");
+    console.log(session);
+    console.log("from header");
+  }); */
   // close on click outside
   useEffect(() => {
     const clickHandler = ({ target }: MouseEvent) => {
@@ -21,6 +32,7 @@ const DropdownUser = () => {
       setDropdownOpen(false);
     };
     document.addEventListener("click", clickHandler);
+
     return () => document.removeEventListener("click", clickHandler);
   });
 
@@ -44,9 +56,9 @@ const DropdownUser = () => {
       >
         <span className="hidden text-right lg:block">
           <span className="block text-sm font-medium text-black dark:text-white">
-            Thomas Anree
+            {userName}
           </span>
-          <span className="block text-xs">UX Designer</span>
+          <span className="block text-xs">{role}</span>
         </span>
 
         <span className="h-12 w-12 rounded-full">
@@ -161,7 +173,10 @@ const DropdownUser = () => {
             </Link>
           </li>
         </ul>
-        <button className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base">
+        <button
+          onClick={() => signOut({ callbackUrl: "http://localhost:3000" })}
+          className="flex items-center gap-3.5 px-6 py-4 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
+        >
           <svg
             className="fill-current"
             width="22"
