@@ -1,53 +1,42 @@
 import { NextResponse } from "next/server";
-import mqttInstanse from "../../../utils/server/mqttSingleton";
+import saveAnomaly from "../../../utils/server/postData";
+import { MQTTClientSingleton } from "../../../lib/mqttClientSinlgeton";
 type ResponseData = {
   message: string;
 };
 
-export async function GET(request: any) {
-  console.log(request.client);
-  const client = mqttInstanse();
-  const topic: string = process.env.MQTT_TOPIC!;
-  client.subscribe(topic, (err) => {
-    if (err) {
-      console.error("Error subscribing to topic:", err);
-    } else {
-      console.log("Subscribed to topic!!!!!!!:", topic);
-    }
-  });
-  /* client.on("connect", function () {
-    console.log("Connected to MQTT server");
-
-    // Subscribe to a topic
-    client.subscribe("topic/example", function (err: any) {
-      if (err) {
-        console.error("Subscription failed:", err);
-        return NextResponse.json({
-          success: false,
-          error: "Subscription failed",
-        });
-      } else {
-        console.log("Subscribed to topic/example");
-        return NextResponse.json({
-          success: true,
-          message: "Subscribed to topic/example",
-        });
-      }
+export async function GET() {
+  // This functions instansiates the MQTT Client Singleton
+  const { client, firstTime } = MQTTClientSingleton();
+  console.log("firstTime:", firstTime);
+  if (client && firstTime) {
+    console.log("running client.on");
+    client.on("message", function (topic: any, message: any) {
+      console.log("Received message2:", JSON.parse(message.toString()));
     });
-  }); */
-
-  client.on("message", function (topic: any, message: any) {
-    console.log("Received message:", message.toString());
-    // Process the incoming message as needed
-  });
+    return NextResponse.json({
+      success: true,
+      message: "MQTT Client Instansiated",
+    });
+  } else {
+    return NextResponse.json({
+      success: true,
+      message: "MQTT Client exists already",
+    });
+  }
 
   // Handle errors
 }
-export async function POST(request: Request) {
+export async function POST(request: Request, res: Response) {
   const data = await request.json();
   try {
-    return NextResponse.json({ data });
+    const user2 = await saveAnomaly(data.email);
+
+    return NextResponse.json({ user2 });
   } catch (err) {
-    /*  res.status(500).json({ error: "failed to load data" }); */
+    return NextResponse.json({
+      success: false,
+      message: err,
+    });
   }
 }

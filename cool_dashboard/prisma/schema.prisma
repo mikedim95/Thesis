@@ -49,7 +49,9 @@ model AnomalyEvent {
   EdgeID              String
   GroupID             String
   MLMethodUsed        String
-  AnomalyDatapoints   String
+  DatapointsBeforeAnomaly Int[]
+  AnomalyDatapoints   Int[]
+  DatapointsAfterAnomaly Int[]
   AnomalyDatapointsNo Int
   // Connections with EdgeGroup and EdgeDevice
   edgeGroup   EdgeGroup   @relation(fields: [GroupID], references: [GroupID])

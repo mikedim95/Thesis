@@ -30,11 +30,9 @@ export const options: NextAuthOptions = {
           return null;
         }
 
-        const isPasswordValid = credentials.password == user.password;
-        /* await compare(
-          credentials.password,
-          user.password,
-        ); */
+        const isPasswordValid =
+          /* credentials.password == user.password; */
+          await compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
           return null;
