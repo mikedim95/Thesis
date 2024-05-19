@@ -38,7 +38,7 @@ def begin():
             with open(results_file_path, 'a') as results_file:
                 # Write a new line with results
                 results_file.write(f"{title}: Threshold:{threshold}")
-                results_file.write(f"No of anomalies found: {anomalies}\n")
+                results_file.write(f" No of anomalies found: {anomalies}\n")
 
 
 begin()

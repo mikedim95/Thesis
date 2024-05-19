@@ -21,7 +21,7 @@ export default function Login() {
     const res = await signIn("credentials", {
       email: email,
       password: password,
-      redirect: true,
+      callbackUrl: "http://localhost:3000/",
     });
     /* redirect("/auth/login"); */
     console.log(res);

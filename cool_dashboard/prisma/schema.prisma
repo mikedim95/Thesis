@@ -12,50 +12,49 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model User {
-  id      Int      @id @default(autoincrement())
-  email   String   @unique
-  userName    String @unique
-  password String
-  role String
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  userName  String   @unique
+  password  String
+  role      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
 // EdgeGroup table
 model EdgeGroup {
-  GroupID            String       @id
-  InfrastructureType String
-  AssociatedDevices  Int
-  // Connection with AnomalyEvent
-  anomalies         AnomalyEvent[]
-  createdAt         DateTime @default(now())
-  HasDevices        EdgeDevice[]
+  groupName          String       @id
+  infrastructureType String
+  createdAt          DateTime     @default(now())
+  has                EdgeDevice[]
 }
 
 // EdgeDevice table
 model EdgeDevice {
-  EdgeID         String       @id
-  GroupID        String
-  InGroup        EdgeGroup    @relation(fields:[GroupID],references:[GroupID])
-  Status         String
-  SensorsNumber Int
-  // Connection with AnomalyEvent
-  anomalies      AnomalyEvent[]
-  createdAt         DateTime @default(now())
+  edgeName      String
+  groupName     String
+  status        String
+  createdAt     DateTime       @default(now())
+  GroupRelation EdgeGroup      @relation(fields: [groupName], references: [groupName])
+  reports       AnomalyEvent[]
+
+  @@id([edgeName, groupName])
 }
 
 // AnomalyEvent table
 model AnomalyEvent {
-  ID                  Int      @id @default(autoincrement())
-  EdgeID              String
-  GroupID             String
-  MLMethodUsed        String
-  DatapointsBeforeAnomaly Int[]
-  AnomalyDatapoints   Int[]
-  DatapointsAfterAnomaly Int[]
-  AnomalyDatapointsNo Int
-  // Connections with EdgeGroup and EdgeDevice
-  edgeGroup   EdgeGroup   @relation(fields: [GroupID], references: [GroupID])
-  edgeDevice  EdgeDevice  @relation(fields: [EdgeID], references: [EdgeID])
-  createdAt         DateTime @default(now())
+  anomalyId              Int        @id @default(autoincrement())
+  edgeDeviceEdgeName     String
+  edgeDeviceGroupName    String
+  mLMethodUsed           String
+  datapointsBeforeAnomaly Int[]
+  anomalyDatapoints      Int[]
+  datapointsAfterAnomaly Int[]
+  createdAt              DateTime   @default(now())
+
+  // Define relation to EdgeDevice
+  edgeDevice             EdgeDevice @relation(fields: [edgeDeviceEdgeName, edgeDeviceGroupName], references: [edgeName, groupName])
 }
+
