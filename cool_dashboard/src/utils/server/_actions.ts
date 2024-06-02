@@ -69,3 +69,31 @@ export async function sessionGetter() {
     return { error };
   }
 }
+export async function returnAnomalyEvent(edgeName: string, groupName: string) {
+  try {
+    const anomalyEvent = await prisma.anomalyEvent.findMany({
+      where: {
+        AND: [{ edgeName: edgeName }, { groupName: groupName }],
+      },
+    });
+    return anomalyEvent;
+  } catch (error) {
+    return { error };
+  }
+}
+export async function returnEdgeGroup() {
+  try {
+    const edgeGroup = await prisma.edgeGroup.findMany({});
+    return edgeGroup;
+  } catch (error) {
+    return { error };
+  }
+}
+export async function returnEdgeDevice() {
+  try {
+    const edgeDevice = await prisma.edgeDevice.findMany({});
+    return edgeDevice;
+  } catch (error) {
+    return { error };
+  }
+}

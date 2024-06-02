@@ -142,7 +142,7 @@ class SAND():
         for index_name in range(len(self.clusters)):
             if self.nm_current_weight[index_name] > 0:
                 join = stumpy.stump(
-                    ts, self.pattern_length, self.clusters[index_name][0], ignore_trivial=True)[:, 0]
+                    ts, self.pattern_length, self.clusters[index_name][0], ignore_trivial=False)[:, 0]
                 join = np.array(join)
                 join = np.nan_to_num(join)
                 all_join.append(join)
@@ -183,16 +183,16 @@ class SAND():
 
     # Initialization of the model
 
-    def _initialize(self, training_data):
+    def _initialize(self):
 
         cluster_subseqs, clusters = self._kshape_subsequence(
-            initialization=True, data=training_data)
+            initialization=True)
 
         all_mean_dist = []
         for i, (cluster, cluster_subseq) in enumerate(zip(clusters, cluster_subseqs)):
             self._set_initial_S(cluster_subseq, i, cluster[0])
             all_mean_dist.append(
-                self._compute_mean_dist(cluster[0], cluster[1], time_series=training_data))
+                self._compute_mean_dist(cluster[0], cluster[1]))
 
         self.clusters = clusters
         self.new_clusters_dist = all_mean_dist
@@ -280,21 +280,19 @@ class SAND():
         return dist, None
 
     # Core clustering computation unit
-    def _kshape_subsequence(self, initialization=True, data=[]):
-        print('in kshape subsequence i got values: ' + str(len(data)))
+    def _kshape_subsequence(self, initialization=True):
         all_subsequences = []
         idxs = []
 
         if initialization:
-            for i in range(0, self.init_length, self.overlaping_rate):
-                print('to be appended: ' +
-                      str(data[i:i+self.subsequence_length]))
-                all_subsequences.append(data[i:i+self.subsequence_length])
-                idxs.append(i)
-        """ else:
-            for i in range(0, self.batch_size, self.overlaping_rate):
-                all_subsequences.append(data[i:i+self.subsequence_length])
-                idxs.append(i) """
+            nb_subsequence = self.init_length
+        else:
+            nb_subsequence = self.batch_size
+
+        for i in range(self.current_time, min(self.current_time + nb_subsequence, len(self.ts)-self.subsequence_length), self.overlaping_rate):
+
+            all_subsequences.append(self.ts[i:i+self.subsequence_length])
+            idxs.append(i)
 
         ks = KShape(n_clusters=self.k, verbose=False)
         list_label = ks.fit_predict(np.array(all_subsequences))
@@ -304,7 +302,7 @@ class SAND():
         for lbl, idx in zip(list_label, idxs):
             cluster_idx[lbl].append(idx)
             cluster_subseq[lbl].append(
-                data[idx:idx+self.subsequence_length])
+                self.ts[idx:idx+self.subsequence_length])
 
         # safety check
         new_cluster_subseq = []
@@ -384,13 +382,11 @@ class SAND():
         return np.array([val[0] for val in cluster])
 
     # Compute mean distance of a element in a cluster
-    def _compute_mean_dist(self, cluster, all_index, time_series):
+    def _compute_mean_dist(self, cluster, all_index):
         dist_all = []
-        print('running mean dist')
         for i in all_index:
-            print('running index ' + str(i))
             dist_all.append(
-                self._sbd(time_series[i:i+self.subsequence_length], cluster)[0])
+                self._sbd(self.ts[i:i+self.subsequence_length], cluster)[0])
         return np.mean(dist_all)
 
     def _running_mean(self, x, N):

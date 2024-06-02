@@ -27,7 +27,8 @@ model User {
 model EdgeGroup {
   groupName          String       @id
   infrastructureType String
-  createdAt          DateTime     @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   has                EdgeDevice[]
 }
 
@@ -36,7 +37,8 @@ model EdgeDevice {
   edgeName      String
   groupName     String
   status        String
-  createdAt     DateTime       @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   GroupRelation EdgeGroup      @relation(fields: [groupName], references: [groupName])
   reports       AnomalyEvent[]
 
@@ -46,15 +48,15 @@ model EdgeDevice {
 // AnomalyEvent table
 model AnomalyEvent {
   anomalyId              Int        @id @default(autoincrement())
-  edgeDeviceEdgeName     String
-  edgeDeviceGroupName    String
-  mLMethodUsed           String
-  datapointsBeforeAnomaly Int[]
-  anomalyDatapoints      Int[]
-  datapointsAfterAnomaly Int[]
-  createdAt              DateTime   @default(now())
+  edgeName     String
+  groupName    String
+  datapointsBeforeAnomaly Float[]
+  anomalyDatapoints      Float[]
+  datapointsAfterAnomaly Float[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Define relation to EdgeDevice
-  edgeDevice             EdgeDevice @relation(fields: [edgeDeviceEdgeName, edgeDeviceGroupName], references: [edgeName, groupName])
+  edgeDevice             EdgeDevice @relation(fields: [edgeName, groupName], references: [edgeName, groupName])
 }
 

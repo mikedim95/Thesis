@@ -20,8 +20,12 @@ const mqttInstanse = () => {
 
   const clientConnectString: string =
     process.env.MQTT_CLIENT_CONNECT_STRING || "";
+  const username = process.env.MQTT_USERNAME || "";
+  const password = process.env.MQTT_PASSWORD || "";
   const client = mqtt.connect(clientConnectString, {
     clientId,
+    username,
+    password,
   });
   const topic: string = process.env.MQTT_TOPIC!;
   console.log(clientId, topic);

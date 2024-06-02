@@ -24,13 +24,25 @@ export function MQTTClientSingleton(): Result {
       );
       const clientConnectString = process.env.MQTT_CLIENT_CONNECT_STRING || ""; // Change this to your MQTT broker address
       const clientId = process.env.MQTT_CLIENT || ""; // Change this to your desired client ID
-
+      const username = process.env.MQTT_USERNAME || "";
+      const password = process.env.MQTT_PASSWORD || "";
       const client: mqtt.MqttClient = mqtt.connect(clientConnectString, {
         clientId,
+        username,
+        password,
       });
 
       client.on("connect", () => {
-        console.log("MQTT client connected");
+        console.log(
+          "MQTT client connected to ",
+          clientConnectString,
+          "with clientId",
+          clientId,
+          "and username",
+          username,
+          "and password",
+          password,
+        );
       });
 
       client.on("error", (error) => {
