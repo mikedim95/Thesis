@@ -26,12 +26,12 @@ export default function RootLayout({
     <html lang="en">
       <body suppressHydrationWarning={true}>
         <AuthProvider>
-          <SpeedInsights />
-          <Analytics />
           <div className="dark:bg-boxdark-2 dark:text-bodydark">
             {loading ? <Loader /> : children}
           </div>
         </AuthProvider>
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
