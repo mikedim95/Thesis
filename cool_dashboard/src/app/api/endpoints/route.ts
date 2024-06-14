@@ -6,7 +6,7 @@ type ResponseData = {
   message: string;
 };
 
-export async function GET() {
+/* export async function GET() {
   // This functions instansiates the MQTT Client Singleton
   const { client, firstTime } = MQTTClientSingleton();
   console.log("firstTime:", firstTime);
@@ -25,12 +25,7 @@ export async function GET() {
             },
           });
           console.log(EdgeGroup);
-          /* await prisma.edgeGroup.create({
-            data: {
-              groupName: parsedMessage.groupName,
-              infrastructureType: parsedMessage.infrastructureType,
-            },
-          }); */
+         
         } else if (parsedMessage.type === "EdgeDevice") {
           const { groupName, edgeName, status, infrastructureType } =
             parsedMessage;
@@ -80,7 +75,7 @@ export async function GET() {
   }
 
   // Handle errors
-}
+} */
 export async function POST(request: Request, res: Response) {
   const data = await request.json();
   try {
