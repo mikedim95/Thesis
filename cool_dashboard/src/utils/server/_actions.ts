@@ -4,6 +4,12 @@ import { prisma } from "../../lib/prisma";
 import { hash } from "bcrypt";
 import { getServerSession } from "next-auth/next";
 import { options } from "../../app/api/auth/[...nextauth]/options";
+import {
+  AnomalyEvent as PrismaAnomalyEvent,
+  EdgeDevice as PrismaEdgeDevice,
+  EdgeGroup as PrismaEdgeGroup,
+} from "@prisma/client";
+import { AnomalyEvent } from "@/types/edgeEntities";
 export async function createUser(
   userName: string,
   email: string,
@@ -69,31 +75,81 @@ export async function sessionGetter() {
     return { error };
   }
 }
-export async function returnAnomalyEvent(edgeName: string, groupName: string) {
+// utils/server/_actions.ts
+
+export async function returnAnomalyEvent(
+  edgeName: string,
+  groupName: string,
+  index: number,
+) {
   try {
-    const anomalyEvent = await prisma.anomalyEvent.findMany({
-      where: {
-        AND: [{ edgeName: edgeName }, { groupName: groupName }],
-      },
-    });
+    const anomalyEvent: PrismaAnomalyEvent | null =
+      await prisma.anomalyEvent.findFirst({
+        where: {
+          AND: [{ edgeName }, { groupName }],
+        },
+        skip: index,
+        take: 1,
+      });
+
+    if (!anomalyEvent) {
+      return null;
+    }
+
     return anomalyEvent;
   } catch (error) {
-    return { error };
+    return null;
   }
 }
-export async function returnEdgeGroup() {
-  try {
-    const edgeGroup = await prisma.edgeGroup.findMany({});
-    return edgeGroup;
-  } catch (error) {
-    return { error };
-  }
-}
+
 export async function returnEdgeDevice() {
   try {
-    const edgeDevice = await prisma.edgeDevice.findMany({});
-    return edgeDevice;
+    const edgeDevices: PrismaEdgeDevice[] = await prisma.edgeDevice.findMany(
+      {},
+    );
+    return edgeDevices;
   } catch (error) {
-    return { error };
+    return { error: `Error fetching edge devices: ${error}` };
   }
+}
+
+export async function returnEdgeGroup() {
+  try {
+    const edgeGroups: PrismaEdgeGroup[] = await prisma.edgeGroup.findMany({});
+    return edgeGroups;
+  } catch (error) {
+    return { error: `Error fetching edge groups: ${error}` };
+  }
+}
+
+export async function returnReportsPopulation(
+  edgeName: string,
+  groupName: string,
+) {
+  try {
+    const reportCount: number = await prisma.anomalyEvent.count({
+      where: {
+        edgeName: edgeName,
+        groupName: groupName,
+      },
+    });
+    console.log(`from server action Device: ${edgeName}`);
+    console.log(`Number of reports: ${reportCount}`);
+    return reportCount;
+  } catch (error) {
+    console.error("Error counting reports:", error);
+    return -1;
+  }
+}
+export async function findMax(arr: number[]) {
+  if (arr.length === 0) {
+    throw new Error("Array is empty");
+  }
+  return Math.max(...arr);
+}
+export async function findMin(arr: number[]) {
+  if (arr.length === 0) {
+    throw new Error("Array is empty");
+  }
+  return Math.min(...arr);
 }

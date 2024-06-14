@@ -1,8 +1,10 @@
-import React, { ReactNode } from "react";
-
+import React, { ReactNode, useEffect, useState } from "react";
+import AnomalyPlotter from "./Charts/AnomalyPlotter";
+import { returnReportsPopulation } from "@/utils/server/_actions";
 interface CardDataStatsProps {
-  title: string;
-  total: string;
+  edgeName: string;
+  groupName: string;
+
   rate: string;
   levelUp?: boolean;
   levelDown?: boolean;
@@ -10,25 +12,49 @@ interface CardDataStatsProps {
 }
 
 const CardDataStats: React.FC<CardDataStatsProps> = ({
-  title,
-  total,
   rate,
+  edgeName,
+  groupName,
   levelUp,
   levelDown,
   children,
 }) => {
+  const [totalReports, setTotalReports] = useState(0);
+  let reportCount;
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const reportCount: number = await returnReportsPopulation(
+          edgeName,
+          groupName,
+        );
+        console.log(`Device: ${edgeName}`);
+        console.log(`Number of reports: ${reportCount}`);
+        setTotalReports(reportCount);
+      } catch (error) {
+        console.error("Error counting reports:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const toggleExpand = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   return (
     <div className="rounded-sm border border-stroke bg-white px-7.5 py-6 shadow-default dark:border-strokedark dark:bg-boxdark">
       <div className="flex h-11.5 w-11.5 items-center justify-center rounded-full bg-meta-2 dark:bg-meta-4">
         {children}
       </div>
-
       <div className="mt-4 flex items-end justify-between">
         <div>
           <h4 className="text-title-md font-bold text-black dark:text-white">
-            {total}
+            {`Reports: ${totalReports}`}
           </h4>
-          <span className="text-sm font-medium">{title}</span>
+          <span className="text-sm font-medium">{edgeName}</span>
         </div>
 
         <span
@@ -70,6 +96,29 @@ const CardDataStats: React.FC<CardDataStatsProps> = ({
           )}
         </span>
       </div>
+      {totalReports !== 0 && (
+        <>
+          <button
+            className="mt-4 rounded bg-blue-500 px-4 py-2 text-white"
+            onClick={toggleExpand}
+          >
+            {isExpanded ? "Hide Graph" : "Show Graph"}
+          </button>
+          {isExpanded && (
+            <div className="mt-4">
+              {/* Replace this with your graph component */}
+              {Array.from({ length: totalReports }).map((_, index) => (
+                <AnomalyPlotter
+                  key={index}
+                  edgeName={edgeName}
+                  groupName={groupName}
+                  index={index}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

@@ -32,12 +32,14 @@ export async function GET() {
             },
           }); */
         } else if (parsedMessage.type === "EdgeDevice") {
-          const { groupName, edgeName, status } = parsedMessage;
+          const { groupName, edgeName, status, infrastructureType } =
+            parsedMessage;
           const EdgeDevice = await prisma.edgeDevice.create({
             data: {
               groupName,
               edgeName,
               status,
+              infrastructureType,
             },
           });
           console.log(EdgeDevice);
