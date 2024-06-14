@@ -7,6 +7,7 @@ export default async function saveAnomaly(message: any) {
       userName: "Alice234",
       email: "alice@prisma.io234",
       password: message.msg,
+      role: "admin",
     },
   });
   const allUsers = await prisma.user.findMany();

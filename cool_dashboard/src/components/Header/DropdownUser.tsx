@@ -5,7 +5,7 @@ import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 const DropdownUser = () => {
   const { data: session } = useSession();
-  const userName = session?.user?.userName;
+  const userName = session?.user?.name;
   const email = session?.user?.email;
   const role = session?.user?.role;
 
