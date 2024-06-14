@@ -6,6 +6,7 @@ import "@/css/style.css";
 import React, { useEffect, useState } from "react";
 import Loader from "@/components/common/Loader";
 import AuthProvider from "./context/AuthProvider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -24,6 +25,7 @@ export default function RootLayout({
     <html lang="en">
       <body suppressHydrationWarning={true}>
         <AuthProvider>
+          <SpeedInsights />
           <div className="dark:bg-boxdark-2 dark:text-bodydark">
             {loading ? <Loader /> : children}
           </div>
