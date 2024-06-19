@@ -26,6 +26,7 @@ export function MQTTClientSingleton(): Result {
       const clientId = process.env.MQTT_CLIENT || ""; // Change this to your desired client ID
       const username = process.env.MQTT_USERNAME || "";
       const password = process.env.MQTT_PASSWORD || "";
+      console.log("clientId:", clientId);
       const client: mqtt.MqttClient = mqtt.connect(clientConnectString, {
         clientId,
         username,
