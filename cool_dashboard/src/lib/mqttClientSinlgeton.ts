@@ -22,9 +22,9 @@ export function MQTTClientSingleton(): Result {
         "globalForMQTTClient.client try:",
         globalForMQTTClient.client == undefined,
       );
-      const clientConnectString = process.env.MQTT_CLIENT_CONNECT_STRING || ""; // Change this to your MQTT broker address
+      const clientConnectString = "mqtt://broker.emqx.io:1883"; // Change this to your MQTT broker address
       const clientId = process.env.MQTT_CLIENT || ""; // Change this to your desired client ID
-      const username = process.env.MQTT_USERNAME || "";
+      const username = "a";
       const password = process.env.MQTT_PASSWORD || "";
       console.log("clientId:", clientId);
       console.log("clientConnectString:", clientConnectString);
