@@ -6,7 +6,7 @@ type ResponseData = {
   message: string;
 };
 
-/* export async function GET() {
+export async function GET() {
   // This functions instansiates the MQTT Client Singleton
   const { client, firstTime } = MQTTClientSingleton();
   console.log("firstTime:", firstTime);
@@ -25,7 +25,6 @@ type ResponseData = {
             },
           });
           console.log(EdgeGroup);
-         
         } else if (parsedMessage.type === "EdgeDevice") {
           const { groupName, edgeName, status, infrastructureType } =
             parsedMessage;
@@ -75,7 +74,7 @@ type ResponseData = {
   }
 
   // Handle errors
-} */
+}
 export async function POST(request: Request, res: Response) {
   const data = await request.json();
   try {
