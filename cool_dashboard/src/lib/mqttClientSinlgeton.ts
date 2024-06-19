@@ -27,12 +27,15 @@ export function MQTTClientSingleton(): Result {
       const username = process.env.MQTT_USERNAME || "";
       const password = process.env.MQTT_PASSWORD || "";
       console.log("clientId:", clientId);
+      console.log("clientConnectString:", clientConnectString);
+      console.log("username:", username);
+      console.log("password:", password);
       const client: mqtt.MqttClient = mqtt.connect(clientConnectString, {
         clientId,
         username,
         password,
       });
-
+      console.log("client:", client);
       client.on("connect", () => {
         console.log(
           "MQTT client connected to ",
@@ -45,7 +48,6 @@ export function MQTTClientSingleton(): Result {
           password,
         );
       });
-
       client.on("error", (error) => {
         console.error("MQTT connection error:", error);
       });
@@ -54,6 +56,7 @@ export function MQTTClientSingleton(): Result {
         console.log("MQTT client connection closed");
       });
       client.subscribe(topic, (err) => {
+        console.log("Subscribing to topic:", topic);
         if (err) {
           console.error("Error subscribing to topic:", err);
           return {
