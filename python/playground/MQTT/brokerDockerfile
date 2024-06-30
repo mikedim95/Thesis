@@ -1,0 +1,15 @@
+FROM arm64v8/python:3.13.0b2-bookworm
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the broker script into the container at /app
+COPY broker.py /app
+
+# Install mqttools
+RUN pip install RPi.GPIO mqttools
+
+EXPOSE 1883
+
+# Command to run the broker script
+CMD ["python", "broker.py"]

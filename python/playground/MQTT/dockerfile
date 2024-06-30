@@ -1,0 +1,16 @@
+
+
+FROM arm64v8/python:3.13.0b2-bookworm
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the broker script into the container at /app
+COPY blink_led.py /app
+
+# Install mqttools
+RUN pip install RPi.GPIO
+
+
+# Command to run the broker script
+CMD ["python", "blink_led.py"]

@@ -1,0 +1,18 @@
+services:
+  broker:
+    build:
+      context: .
+      dockerfile: brokerDockerfile
+    image: broker-image
+    ports:
+      - "1883:1883"
+  subscriber:
+    build:
+      context: .
+      dockerfile: subscriberDockerfile
+    image: subscriber-image
+  publisher:
+    build:
+      context: .
+      dockerfile: publisherDockerfile
+    image: publisher-image
