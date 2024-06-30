@@ -11,7 +11,7 @@ interface AnomalyPlotterInterface {
   index: number;
 }
 
-const datapointPlotter: React.FC<AnomalyPlotterInterface> = ({
+const DatapointPlotter: React.FC<AnomalyPlotterInterface> = ({
   edgeName,
   groupName,
   index,
@@ -24,9 +24,9 @@ const datapointPlotter: React.FC<AnomalyPlotterInterface> = ({
       data: [],
     },
   ]);
+  const [indicators, setIndicators] = useState([]);
   let max;
   let min;
-  let anomalyDatapoints: number[] = [];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,6 +36,7 @@ const datapointPlotter: React.FC<AnomalyPlotterInterface> = ({
           groupName,
           index,
         );
+        setIndicators((anomalyEvent?.indicators as never[]) || []);
         console.log("anomalyEventDatapoint", anomalyEvent);
         setAnomalyEvent(anomalyEvent);
         if (anomalyEvent) {
@@ -57,6 +58,28 @@ const datapointPlotter: React.FC<AnomalyPlotterInterface> = ({
 
     fetchData();
   }, [edgeName, groupName, index]);
+  const getHighlightAreas = (indicators: number[]) => {
+    const areas = [];
+    let start = -1;
+    for (let i = 0; i < indicators.length; i++) {
+      if (indicators[i] === 1 && start === -1) {
+        start = i;
+      } else if (indicators[i] === 0 && start !== -1) {
+        areas.push({ x: start, x2: i - 1, label: `Area ${areas.length + 1}` });
+        start = -1;
+      }
+    }
+    if (start !== -1) {
+      areas.push({
+        x: start,
+        x2: indicators.length - 1,
+        label: `Area ${areas.length + 1}`,
+      });
+    }
+    return areas;
+  };
+
+  const highlightAreas = getHighlightAreas(indicators);
 
   const [anomalyEvent, setAnomalyEvent] = useState<AnomalyEvent | null>(null);
   const options: ApexOptions = {
@@ -125,7 +148,21 @@ const datapointPlotter: React.FC<AnomalyPlotterInterface> = ({
     dataLabels: {
       enabled: false,
     },
-
+    annotations: {
+      xaxis: highlightAreas.map((area) => ({
+        x: area.x,
+        x2: area.x2,
+        fillColor: "#FF0000", // Red fill color
+        opacity: 0.2,
+        label: {
+          text: area.label,
+          style: {
+            background: "#FF0000",
+            color: "#777",
+          },
+        },
+      })),
+    },
     xaxis: {
       type: "numeric",
 
@@ -189,4 +226,4 @@ const datapointPlotter: React.FC<AnomalyPlotterInterface> = ({
   );
 };
 
-export default datapointPlotter;
+export default DatapointPlotter;

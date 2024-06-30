@@ -89,12 +89,14 @@ const AnomalyScorePlotter: React.FC<AnomalyPlotterInterface> = ({
       yaxis: [
         {
           y: thresholdValue,
-          borderColor: "red",
+          borderColor: "orange",
+
+          fillColor: "#FF0000", // Red fill color
+          opacity: 0.2,
           label: {
-            borderColor: "red",
             style: {
-              color: "#fff",
-              background: "red",
+              background: "#FF0000",
+              color: "#777",
             },
             text: `Threshold: ${thresholdValue}`,
           },

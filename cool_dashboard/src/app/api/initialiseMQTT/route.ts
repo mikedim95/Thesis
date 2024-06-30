@@ -8,7 +8,7 @@ type ResponseData = {
 
 export async function GET() {
   // This functions instansiates the MQTT Client Singleton
-  const { client, firstTime } = MQTTClientSingleton();
+  /*  const { client, firstTime } = MQTTClientSingleton();
 
   console.log("firstTime:", firstTime);
   if (client && firstTime) {
@@ -66,6 +66,9 @@ export async function GET() {
       message: "MQTT Client exists already",
     });
   }
-
+ */
   // Handle errors
+  return NextResponse.json({
+    message: "test purposes only",
+  });
 }
