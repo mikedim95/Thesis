@@ -48,12 +48,14 @@ model EdgeDevice {
 
 // AnomalyEvent table
 model AnomalyEvent {
-  anomalyId              Int        @id @default(autoincrement())
-  edgeName     String
-  groupName    String
-  datapointsBeforeAnomaly Float[]
-  anomalyDatapoints      Float[]
-  datapointsAfterAnomaly Float[]
+  anomalyId Int        @id @default(autoincrement())
+  edgeName  String
+  groupName String
+  values    Float[]
+  anomalyScores Float[]
+  elapsedTime Float
+  threshold Float
+  indicators Int[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

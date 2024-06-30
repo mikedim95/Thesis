@@ -1,16 +1,18 @@
 import { prisma } from "@/lib/prisma";
 
-export default async function saveAnomaly(message: any) {
-  console.log(message.msg);
-  await prisma.user.create({
+export default async function reportAnomaly(anomalyData: any) {
+  console.log("from server action reportAnomaly;", anomalyData);
+  const anomalyReport = await prisma.anomalyEvent.create({
     data: {
-      userName: "Alice234",
-      email: "alice@prisma.io234",
-      password: message.msg,
-      role: "admin",
+      edgeName: "agent1",
+      groupName: "test2Group",
+      values: anomalyData.values,
+      anomalyScores: anomalyData.anomalyScores,
+      elapsedTime: anomalyData.elapsedTime,
+      threshold: anomalyData.threshold,
+      indicators: anomalyData.indicators,
     },
   });
-  const allUsers = await prisma.user.findMany();
   /*   console.log(allUsers); */
-  return allUsers;
+  return anomalyReport;
 }

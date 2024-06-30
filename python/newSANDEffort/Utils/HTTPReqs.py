@@ -1,10 +1,10 @@
 import json
 import numpy as np
 import requests
-url = 'http://localhost:3000/endpoints'
+url = 'http://localhost:3000/api/reportAnomaly'
 
 
-def report_to_system(new_batch, score, elapsed_time):
+def report_to_system(newBatch, score, elapsedTime):
     threshold = np.mean(score) + 3 * np.std(score)
     print("threshold:", threshold)
 
@@ -14,19 +14,14 @@ def report_to_system(new_batch, score, elapsed_time):
 
     # Create JSON object
     json_output = {
-        "values": new_batch.tolist(),
-        "isAnomaly": binary_indicators.tolist()
+        "values": newBatch.tolist(),
+        "anomalyScores": score.tolist(),
+        "indicators": binary_indicators.tolist(),
+        "elapsedTime": elapsedTime,
+        "threshold": threshold
     }
-    json_string = json.dumps(json_output)
-    print("JSON output:", json_string)
-
-    payload = {
-        'newBatch': newBatch,
-        'label': label
-    }
-
     try:
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=json_output)
         response.raise_for_status()  # Raise an exception for HTTP errors
         print('POST request successful.', response.json())
 

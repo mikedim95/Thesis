@@ -64,16 +64,16 @@ def TrainTheModelInitially(trainData, label):
         trainData, label, score, slidingWindow, fileName='title', modelName='modelName')
 
     end_time = time.time()
-    elapsed_time = end_time - start_time
+    elapsedTime = end_time - start_time
     print(f"fileName:{'title'}, AUC:{AUC}, R_AUC:{R_AUC}, Precision:{Precision}, Recall:{Recall}, F:{F}, ExistenceReward:{ExistenceReward}, OverlapReward:{OverlapReward}, AP:{AP}, R_AP:{R_AP}, Precisionk:{
-          Precisionk}, R_precision:{Rprecision}, R_recall:{Rrecall}, R_f:{Rf}, tn_count:{tn_count}, fn_count:{fn_count}, fp_count:{fp_count}, tp_count:{tp_count}, elapsed_time:{elapsed_time} seconds")
+          Precisionk}, R_precision:{Rprecision}, R_recall:{Rrecall}, R_f:{Rf}, tn_count:{tn_count}, fn_count:{fn_count}, fp_count:{fp_count}, tp_count:{tp_count}, elapsedTime:{elapsedTime} seconds")
     return clf, tn_count
 
 
-def update_model_with_new_batch(clf, new_batch, label):
+def update_model_with_newBatch(clf, newBatch, label):
     start_time = time.time()
-    clf.ts = new_batch
-    clf.batch_size = len(new_batch)
+    clf.ts = newBatch
+    clf.batch_size = len(newBatch)
     clf.current_time = 0
     while clf.current_time < len(clf.ts) - clf.subsequence_length:
         print(clf.current_time, end='-->')
@@ -95,13 +95,13 @@ def update_model_with_new_batch(clf, new_batch, label):
         score.reshape(-1, 1)).ravel()
 
     AUC, R_AUC, Precision, Recall, F, ExistenceReward, OverlapReward, AP, R_AP, Precisionk, Rprecision, Rrecall, Rf, tn_count, fn_count, fp_count, tp_count = plotFig(
-        new_batch, label, score, clf.slidingWindow, fileName='title', modelName='modelName')
+        newBatch, label, score, clf.slidingWindow, fileName='title', modelName='modelName')
 
     save_model_state(clf)  # Save model state after processing the batch
 
     end_time = time.time()
-    elapsed_time = end_time - start_time
-    report_to_system(new_batch, score, elapsed_time)
+    elapsedTime = end_time - start_time
+    report_to_system(newBatch, score, elapsedTime)
     return clf.decision_scores_
 
 
@@ -133,9 +133,9 @@ def evaluateBatch():
         return jsonify({"error": "No JSON received"}), 400
 
     # Extract specific key-value pairs from the received data
-    new_batch = data.get('newBatch')
+    newBatch = data.get('newBatch')
     label = data.get('label')
-    new_batch = np.array(new_batch)
+    newBatch = np.array(newBatch)
     label = np.array(label)
 
     clf = model_state.get('clf')
@@ -144,7 +144,7 @@ def evaluateBatch():
         if clf is None:
             return jsonify({"error": "Model not initialized"}), 400
 
-    decision_scores = update_model_with_new_batch(clf, new_batch, label)
+    decision_scores = update_model_with_newBatch(clf, newBatch, label)
     model_state['clf'] = clf
 
     return jsonify({"decision_scores": decision_scores.tolist()})

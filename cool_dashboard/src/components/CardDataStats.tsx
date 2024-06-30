@@ -1,5 +1,6 @@
 import React, { ReactNode, useEffect, useState } from "react";
-import AnomalyPlotter from "./Charts/AnomalyPlotter";
+import DatapointPlotter from "./Charts/DatapointPlotter";
+import AnomalyScorePlotter from "./Charts/AnomalyScorePlotter";
 import { returnReportsPopulation } from "@/utils/server/_actions";
 interface CardDataStatsProps {
   edgeName: string;
@@ -108,12 +109,18 @@ const CardDataStats: React.FC<CardDataStatsProps> = ({
             <div className="mt-4">
               {/* Replace this with your graph component */}
               {Array.from({ length: totalReports }).map((_, index) => (
-                <AnomalyPlotter
-                  key={index}
-                  edgeName={edgeName}
-                  groupName={groupName}
-                  index={index}
-                />
+                <React.Fragment key={index}>
+                  <DatapointPlotter
+                    edgeName={edgeName}
+                    groupName={groupName}
+                    index={index}
+                  />
+                  <AnomalyScorePlotter
+                    edgeName={edgeName}
+                    groupName={groupName}
+                    index={index}
+                  />
+                </React.Fragment>
               ))}
             </div>
           )}
