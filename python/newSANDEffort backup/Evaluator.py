@@ -6,27 +6,28 @@ import numpy as np
 import time
 import sys
 # Replace with your Flask endpoint URL
-url = 'http://main:5000/train'
+url = 'http://localhost:5000/evaluateBatch'
 
 # Get the current directory
 current_directory = os.path.dirname(__file__)
 file_path = os.path.join(current_directory, 'data.txt')
 
 
-def send_training_data():
+def send_data():
+
     # Example data (replace with your actual data)
     with open(file_path, 'r') as f:
         df = pd.read_csv(f, header=None).dropna().to_numpy()
-        trainData = df[:5000, 0].astype(float)
-        label = df[:5000, 1].astype(int)
+        newBatch = df[15000:20000, 0].astype(float)
+        label = df[15000:20000, 1].astype(int)
 
     # Convert numpy arrays to Python lists
-    trainData = trainData.tolist()
+    newBatch = newBatch.tolist()
     label = label.tolist()
 
     # Create JSON payload
     payload = {
-        'trainData': trainData,
+        'newBatch': newBatch,
         'label': label
     }
 
@@ -34,14 +35,14 @@ def send_training_data():
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()  # Raise an exception for HTTP errors
-        print('successfullyTrained: ',
-              response.json().get('successfullyTrained'))
+        print('The model reported to the system ', response.json().get(
+            'decision_scores'), ' anomaly scores')
+        print('The system identified the report with Id:  ', response.json().get(
+            'anomalyId'))
         print("Goodbye!")
         sys.exit(0)
-        return True
     except requests.exceptions.RequestException as e:
         print('POST request failed:', e)
-        return False
 
 # Repeat mechanism
 
@@ -49,15 +50,12 @@ def send_training_data():
 def main_loop(interval=60, iterations=10):
     print("Warming up...")
     time.sleep(5)  # Pauses the program for 5 seconds
-    print("Sending training data for training.")
+    print("Sending 5000 sensor datapoints for evaluation.")
     for i in range(iterations):
         print(f"{i + 1} try of total {iterations} tries")
-        if send_training_data():
-            break
+        send_data()
         # Wait for the specified interval before next iteration
         time.sleep(interval)
-    else:
-        print("Failed to send training data after multiple attempts.")
 
 
 # Start the main loop

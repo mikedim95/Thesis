@@ -22,14 +22,14 @@ model_state = {
 def save_model_state(clf, filename='model_checkpoint.pkl'):
     with open(filename, 'wb') as file:
         pickle.dump(clf, file)
-    print(f"Model state saved as {filename}")
+    print(f"Model state saved to {filename}")
 
 
 def load_model_state(filename='model_checkpoint.pkl'):
     try:
         with open(filename, 'rb') as file:
             clf = pickle.load(file)
-
+        print(f"Model state loaded from {filename}")
         return clf
     except FileNotFoundError:
         print(f"No checkpoint file found at {filename}. Starting fresh.")
@@ -38,8 +38,7 @@ def load_model_state(filename='model_checkpoint.pkl'):
 
 def TrainTheModelInitially(trainData, label):
     start_time = time.time()
-    print('Training model from scratch with ',
-          len(trainData), ' data points...')
+
     slidingWindow = find_length(trainData)
 
     clf = SAND(pattern_length=slidingWindow,
@@ -50,10 +49,13 @@ def TrainTheModelInitially(trainData, label):
     clf.alpha = 0.5
     clf.init_length = len(trainData)
     clf.batch_size = 2000
+    print(clf.current_time, end='-->')
     clf._initialize()
     clf._set_normal_model()
     clf.decision_scores_ = clf._run(clf.ts)
-    print("Done analysing data...")
+    print("clf.decision_scores_ length:", len(clf.decision_scores_))
+    print("[STOP]: score length {}".format(
+        len(clf.decision_scores_)))
     clf.decision_scores_ = np.array(clf.decision_scores_)
     score = clf.decision_scores_
     score = MinMaxScaler(feature_range=(0, 1)).fit_transform(
@@ -63,7 +65,7 @@ def TrainTheModelInitially(trainData, label):
 
     end_time = time.time()
     elapsedTime = end_time - start_time
-    return clf
+    return clf, tn_count
 
 
 def update_model_with_newBatch(clf, newBatch, label):
@@ -72,7 +74,7 @@ def update_model_with_newBatch(clf, newBatch, label):
     clf.batch_size = len(newBatch)
     clf.current_time = 0
     while clf.current_time < len(clf.ts) - clf.subsequence_length:
-        print('Analysing data...')
+        print(clf.current_time, end='-->')
         clf._run_next_batch()
         clf._set_normal_model()
         if clf.current_time < len(clf.ts) - clf.subsequence_length:
@@ -84,7 +86,7 @@ def update_model_with_newBatch(clf, newBatch, label):
             clf.decision_scores_ += clf._run(
                 clf.ts[clf.current_time - clf.batch_size:]
             )
-    print("Done analysing data...")
+    print("[STOP]: score length {}".format(len(clf.decision_scores_)))
     clf.decision_scores_ = np.array(clf.decision_scores_)
     score = clf.decision_scores_
     score = MinMaxScaler(feature_range=(0, 1)).fit_transform(
@@ -97,8 +99,8 @@ def update_model_with_newBatch(clf, newBatch, label):
 
     end_time = time.time()
     elapsedTime = end_time - start_time
-    anomalyId = report_to_system(newBatch, score, elapsedTime)
-    return anomalyId
+    report_to_system(newBatch, score, elapsedTime)
+    return clf.decision_scores_
 
 
 @app.route('/train', methods=['POST'])
@@ -113,16 +115,13 @@ def train():
     trainData = np.array(trainData)
     label = np.array(label)
 
-    clf = TrainTheModelInitially(trainData, label)
+    clf, tn_count = TrainTheModelInitially(trainData, label)
     model_state['clf'] = clf
     model_state['slidingWindow'] = find_length(trainData)
     save_model_state(clf)
 
-    clf = load_model_state()  # Load model state if exists
-    if clf:
-        return jsonify({"successfullyTrained": True})
-    else:
-        return jsonify({"successfullyTrained": False})
+    print("tn_count:", tn_count)
+    return jsonify({"tn_count": int(tn_count)})
 
 
 @app.route('/evaluateBatch', methods=['POST'])
@@ -142,17 +141,16 @@ def evaluateBatch():
         clf = load_model_state()
         if clf is None:
             return jsonify({"error": "Model not initialized"}), 400
-        print(f"Model state loaded from checkpoint")
-    anomalyId = update_model_with_newBatch(clf, newBatch, label)
+
+    decision_scores = update_model_with_newBatch(clf, newBatch, label)
     model_state['clf'] = clf
 
-    return jsonify({"decision_scores": len(clf.decision_scores_), "anomalyId": anomalyId})
+    return jsonify({"decision_scores": decision_scores.tolist()})
 
 
 if __name__ == '__main__':
     clf = load_model_state()  # Load model state if exists
     if clf:
-        print(f"Model state loaded from checkpoint")
         model_state['clf'] = clf
         # Assuming this is correct
         model_state['slidingWindow'] = clf.pattern_length

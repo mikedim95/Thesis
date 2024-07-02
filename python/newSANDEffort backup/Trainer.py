@@ -6,7 +6,7 @@ import numpy as np
 import time
 import sys
 # Replace with your Flask endpoint URL
-url = 'http://main:5000/train'
+url = 'http://localhost:5000/train'
 
 # Get the current directory
 current_directory = os.path.dirname(__file__)

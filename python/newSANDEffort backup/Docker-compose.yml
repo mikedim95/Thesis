@@ -1,0 +1,49 @@
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile.main
+    networks:
+      - app-network
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    networks:
+      - app-network
+    depends_on:
+      main:
+        condition: service_healthy
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile.evaluator
+    networks:
+      - app-network
+    depends_on:
+      trainer:
+        condition: service_healthy
+      main:
+        condition: service_healthy

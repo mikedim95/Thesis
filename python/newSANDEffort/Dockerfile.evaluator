@@ -1,0 +1,9 @@
+# Dockerfile.Evaluator
+FROM python:3.12.4-slim
+
+WORKDIR /app
+
+
+COPY Evaluator.py data.txt smallRequirements.txt ./
+RUN pip install -r smallRequirements.txt
+CMD ["python", "-u", "Evaluator.py"]

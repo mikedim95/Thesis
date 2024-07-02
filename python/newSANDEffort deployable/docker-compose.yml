@@ -1,0 +1,44 @@
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile.main
+    ports:
+      - "5000:5000"
+    volumes:
+      - model_data:/app/model_data
+    networks:
+      - custom_network
+
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    depends_on:
+      - main
+    volumes:
+      - model_data:/app/model_data
+      - shared:/app/shared
+    networks:
+      - custom_network
+
+  evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile.evaluator
+    depends_on:
+      - main
+      - trainer
+    volumes:
+      - model_data:/app/model_data
+      - shared:/app/shared
+    networks:
+      - custom_network
+
+networks:
+  custom_network:
+    driver: bridge
+
+volumes:
+  model_data:
+  shared:

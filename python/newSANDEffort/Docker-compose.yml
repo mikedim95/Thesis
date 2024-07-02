@@ -1,0 +1,30 @@
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile.main
+    image: mikedim95/anomaly_detection:main
+    networks:
+      - app-network
+    ports:
+      - "5000:5000"
+
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    image: mikedim95/anomaly_detection:trainer
+    networks:
+      - app-network
+
+  evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile.evaluator
+    image: mikedim95/anomaly_detection:evaluator
+    networks:
+      - app-network

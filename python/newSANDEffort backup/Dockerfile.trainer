@@ -1,0 +1,17 @@
+# Dockerfile.trainer
+FROM python:3.12.4-slim
+
+WORKDIR /app
+
+# Copy necessary files
+COPY Trainer.py /app/
+COPY data.txt /app/
+
+# Install dependencies
+RUN pip install pandas numpy requests flask
+
+# Expose the port for health check
+EXPOSE 5001
+
+# Run the trainer
+CMD ["python", "Trainer.py"]
