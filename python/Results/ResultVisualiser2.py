@@ -6,12 +6,7 @@ import os
 
 def parse_metrics(file_path):
     metrics = {
-        'AUC': [],
-        'Precision': [],
-        'Recall': [],
-        'F1': [],
-        'AP': [],
-        'ElapsedTime': []
+        'Precision': []
     }
     with open(file_path, 'r') as file:
         for line in file:
@@ -22,12 +17,7 @@ def parse_metrics(file_path):
                 r'tn_count:[\d\.]+, fn_count:[\d\.]+, fp_count:[\d\.]+, tp_count:[\d\.]+, '
                 r'elapsed_time:([\d\.]+)', line)
             if match:
-                metrics['AUC'].append(float(match.group(1)))
                 metrics['Precision'].append(float(match.group(2)))
-                metrics['Recall'].append(float(match.group(3)))
-                metrics['F1'].append(float(match.group(4)))
-                metrics['tn_count'].append(int(match.group(5)))
-                metrics['ElapsedTime'].append(float(match.group(6)))
     return metrics
 
 
@@ -46,34 +36,28 @@ def main():
         print("No valid result files found.")
         return
 
-    metrics_to_plot = ['AUC', 'Precision', 'Recall', 'F1', 'AP', 'ElapsedTime']
+    metrics_to_plot = ['Precision']
     num_metrics = len(metrics_to_plot)
 
-    fig, axes = plt.subplots(num_metrics, 2, figsize=(16, 8 * num_metrics))
+    # Handle the case where num_metrics is 1
+    fig, axes = plt.subplots(num_metrics, 1, figsize=(16, 8 * num_metrics))
+    if num_metrics == 1:
+        axes = [axes]  # Convert single Axes to list for uniformity
 
     for i, metric in enumerate(metrics_to_plot):
-        # Donut chart
-        total_values = {algo: sum(metrics[metric])
-                        for algo, metrics in all_metrics.items()}
-        labels = total_values.keys()
-        sizes = total_values.values()
-        explode = [0.1 if i == 0 else 0 for i in range(
-            len(labels))]  # explode the first slice
-
-        axes[i, 0].pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
-                       shadow=True, startangle=140, wedgeprops=dict(width=0.3))
-        axes[i, 0].set_title(f'Total {metric} for Each Algorithm')
-
         # Histogram with density plot for metric distribution
         for algo, metrics in all_metrics.items():
             sns.histplot(metrics[metric], kde=True,
-                         ax=axes[i, 1], label=algo, element="step")
+                         ax=axes[i], label=algo, element="step")
 
-        axes[i, 1].set_title(f'Distribution of {metric}')
-        axes[i, 1].set_xlabel(metric)
-        axes[i, 1].set_ylabel('Frequency')
-        axes[i, 1].legend(title='Algorithm', loc='upper left',
-                          bbox_to_anchor=(1, 1))
+        axes[i].set_title(f'Distribution of {metric}')
+        axes[i].set_xlabel(metric)
+        axes[i].set_ylabel('Frequency')
+        axes[i].legend(title='Algorithm', loc='upper left',
+                       bbox_to_anchor=(1, 1))
+
+        # Set y-axis to logarithmic scale
+        axes[i].set_yscale('log')
 
     # Adjust layout and add padding
     plt.tight_layout(pad=4.0)

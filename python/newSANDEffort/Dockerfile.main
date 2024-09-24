@@ -1,14 +1,31 @@
-# Dockerfile.main
-FROM python:3.12.4-slim
+FROM arm64v8/python:3.12.4-bookworm
 
+# Set the working directory in the container
 WORKDIR /app
 
+# Install system dependencies required for building and running Python packages
+RUN apt-get update && apt-get install -y \
+    libhdf5-dev \
+    python3-dev \
+    build-essential \
+    libatlas-base-dev \
+    gfortran \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the requirements file into the container
 COPY requirements.txt requirements.txt
+
+# Install the Python dependencies specified in the requirements file
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
+# Copy the application code into the container
 COPY main.py data.txt ./ 
 COPY Utils/ ./Utils
 
+# Expose the port the application will run on
 EXPOSE 5000
 
+# Set the command to run the application
 CMD ["python", "-u", "main.py"]
