@@ -1,0 +1,31 @@
+dataset_name,best_algorithm,best_algorithm_base_display,best_algorithm_superfamily,best_algorithm_category,best_algorithm_display,best_algorithm_variant,best_f1
+024_UCR_Anomaly_DISTORTEDInternalBleeding10_3200_4526_4556,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.5740740740740741
+025_UCR_Anomaly_DISTORTEDInternalBleeding14_2800_5607_5634,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.3146067415730337
+026_UCR_Anomaly_DISTORTEDInternalBleeding15_1700_5684_5854,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.7868852459016393
+027_UCR_Anomaly_DISTORTEDInternalBleeding16_1200_4187_4199,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.0
+028_UCR_Anomaly_DISTORTEDInternalBleeding17_1600_3198_3309,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.7441860465116279
+029_UCR_Anomaly_DISTORTEDInternalBleeding18_2300_4485_4587,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.4092664092664093
+030_UCR_Anomaly_DISTORTEDInternalBleeding19_3000_4187_4197,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.19298245614035087
+031_UCR_Anomaly_DISTORTEDInternalBleeding20_2700_5759_5919,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9005847953216374
+032_UCR_Anomaly_DISTORTEDInternalBleeding4_1000_4675_5033,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,0.7513043478260869
+033_UCR_Anomaly_DISTORTEDInternalBleeding5_4000_6200_6370,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.7522388059701492
+035_UCR_Anomaly_DISTORTEDInternalBleeding8_2500_5865_5974,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.0
+036_UCR_Anomaly_DISTORTEDInternalBleeding9_4200_6599_6681,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.0
+053_UCR_Anomaly_DISTORTEDWalkingAceleration1_1500_2764_2995,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,0.2747603833865815
+054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,hbos,HBOS,Density-based,Distribution,HBOS | Baseline,Baseline,0.6818181818181818
+098_UCR_Anomaly_NOISEInternalBleeding16_1200_4187_4199,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.16883116883116883
+132_UCR_Anomaly_InternalBleeding10_3200_4526_4556,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,0.43661971830985913
+133_UCR_Anomaly_InternalBleeding14_2800_5607_5634,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.417910447761194
+134_UCR_Anomaly_InternalBleeding15_1700_5684_5854,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.8327645051194539
+135_UCR_Anomaly_InternalBleeding16_1200_4187_4199,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.17567567567567569
+136_UCR_Anomaly_InternalBleeding17_1600_3198_3309,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.8412698412698413
+137_UCR_Anomaly_InternalBleeding18_2300_4485_4587,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.8918918918918919
+138_UCR_Anomaly_InternalBleeding19_3000_4187_4197,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.1301775147928994
+139_UCR_Anomaly_InternalBleeding20_2700_5759_5919,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,0.8969359331476323
+140_UCR_Anomaly_InternalBleeding4_1000_4675_5033,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,0.7871621621621622
+141_UCR_Anomaly_InternalBleeding5_4000_6200_6370,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.7829181494661922
+142_UCR_Anomaly_InternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.8459016393442623
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.7482014388489209
+144_UCR_Anomaly_InternalBleeding9_4200_6599_6681,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,0.0
+161_UCR_Anomaly_WalkingAceleration1_1500_2764_2995,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,0.18796992481203006
+162_UCR_Anomaly_WalkingAceleration5_2700_5920_5979,hbos,HBOS,Density-based,Distribution,HBOS | Baseline,Baseline,0.6936416184971098

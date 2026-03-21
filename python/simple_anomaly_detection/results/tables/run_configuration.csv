@@ -1,0 +1,2 @@
+dataset_limit,normalization_method,clip_quantile,window_override,threshold_std_multiplier,deep_dive_dataset,selected_algorithms,selected_configurations,variant_tabs,prepared_dataset_dir
+30,zscore,,,3.0000000000000004,114_UCR_Anomaly_CIMIS44AirTemperature2_4000_5703_5727,"isolation_forest, local_outlier_factor, sand, matrix_profile, damp, hbos, ocsvm, pca",8,Isolation Forest: Baseline | Local Outlier Factor: Baseline | SAND: Baseline | Matrix Profile: Baseline | DAMP: Baseline | HBOS: Baseline | OCSVM: Baseline | PCA: Baseline,datasets\normalized\zscore

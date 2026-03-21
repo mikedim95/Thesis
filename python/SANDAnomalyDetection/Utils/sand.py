@@ -290,8 +290,6 @@ class SAND():
             nb_subsequence = self.batch_size
 
         for i in range(self.current_time, min(self.current_time + nb_subsequence, len(self.ts)-self.subsequence_length), self.overlaping_rate):
-            print('to be appended: ' +
-                  str(self.ts[i:i+self.subsequence_length]))
             all_subsequences.append(self.ts[i:i+self.subsequence_length])
             idxs.append(i)
 

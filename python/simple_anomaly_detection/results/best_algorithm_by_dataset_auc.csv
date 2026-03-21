@@ -1,0 +1,31 @@
+dataset_name,best_algorithm,best_algorithm_base_display,best_algorithm_superfamily,best_algorithm_category,best_algorithm_display,best_algorithm_variant,best_roc_auc
+024_UCR_Anomaly_DISTORTEDInternalBleeding10_3200_4526_4556,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9978926458522261
+025_UCR_Anomaly_DISTORTEDInternalBleeding14_2800_5607_5634,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9994934143870314
+026_UCR_Anomaly_DISTORTEDInternalBleeding15_1700_5684_5854,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9954617364406979
+027_UCR_Anomaly_DISTORTEDInternalBleeding16_1200_4187_4199,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9733933267587114
+028_UCR_Anomaly_DISTORTEDInternalBleeding17_1600_3198_3309,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,1.0
+029_UCR_Anomaly_DISTORTEDInternalBleeding18_2300_4485_4587,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.9860491855134134
+030_UCR_Anomaly_DISTORTEDInternalBleeding19_3000_4187_4197,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9995872734556137
+031_UCR_Anomaly_DISTORTEDInternalBleeding20_2700_5759_5919,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9994414254146358
+032_UCR_Anomaly_DISTORTEDInternalBleeding4_1000_4675_5033,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.993849020428446
+033_UCR_Anomaly_DISTORTEDInternalBleeding5_4000_6200_6370,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,0.9957076798382851
+035_UCR_Anomaly_DISTORTEDInternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.8959723742635393
+036_UCR_Anomaly_DISTORTEDInternalBleeding9_4200_6599_6681,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.3841867875925379
+053_UCR_Anomaly_DISTORTEDWalkingAceleration1_1500_2764_2995,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,0.7822046625478334
+054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,pca,PCA,Density-based,Encoding,PCA | Baseline,Baseline,0.9999874194847022
+098_UCR_Anomaly_NOISEInternalBleeding16_1200_4187_4199,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.9899634286653518
+132_UCR_Anomaly_InternalBleeding10_3200_4526_4556,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9989247311827957
+133_UCR_Anomaly_InternalBleeding14_2800_5607_5634,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9996750205501711
+134_UCR_Anomaly_InternalBleeding15_1700_5684_5854,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9965384524568488
+135_UCR_Anomaly_InternalBleeding16_1200_4187_4199,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9964147764628534
+136_UCR_Anomaly_InternalBleeding17_1600_3198_3309,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9999927488591538
+137_UCR_Anomaly_InternalBleeding18_2300_4485_4587,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9999960624288776
+138_UCR_Anomaly_InternalBleeding19_3000_4187_4197,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9999150268879204
+139_UCR_Anomaly_InternalBleeding20_2700_5759_5919,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9993170156206229
+140_UCR_Anomaly_InternalBleeding4_1000_4675_5033,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9863975068797668
+141_UCR_Anomaly_InternalBleeding5_4000_6200_6370,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9916478569883203
+142_UCR_Anomaly_InternalBleeding6_1500_3474_3629,sand,SAND,Distance-based,Clustering,SAND | Baseline,Baseline,0.9975181415898942
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,0.9982570940086838
+144_UCR_Anomaly_InternalBleeding9_4200_6599_6681,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,0.9696245212719304
+161_UCR_Anomaly_WalkingAceleration1_1500_2764_2995,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,0.8354115671163178
+162_UCR_Anomaly_WalkingAceleration5_2700_5920_5979,hbos,HBOS,Density-based,Distribution,HBOS | Baseline,Baseline,0.9999924516908214
