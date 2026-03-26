@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import importlib
+import json
 import re
 import shutil
 import sys
@@ -60,6 +61,7 @@ def ensure_results_layout() -> None:
 
     for filename in (
         "run_configuration.csv",
+        "selected_run_parameters.csv",
         "dataset_preparation_summary.csv",
         "benchmark_results.csv",
         "dataset_catalog.csv",
@@ -297,6 +299,31 @@ def result_deep_dive_path(run_id: str, dataset_name: str) -> Path:
 
 def result_score_path(dataset_name: str, run_id: str) -> Path:
     return RESULT_SCORES_DIR / f"{dataset_name}__{run_id}.csv"
+
+
+def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    dataset_limit = "all" if config["dataset_limit"] is None else config["dataset_limit"]
+    for run_config in config["selected_runs"]:
+        params = dict(run_config["params"])
+        row = {
+            "dataset_limit": dataset_limit,
+            "normalization_method": config["normalization_method"],
+            "clip_quantile": config["clip_quantile"],
+            "window_override": config["window_override"],
+            "threshold_std_multiplier": config["threshold_std_multiplier"],
+            "algorithm": run_config["algorithm"],
+            "algorithm_base_display": run_config["algorithm_base_display"],
+            "algorithm_display": run_config["algorithm_display"],
+            "algorithm_variant": run_config["algorithm_variant"],
+            "algorithm_run_id": run_config["algorithm_run_id"],
+            "variant_index": run_config["variant_index"],
+            "params_json": json.dumps(params, sort_keys=True),
+        }
+        for key, value in params.items():
+            row[f"param__{key}"] = value
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values(["algorithm", "variant_index"]).reset_index(drop=True)
 
 
 def build_results_layout_frame() -> pd.DataFrame:
@@ -2173,8 +2200,10 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
             }
         ]
     )
+    selected_run_parameters = build_selected_run_parameter_frame(config)
 
     run_config_frame.to_csv(result_table_path("run_configuration.csv"), index=False)
+    selected_run_parameters.to_csv(result_table_path("selected_run_parameters.csv"), index=False)
     preparation_summary.to_csv(result_table_path("dataset_preparation_summary.csv"), index=False)
 
     return {
@@ -2183,6 +2212,7 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         "prepared_dataset_paths": prepared_dataset_paths,
         "benchmark_dataset_paths": benchmark_dataset_paths,
         "run_config_frame": run_config_frame,
+        "selected_run_parameters": selected_run_parameters,
         "preparation_summary": preparation_summary,
     }
 
