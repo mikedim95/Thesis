@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import importlib
+import json
 import re
 import shutil
 import sys
@@ -16,7 +17,8 @@ import numpy as np
 import pandas as pd
 from IPython.display import HTML, display
 
-warnings.filterwarnings("ignore", message=".*h5py not installed.*", category=UserWarning)
+warnings.filterwarnings(
+    "ignore", message=".*h5py not installed.*", category=UserWarning)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -60,11 +62,14 @@ def ensure_results_layout() -> None:
 
     for filename in (
         "run_configuration.csv",
+        "selected_run_parameters.csv",
         "dataset_preparation_summary.csv",
         "benchmark_results.csv",
         "dataset_catalog.csv",
         "algorithm_summary.csv",
         "family_summary.csv",
+        "overall_regime_summary.csv",
+        "best_algorithm_by_dataset_evaluation.csv",
         "best_algorithm_by_dataset_f1.csv",
         "best_algorithm_by_dataset_auc.csv",
         "error_report.csv",
@@ -79,19 +84,24 @@ def ensure_results_layout() -> None:
         )
         _move_result_file(
             RESULTS_DIR / f"{algorithm_key}_benchmark_panel.png",
-            RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_benchmark_panel.png",
+            RESULT_ALGORITHM_PANEL_DIR /
+            f"{algorithm_key}_benchmark_panel.png",
         )
 
     for filename in (
         "benchmark_overview.png",
+        "pareto_frontier.png",
         "metric_heatmap.png",
+        "family_evaluation_heatmap.png",
         "family_range_f1_heatmap.png",
         "algorithm_wins.png",
     ):
-        _move_result_file(RESULTS_DIR / filename, RESULT_FIGURES_DIR / filename)
+        _move_result_file(RESULTS_DIR / filename,
+                          RESULT_FIGURES_DIR / filename)
 
     for source in RESULTS_DIR.glob("*__deep_dive__*.png"):
         _move_result_file(source, RESULT_DEEP_DIVE_DIR / source.name)
+
 
 if str(PROJECT_ROOT / "algorithms") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "algorithms"))
@@ -147,7 +157,8 @@ ALGORITHM_METADATA = {
         "border_color": "#2563eb",
     },
 }
-DISPLAY_NAME_MAP = {key: value["display"] for key, value in ALGORITHM_METADATA.items()}
+DISPLAY_NAME_MAP = {key: value["display"]
+                    for key, value in ALGORITHM_METADATA.items()}
 ALGORITHM_ORDER = [
     "isolation_forest",
     "local_outlier_factor",
@@ -158,6 +169,351 @@ ALGORITHM_ORDER = [
     "ocsvm",
     "pca",
 ]
+ALGORITHM_ENABLE_CONTROL = {
+    "isolation_forest": "run_iforest",
+    "local_outlier_factor": "run_lof",
+    "sand": "run_sand",
+    "matrix_profile": "run_matrix_profile",
+    "damp": "run_damp",
+    "hbos": "run_hbos",
+    "ocsvm": "run_ocsvm",
+    "pca": "run_pca",
+}
+DATASET_VARIANT_ORDER = ["raw", "noise", "distorted"]
+LENGTH_BUCKET_ORDER = ["short", "medium", "long"]
+ANOMALY_RATIO_BUCKET_ORDER = ["sparse", "moderate", "dense"]
+
+PAPER_PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "paper_high_roi": {
+        "label": "Paper High ROI Sweep",
+        "description": (
+            "Focused sweep for the strongest runtime/performance methods plus Isolation Forest for calibration discussion. "
+            "Only score-driving parameters are varied so the paper does not claim sensitivity to knobs that only affect backends or post-hoc thresholds."
+        ),
+        "enabled_algorithms": [
+            "isolation_forest",
+            "local_outlier_factor",
+            "matrix_profile",
+            "ocsvm",
+        ],
+        "variants": {
+            "isolation_forest": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Stable tree baseline for comparison.",
+                    "n_estimators": 200,
+                    "max_samples": 256,
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Wide Sample",
+                    "focus": "More trees and larger sampling for a smoother global isolation score.",
+                    "n_estimators": 400,
+                    "max_samples": "auto",
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Feat 0.6",
+                    "focus": "Tests stronger random feature subsampling inside the forest.",
+                    "n_estimators": 400,
+                    "max_samples": 256,
+                    "max_features": 0.6,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+            ],
+            "local_outlier_factor": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Balanced neighborhood baseline.",
+                    "n_neighbors": 20,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Local k10",
+                    "focus": "More sensitive to local shape changes and short anomalies.",
+                    "n_neighbors": 10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Global L1",
+                    "focus": "Broader neighborhood with Manhattan distance for more global structure.",
+                    "n_neighbors": 50,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "manhattan",
+                    "p": 1,
+                },
+            ],
+            "matrix_profile": [
+                {
+                    "variant_name": "Context x1",
+                    "focus": "Shortest context, strongest local discord detection.",
+                    "subsequence_multiplier": 1,
+                },
+                {
+                    "variant_name": "Context x2",
+                    "focus": "Intermediate subsequence context for medium-length anomalies.",
+                    "subsequence_multiplier": 2,
+                },
+                {
+                    "variant_name": "Context x4",
+                    "focus": "Longer context for broad discord patterns.",
+                    "subsequence_multiplier": 4,
+                },
+            ],
+            "ocsvm": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Standard RBF novelty boundary with short warm-up.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Nu 0.10",
+                    "focus": "Tests more permissive abnormal-boundary calibration.",
+                    "kernel": "rbf",
+                    "nu": 0.10,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Warmup 0.20",
+                    "focus": "Uses a longer mostly-normal prefix for model fitting.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.20,
+                },
+            ],
+        },
+    },
+    "paper_full_suite": {
+        "label": "Paper Full Suite Sweep",
+        "description": (
+            "Broader sweep across all implemented algorithms with a small but theory-driven set of variants per method. "
+            "The sweep keeps runtime and threshold-only knobs fixed so each variant comparison reflects a genuine scoring-behavior change."
+        ),
+        "enabled_algorithms": ALGORITHM_ORDER,
+        "variants": {
+            "isolation_forest": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Stable tree baseline for comparison.",
+                    "n_estimators": 200,
+                    "max_samples": 256,
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Wide Sample",
+                    "focus": "More trees and larger sampling for a smoother global isolation score.",
+                    "n_estimators": 400,
+                    "max_samples": "auto",
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Feat 0.6",
+                    "focus": "Tests stronger random feature subsampling inside the forest.",
+                    "n_estimators": 400,
+                    "max_samples": 256,
+                    "max_features": 0.6,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+            ],
+            "local_outlier_factor": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Balanced neighborhood baseline.",
+                    "n_neighbors": 20,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Local k10",
+                    "focus": "More sensitive to local shape changes and short anomalies.",
+                    "n_neighbors": 10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Global L1",
+                    "focus": "Broader neighborhood with Manhattan distance for more global structure.",
+                    "n_neighbors": 50,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "manhattan",
+                    "p": 1,
+                },
+            ],
+            "sand": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Reference online clustering configuration.",
+                    "alpha": 0.5,
+                    "init_length": 5000,
+                    "batch_size": 2000,
+                    "k": 0,
+                    "subsequence_multiplier": 4,
+                    "overlap": 0,
+                },
+                {
+                    "variant_name": "Adaptive",
+                    "focus": "Faster adaptation with shorter context and smaller batches.",
+                    "alpha": 0.7,
+                    "init_length": 3000,
+                    "batch_size": 1000,
+                    "k": 0,
+                    "subsequence_multiplier": 2,
+                    "overlap": 0,
+                },
+            ],
+            "matrix_profile": [
+                {
+                    "variant_name": "Context x1",
+                    "focus": "Shortest context, strongest local discord detection.",
+                    "subsequence_multiplier": 1,
+                },
+                {
+                    "variant_name": "Context x2",
+                    "focus": "Intermediate subsequence context for medium-length anomalies.",
+                    "subsequence_multiplier": 2,
+                },
+                {
+                    "variant_name": "Context x4",
+                    "focus": "Longer context for broad discord patterns.",
+                    "subsequence_multiplier": 4,
+                },
+            ],
+            "damp": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Reference streaming-discord configuration.",
+                    "start_index_multiplier": 1.0,
+                    "x_lag_multiplier": 0.0,
+                },
+                {
+                    "variant_name": "Delayed Start",
+                    "focus": "Longer historical reference before streaming detection starts.",
+                    "start_index_multiplier": 2.0,
+                    "x_lag_multiplier": 0.0,
+                },
+                {
+                    "variant_name": "Long Lag",
+                    "focus": "Searches further back in the stream for similar windows.",
+                    "start_index_multiplier": 1.0,
+                    "x_lag_multiplier": 8.0,
+                },
+            ],
+            "hbos": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Lightweight histogram baseline.",
+                    "n_bins": 10,
+                    "alpha": 0.10,
+                    "tol": 0.50,
+                },
+                {
+                    "variant_name": "Fine Bins",
+                    "focus": "Finer density structure through more bins and milder smoothing.",
+                    "n_bins": 20,
+                    "alpha": 0.05,
+                    "tol": 0.50,
+                },
+                {
+                    "variant_name": "Strict Tol",
+                    "focus": "Stricter edge handling for stronger outlier penalties.",
+                    "n_bins": 10,
+                    "alpha": 0.10,
+                    "tol": 0.20,
+                },
+            ],
+            "ocsvm": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Standard RBF novelty boundary with short warm-up.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Nu 0.10",
+                    "focus": "Tests more permissive abnormal-boundary calibration.",
+                    "kernel": "rbf",
+                    "nu": 0.10,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Warmup 0.20",
+                    "focus": "Uses a longer mostly-normal prefix for model fitting.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.20,
+                },
+                {
+                    "variant_name": "Linear",
+                    "focus": "Tests whether a simpler linear novelty boundary is sufficient.",
+                    "kernel": "linear",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+            ],
+            "pca": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Weighted reconstruction-style baseline.",
+                    "n_components": "",
+                    "n_selected_components": 0,
+                    "whiten": False,
+                    "weighted": True,
+                    "standardization": True,
+                },
+                {
+                    "variant_name": "Residual 2",
+                    "focus": "Focuses scoring on a small set of low-variance components.",
+                    "n_components": 0.95,
+                    "n_selected_components": 2,
+                    "whiten": False,
+                    "weighted": True,
+                    "standardization": True,
+                },
+                {
+                    "variant_name": "Whitened",
+                    "focus": "Tests a whitened non-weighted PCA score.",
+                    "n_components": 0.95,
+                    "n_selected_components": 0,
+                    "whiten": True,
+                    "weighted": False,
+                    "standardization": True,
+                },
+            ],
+        },
+    },
+}
 
 ensure_results_layout()
 
@@ -294,12 +650,44 @@ def result_algorithm_panel_path(algorithm_key: str) -> Path:
     return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_benchmark_panel.png"
 
 
+def result_algorithm_paper_panel_path(algorithm_key: str) -> Path:
+    return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_paper_panel.png"
+
+
 def result_deep_dive_path(run_id: str, dataset_name: str) -> Path:
     return RESULT_DEEP_DIVE_DIR / f"{run_id}__deep_dive__{dataset_name}.png"
 
 
 def result_score_path(dataset_name: str, run_id: str) -> Path:
     return RESULT_SCORES_DIR / f"{dataset_name}__{run_id}.csv"
+
+
+def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    dataset_limit = "all" if config["dataset_limit"] is None else config["dataset_limit"]
+    for run_config in config["selected_runs"]:
+        params = dict(run_config["params"])
+        row = {
+            "dataset_limit": dataset_limit,
+            "normalization_method": config["normalization_method"],
+            "clip_quantile": config["clip_quantile"],
+            "window_size": config["window_size"],
+            "window_stride": config["window_stride"],
+            "threshold_method": config["threshold_method"],
+            "threshold_value": config["threshold_value"],
+            "evaluation_mode": config["evaluation_mode"],
+            "algorithm": run_config["algorithm"],
+            "algorithm_base_display": run_config["algorithm_base_display"],
+            "algorithm_display": run_config["algorithm_display"],
+            "algorithm_variant": run_config["algorithm_variant"],
+            "algorithm_run_id": run_config["algorithm_run_id"],
+            "variant_index": run_config["variant_index"],
+            "params_json": json.dumps(params, sort_keys=True),
+        }
+        for key, value in params.items():
+            row[f"param__{key}"] = value
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values(["algorithm", "variant_index"]).reset_index(drop=True)
 
 
 def build_results_layout_frame() -> pd.DataFrame:
@@ -313,7 +701,8 @@ def build_results_layout_frame() -> pd.DataFrame:
         ("scores", RESULT_SCORES_DIR),
     ]
     return pd.DataFrame(
-        [{"output_group": label, "path": portable_path_str(path), "exists": path.exists()} for label, path in rows]
+        [{"output_group": label, "path": portable_path_str(
+            path), "exists": path.exists()} for label, path in rows]
     )
 
 
@@ -330,7 +719,8 @@ def _select_benchmark_dataset_paths(
     if deep_dive_dataset_name in selected_names:
         return selected_paths, True
 
-    deep_dive_path = next((path for path in prepared_dataset_paths if path.stem == deep_dive_dataset_name), None)
+    deep_dive_path = next(
+        (path for path in prepared_dataset_paths if path.stem == deep_dive_dataset_name), None)
     if deep_dive_path is None:
         return selected_paths, False
 
@@ -352,7 +742,8 @@ def _ordered_prepared_dataset_names(
         clip_quantile,
         overwrite=False,
     )
-    ordered_paths = sorted(prepared_dataset_paths, key=lambda path: (path.stat().st_size, path.name))
+    ordered_paths = sorted(prepared_dataset_paths,
+                           key=lambda path: (path.stat().st_size, path.name))
     return tuple(path.stem for path in ordered_paths)
 
 
@@ -367,7 +758,8 @@ def _available_deep_dive_dataset_names(
         fallback_names = fallback_names[:dataset_limit]
 
     try:
-        ordered_names = list(_ordered_prepared_dataset_names(normalization_method, clip_quantile))
+        ordered_names = list(_ordered_prepared_dataset_names(
+            normalization_method, clip_quantile))
     except Exception:
         ordered_names = fallback_names
 
@@ -391,8 +783,10 @@ def parse_freeform_value(text: str) -> str | int | float:
 
 def _control_block(title: str, children: list[widgets.Widget], border_color: str) -> widgets.Widget:
     return widgets.VBox(
-        [widgets.HTML(value=f"<h3 style='margin:0 0 8px 0;color:{border_color};'>{title}</h3>")] + children,
-        layout=widgets.Layout(border=f"2px solid {border_color}", padding="12px", margin="6px 0 10px 0"),
+        [widgets.HTML(
+            value=f"<h3 style='margin:0 0 8px 0;color:{border_color};'>{title}</h3>")] + children,
+        layout=widgets.Layout(
+            border=f"2px solid {border_color}", padding="12px", margin="6px 0 10px 0"),
     )
 
 
@@ -453,16 +847,20 @@ def _explanation_block(summary: str, tooltip_keys: list[str]) -> widgets.Widget:
 def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     controls: dict[str, widgets.Widget] = {}
 
-    controls["dataset_limit"] = widgets.IntText(value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
+    controls["dataset_limit"] = widgets.IntText(
+        value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
     controls["normalization_method"] = widgets.Dropdown(
         options=["none", "zscore", "minmax", "robust"],
         value="zscore",
         description="Normalize",
         layout=widgets.Layout(width="240px"),
     )
-    controls["clip_quantile"] = widgets.FloatText(value=0.0, description="Clip q", layout=widgets.Layout(width="220px"))
-    controls["overwrite_normalized"] = widgets.Checkbox(value=False, description="Rebuild normalized datasets")
-    controls["window_override"] = widgets.IntText(value=0, description="Window override", layout=widgets.Layout(width="220px"))
+    controls["clip_quantile"] = widgets.FloatText(
+        value=0.0, description="Clip q", layout=widgets.Layout(width="220px"))
+    controls["overwrite_normalized"] = widgets.Checkbox(
+        value=False, description="Rebuild normalized datasets")
+    controls["window_override"] = widgets.IntText(
+        value=0, description="Window override", layout=widgets.Layout(width="220px"))
     controls["threshold_std"] = widgets.FloatSlider(
         value=3.0,
         min=0.5,
@@ -477,32 +875,53 @@ def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         description="Deep dive",
         layout=widgets.Layout(width="650px"),
     )
-    controls["save_scores"] = widgets.Checkbox(value=False, description="Save per-dataset scores")
+    controls["save_scores"] = widgets.Checkbox(
+        value=False, description="Save per-dataset scores")
 
-    controls["run_iforest"] = widgets.Checkbox(value=True, description="Isolation Forest")
-    controls["run_lof"] = widgets.Checkbox(value=True, description="Local Outlier Factor")
+    controls["run_iforest"] = widgets.Checkbox(
+        value=True, description="Isolation Forest")
+    controls["run_lof"] = widgets.Checkbox(
+        value=True, description="Local Outlier Factor")
     controls["run_sand"] = widgets.Checkbox(value=False, description="SAND")
 
-    controls["if_n_estimators"] = widgets.IntSlider(value=200, min=50, max=500, step=50, description="Trees", layout=widgets.Layout(width="320px"))
-    controls["if_contamination"] = widgets.FloatSlider(value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px"))
-    controls["if_max_samples"] = widgets.Text(value="auto", description="Max samples", layout=widgets.Layout(width="240px"))
-    controls["if_max_features"] = widgets.FloatSlider(value=1.0, min=0.1, max=1.0, step=0.1, readout_format=".1f", description="Max feat.", layout=widgets.Layout(width="320px"))
-    controls["if_bootstrap"] = widgets.Checkbox(value=False, description="Bootstrap")
-    controls["if_random_state"] = widgets.IntText(value=42, description="Seed", layout=widgets.Layout(width="180px"))
+    controls["if_n_estimators"] = widgets.IntSlider(
+        value=200, min=50, max=500, step=50, description="Trees", layout=widgets.Layout(width="320px"))
+    controls["if_contamination"] = widgets.FloatSlider(
+        value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px"))
+    controls["if_max_samples"] = widgets.Text(
+        value="auto", description="Max samples", layout=widgets.Layout(width="240px"))
+    controls["if_max_features"] = widgets.FloatSlider(
+        value=1.0, min=0.1, max=1.0, step=0.1, readout_format=".1f", description="Max feat.", layout=widgets.Layout(width="320px"))
+    controls["if_bootstrap"] = widgets.Checkbox(
+        value=False, description="Bootstrap")
+    controls["if_random_state"] = widgets.IntText(
+        value=42, description="Seed", layout=widgets.Layout(width="180px"))
 
-    controls["lof_neighbors"] = widgets.IntSlider(value=20, min=2, max=100, step=1, description="Neighbors", layout=widgets.Layout(width="320px"))
-    controls["lof_contamination"] = widgets.FloatSlider(value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px"))
-    controls["lof_algorithm"] = widgets.Dropdown(options=["auto", "ball_tree", "kd_tree", "brute"], value="auto", description="Search", layout=widgets.Layout(width="260px"))
-    controls["lof_leaf_size"] = widgets.IntSlider(value=30, min=5, max=100, step=5, description="Leaf size", layout=widgets.Layout(width="320px"))
-    controls["lof_metric"] = widgets.Dropdown(options=["minkowski", "euclidean", "manhattan", "chebyshev"], value="minkowski", description="Metric", layout=widgets.Layout(width="260px"))
-    controls["lof_p"] = widgets.IntSlider(value=2, min=1, max=5, step=1, description="p", layout=widgets.Layout(width="220px"))
+    controls["lof_neighbors"] = widgets.IntSlider(
+        value=20, min=2, max=100, step=1, description="Neighbors", layout=widgets.Layout(width="320px"))
+    controls["lof_contamination"] = widgets.FloatSlider(
+        value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px"))
+    controls["lof_algorithm"] = widgets.Dropdown(
+        options=["auto", "ball_tree", "kd_tree", "brute"], value="auto", description="Search", layout=widgets.Layout(width="260px"))
+    controls["lof_leaf_size"] = widgets.IntSlider(
+        value=30, min=5, max=100, step=5, description="Leaf size", layout=widgets.Layout(width="320px"))
+    controls["lof_metric"] = widgets.Dropdown(options=["minkowski", "euclidean", "manhattan", "chebyshev"],
+                                              value="minkowski", description="Metric", layout=widgets.Layout(width="260px"))
+    controls["lof_p"] = widgets.IntSlider(
+        value=2, min=1, max=5, step=1, description="p", layout=widgets.Layout(width="220px"))
 
-    controls["sand_alpha"] = widgets.FloatSlider(value=0.5, min=0.1, max=0.9, step=0.1, readout_format=".1f", description="Alpha", layout=widgets.Layout(width="320px"))
-    controls["sand_init_length"] = widgets.IntText(value=5000, description="Init length", layout=widgets.Layout(width="220px"))
-    controls["sand_batch_size"] = widgets.IntText(value=2000, description="Batch size", layout=widgets.Layout(width="220px"))
-    controls["sand_k"] = widgets.IntText(value=0, description="k (0 auto)", layout=widgets.Layout(width="220px"))
-    controls["sand_subsequence_multiplier"] = widgets.IntSlider(value=4, min=1, max=8, step=1, description="Subseq x", layout=widgets.Layout(width="320px"))
-    controls["sand_overlap"] = widgets.IntText(value=0, description="Overlap (0 auto)", layout=widgets.Layout(width="220px"))
+    controls["sand_alpha"] = widgets.FloatSlider(
+        value=0.5, min=0.1, max=0.9, step=0.1, readout_format=".1f", description="Alpha", layout=widgets.Layout(width="320px"))
+    controls["sand_init_length"] = widgets.IntText(
+        value=5000, description="Init length", layout=widgets.Layout(width="220px"))
+    controls["sand_batch_size"] = widgets.IntText(
+        value=2000, description="Batch size", layout=widgets.Layout(width="220px"))
+    controls["sand_k"] = widgets.IntText(
+        value=0, description="k (0 auto)", layout=widgets.Layout(width="220px"))
+    controls["sand_subsequence_multiplier"] = widgets.IntSlider(
+        value=4, min=1, max=8, step=1, description="Subseq x", layout=widgets.Layout(width="320px"))
+    controls["sand_overlap"] = widgets.IntText(
+        value=0, description="Overlap (0 auto)", layout=widgets.Layout(width="220px"))
 
     preview_output = widgets.Output()
 
@@ -542,20 +961,23 @@ def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _control_row(
                 [
                     _with_tooltip(controls["dataset_limit"], "dataset_limit"),
-                    _with_tooltip(controls["normalization_method"], "normalization_method"),
+                    _with_tooltip(
+                        controls["normalization_method"], "normalization_method"),
                     _with_tooltip(controls["clip_quantile"], "clip_quantile"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(controls["window_override"], "window_override"),
+                    _with_tooltip(
+                        controls["window_override"], "window_override"),
                     _with_tooltip(controls["threshold_std"], "threshold_std"),
                 ]
             ),
             _with_tooltip(controls["deep_dive_dataset"], "deep_dive_dataset"),
             _control_row(
                 [
-                    _with_tooltip(controls["overwrite_normalized"], "overwrite_normalized"),
+                    _with_tooltip(
+                        controls["overwrite_normalized"], "overwrite_normalized"),
                     _with_tooltip(controls["save_scores"], "save_scores"),
                 ]
             ),
@@ -591,20 +1013,25 @@ def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         [
             _control_row(
                 [
-                    _with_tooltip(controls["if_n_estimators"], "if_n_estimators"),
-                    _with_tooltip(controls["if_contamination"], "if_contamination"),
+                    _with_tooltip(
+                        controls["if_n_estimators"], "if_n_estimators"),
+                    _with_tooltip(
+                        controls["if_contamination"], "if_contamination"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(controls["if_max_samples"], "if_max_samples"),
-                    _with_tooltip(controls["if_max_features"], "if_max_features"),
+                    _with_tooltip(
+                        controls["if_max_samples"], "if_max_samples"),
+                    _with_tooltip(
+                        controls["if_max_features"], "if_max_features"),
                 ]
             ),
             _control_row(
                 [
                     _with_tooltip(controls["if_bootstrap"], "if_bootstrap"),
-                    _with_tooltip(controls["if_random_state"], "if_random_state"),
+                    _with_tooltip(
+                        controls["if_random_state"], "if_random_state"),
                 ]
             ),
             _explanation_block(
@@ -628,7 +1055,8 @@ def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _control_row(
                 [
                     _with_tooltip(controls["lof_neighbors"], "lof_neighbors"),
-                    _with_tooltip(controls["lof_contamination"], "lof_contamination"),
+                    _with_tooltip(
+                        controls["lof_contamination"], "lof_contamination"),
                 ]
             ),
             _control_row(
@@ -664,13 +1092,16 @@ def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _control_row(
                 [
                     _with_tooltip(controls["sand_alpha"], "sand_alpha"),
-                    _with_tooltip(controls["sand_subsequence_multiplier"], "sand_subsequence_multiplier"),
+                    _with_tooltip(
+                        controls["sand_subsequence_multiplier"], "sand_subsequence_multiplier"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(controls["sand_init_length"], "sand_init_length"),
-                    _with_tooltip(controls["sand_batch_size"], "sand_batch_size"),
+                    _with_tooltip(
+                        controls["sand_init_length"], "sand_init_length"),
+                    _with_tooltip(
+                        controls["sand_batch_size"], "sand_batch_size"),
                 ]
             ),
             _control_row(
@@ -714,7 +1145,8 @@ def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             ),
             general_box,
             algorithm_tabs,
-            widgets.HTML("<h3 style='margin:8px 0 4px 0;'>Current Selection</h3>"),
+            widgets.HTML(
+                "<h3 style='margin:8px 0 4px 0;'>Current Selection</h3>"),
             preview_output,
         ]
     )
@@ -739,7 +1171,11 @@ def _apply_widget_values(widget_map: dict[str, widgets.Widget], values: dict[str
         return
     for key, value in values.items():
         if key in widget_map and hasattr(widget_map[key], "value"):
-            widget_map[key].value = value
+            widget = widget_map[key]
+            if isinstance(widget, widgets.Text):
+                widget.value = "" if value is None else str(value)
+            else:
+                widget.value = value
 
 
 def _make_if_variant(
@@ -750,7 +1186,6 @@ def _make_if_variant(
     variant_controls = {
         "variant_name": widgets.Text(value=default_name, description="Tab label", layout=widgets.Layout(width="240px")),
         "n_estimators": widgets.IntSlider(value=200, min=50, max=500, step=50, description="Trees", layout=widgets.Layout(width="320px")),
-        "contamination": widgets.FloatSlider(value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px")),
         "max_samples": widgets.Text(value="auto", description="Max samples", layout=widgets.Layout(width="240px")),
         "max_features": widgets.FloatSlider(value=1.0, min=0.1, max=1.0, step=0.1, readout_format=".1f", description="Max feat.", layout=widgets.Layout(width="320px")),
         "bootstrap": widgets.Checkbox(value=False, description="Bootstrap"),
@@ -762,23 +1197,28 @@ def _make_if_variant(
     panel = _control_block(
         "Isolation Forest Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["n_estimators"], "if_n_estimators"),
-                    _with_tooltip(variant_controls["contamination"], "if_contamination"),
+                    _with_tooltip(
+                        variant_controls["n_estimators"], "if_n_estimators"),
+                    _with_tooltip(
+                        variant_controls["max_features"], "if_max_features"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["max_samples"], "if_max_samples"),
-                    _with_tooltip(variant_controls["max_features"], "if_max_features"),
+                    _with_tooltip(
+                        variant_controls["max_samples"], "if_max_samples"),
+                    _with_tooltip(
+                        variant_controls["bootstrap"], "if_bootstrap"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["bootstrap"], "if_bootstrap"),
-                    _with_tooltip(variant_controls["random_state"], "if_random_state"),
+                    _with_tooltip(
+                        variant_controls["random_state"], "if_random_state"),
                 ]
             ),
             _explanation_block(
@@ -786,7 +1226,6 @@ def _make_if_variant(
                 [
                     "variant_label",
                     "if_n_estimators",
-                    "if_contamination",
                     "if_max_samples",
                     "if_max_features",
                     "if_bootstrap",
@@ -807,7 +1246,6 @@ def _make_lof_variant(
     variant_controls = {
         "variant_name": widgets.Text(value=default_name, description="Tab label", layout=widgets.Layout(width="240px")),
         "n_neighbors": widgets.IntSlider(value=20, min=2, max=100, step=1, description="Neighbors", layout=widgets.Layout(width="320px")),
-        "contamination": widgets.FloatSlider(value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px")),
         "algorithm": widgets.Dropdown(options=["auto", "ball_tree", "kd_tree", "brute"], value="auto", description="Search", layout=widgets.Layout(width="260px")),
         "leaf_size": widgets.IntSlider(value=30, min=5, max=100, step=5, description="Leaf size", layout=widgets.Layout(width="320px")),
         "metric": widgets.Dropdown(options=["minkowski", "euclidean", "manhattan", "chebyshev"], value="minkowski", description="Metric", layout=widgets.Layout(width="260px")),
@@ -819,22 +1257,26 @@ def _make_lof_variant(
     panel = _control_block(
         "Local Outlier Factor Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["n_neighbors"], "lof_neighbors"),
-                    _with_tooltip(variant_controls["contamination"], "lof_contamination"),
+                    _with_tooltip(
+                        variant_controls["n_neighbors"], "lof_neighbors"),
+                    _with_tooltip(
+                        variant_controls["metric"], "lof_metric"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["algorithm"], "lof_algorithm"),
-                    _with_tooltip(variant_controls["leaf_size"], "lof_leaf_size"),
+                    _with_tooltip(
+                        variant_controls["algorithm"], "lof_algorithm"),
+                    _with_tooltip(
+                        variant_controls["leaf_size"], "lof_leaf_size"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["metric"], "lof_metric"),
                     _with_tooltip(variant_controls["p"], "lof_p"),
                 ]
             ),
@@ -843,7 +1285,6 @@ def _make_lof_variant(
                 [
                     "variant_label",
                     "lof_neighbors",
-                    "lof_contamination",
                     "lof_algorithm",
                     "lof_leaf_size",
                     "lof_metric",
@@ -876,17 +1317,21 @@ def _make_sand_variant(
     panel = _control_block(
         "SAND Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
                     _with_tooltip(variant_controls["alpha"], "sand_alpha"),
-                    _with_tooltip(variant_controls["subsequence_multiplier"], "sand_subsequence_multiplier"),
+                    _with_tooltip(
+                        variant_controls["subsequence_multiplier"], "sand_subsequence_multiplier"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["init_length"], "sand_init_length"),
-                    _with_tooltip(variant_controls["batch_size"], "sand_batch_size"),
+                    _with_tooltip(
+                        variant_controls["init_length"], "sand_init_length"),
+                    _with_tooltip(
+                        variant_controls["batch_size"], "sand_batch_size"),
                 ]
             ),
             _control_row(
@@ -935,10 +1380,12 @@ def _make_matrix_profile_variant(
     panel = _control_block(
         "Matrix Profile Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["subsequence_multiplier"], "mp_subsequence_multiplier"),
+                    _with_tooltip(
+                        variant_controls["subsequence_multiplier"], "mp_subsequence_multiplier"),
                 ]
             ),
             _explanation_block(
@@ -964,7 +1411,6 @@ def _make_hbos_variant(
         "n_bins": widgets.IntSlider(value=10, min=4, max=40, step=2, description="Bins", layout=widgets.Layout(width="320px")),
         "alpha": widgets.FloatSlider(value=0.10, min=0.01, max=0.50, step=0.01, readout_format=".2f", description="Alpha", layout=widgets.Layout(width="320px")),
         "tol": widgets.FloatSlider(value=0.50, min=0.10, max=1.00, step=0.05, readout_format=".2f", description="Tol", layout=widgets.Layout(width="320px")),
-        "contamination": widgets.FloatSlider(value=0.10, min=0.01, max=0.30, step=0.01, readout_format=".2f", description="Contam.", layout=widgets.Layout(width="320px")),
     }
     _apply_widget_values(variant_controls, initial_values)
     for widget in variant_controls.values():
@@ -972,7 +1418,8 @@ def _make_hbos_variant(
     panel = _control_block(
         "HBOS Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
                     _with_tooltip(variant_controls["n_bins"], "hbos_n_bins"),
@@ -982,7 +1429,6 @@ def _make_hbos_variant(
             _control_row(
                 [
                     _with_tooltip(variant_controls["tol"], "hbos_tol"),
-                    _with_tooltip(variant_controls["contamination"], "hbos_contamination"),
                 ]
             ),
             _explanation_block(
@@ -992,7 +1438,6 @@ def _make_hbos_variant(
                     "hbos_n_bins",
                     "hbos_alpha",
                     "hbos_tol",
-                    "hbos_contamination",
                 ],
             ),
         ],
@@ -1017,11 +1462,14 @@ def _make_damp_variant(
     panel = _control_block(
         "DAMP Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["start_index_multiplier"], "damp_start_index_multiplier"),
-                    _with_tooltip(variant_controls["x_lag_multiplier"], "damp_x_lag_multiplier"),
+                    _with_tooltip(
+                        variant_controls["start_index_multiplier"], "damp_start_index_multiplier"),
+                    _with_tooltip(
+                        variant_controls["x_lag_multiplier"], "damp_x_lag_multiplier"),
                 ]
             ),
             _explanation_block(
@@ -1056,7 +1504,8 @@ def _make_ocsvm_variant(
     panel = _control_block(
         "OCSVM Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
                     _with_tooltip(variant_controls["kernel"], "ocsvm_kernel"),
@@ -1066,7 +1515,8 @@ def _make_ocsvm_variant(
             _control_row(
                 [
                     _with_tooltip(variant_controls["gamma"], "ocsvm_gamma"),
-                    _with_tooltip(variant_controls["train_fraction"], "ocsvm_train_fraction"),
+                    _with_tooltip(
+                        variant_controls["train_fraction"], "ocsvm_train_fraction"),
                 ]
             ),
             _explanation_block(
@@ -1104,18 +1554,23 @@ def _make_pca_variant(
     panel = _control_block(
         "PCA Variant",
         [
-            _control_row([_with_tooltip(variant_controls["variant_name"], "variant_label")]),
+            _control_row(
+                [_with_tooltip(variant_controls["variant_name"], "variant_label")]),
             _control_row(
                 [
-                    _with_tooltip(variant_controls["n_components"], "pca_n_components"),
-                    _with_tooltip(variant_controls["n_selected_components"], "pca_n_selected_components"),
+                    _with_tooltip(
+                        variant_controls["n_components"], "pca_n_components"),
+                    _with_tooltip(
+                        variant_controls["n_selected_components"], "pca_n_selected_components"),
                 ]
             ),
             _control_row(
                 [
                     _with_tooltip(variant_controls["whiten"], "pca_whiten"),
-                    _with_tooltip(variant_controls["weighted"], "pca_weighted"),
-                    _with_tooltip(variant_controls["standardization"], "pca_standardization"),
+                    _with_tooltip(
+                        variant_controls["weighted"], "pca_weighted"),
+                    _with_tooltip(
+                        variant_controls["standardization"], "pca_standardization"),
                 ]
             ),
             _explanation_block(
@@ -1141,9 +1596,12 @@ def _build_variant_manager(
     register_widget: Any,
     render_preview: Any,
 ) -> dict[str, Any]:
-    variant_tabs = widgets.Tab(layout=widgets.Layout(width="100%", margin="6px 0 0 0"))
-    add_button = widgets.Button(description="+", tooltip="Duplicate the current parameter tab", layout=widgets.Layout(width="42px"))
-    remove_button = widgets.Button(description="-", tooltip="Close the current parameter tab", layout=widgets.Layout(width="42px"))
+    variant_tabs = widgets.Tab(layout=widgets.Layout(
+        width="100%", margin="6px 0 0 0"))
+    add_button = widgets.Button(
+        description="+", tooltip="Duplicate the current parameter tab", layout=widgets.Layout(width="42px"))
+    remove_button = widgets.Button(
+        description="-", tooltip="Close the current parameter tab", layout=widgets.Layout(width="42px"))
     header_note = widgets.HTML(
         "<b>Parameter subtabs</b>: use <b>+</b> to duplicate the current argument set and compare versions like browser tabs."
     )
@@ -1158,7 +1616,8 @@ def _build_variant_manager(
     def sync_titles(*_args: Any) -> None:
         variant_tabs.children = [entry["panel"] for entry in state["variants"]]
         for index, entry in enumerate(state["variants"], start=1):
-            label = entry["controls"]["variant_name"].value.strip() or _default_variant_name(index)
+            label = entry["controls"]["variant_name"].value.strip(
+            ) or _default_variant_name(index)
             variant_tabs.set_title(index - 1, label)
         remove_button.disabled = len(state["variants"]) <= 1
         if state["variants"] and variant_tabs.selected_index is None:
@@ -1173,11 +1632,21 @@ def _build_variant_manager(
     def add_variant(source_values: dict[str, Any] | None = None) -> None:
         new_index = len(state["variants"]) + 1
         initial_values = dict(source_values or {})
-        initial_values["variant_name"] = _default_variant_name(new_index)
-        entry = factory(_default_variant_name(new_index), initial_values, register_widget)
+        initial_values.setdefault(
+            "variant_name", _default_variant_name(new_index))
+        entry = factory(_default_variant_name(new_index),
+                        initial_values, register_widget)
         entry["controls"]["variant_name"].observe(sync_titles, names="value")
         state["variants"].append(entry)
         sync_titles()
+
+    def replace_variants(variant_values: list[dict[str, Any]]) -> None:
+        state["variants"].clear()
+        for values in variant_values or [{}]:
+            add_variant(values)
+        if state["variants"]:
+            variant_tabs.selected_index = 0
+        render_preview()
 
     def on_add(_button: widgets.Button) -> None:
         add_variant(snapshot_current_variant())
@@ -1187,10 +1656,12 @@ def _build_variant_manager(
     def on_remove(_button: widgets.Button) -> None:
         if len(state["variants"]) <= 1:
             return
-        current_index = variant_tabs.selected_index if variant_tabs.selected_index is not None else len(state["variants"]) - 1
+        current_index = variant_tabs.selected_index if variant_tabs.selected_index is not None else len(
+            state["variants"]) - 1
         del state["variants"][current_index]
         sync_titles()
-        variant_tabs.selected_index = max(0, min(current_index, len(state["variants"]) - 1))
+        variant_tabs.selected_index = max(
+            0, min(current_index, len(state["variants"]) - 1))
         render_preview()
 
     add_button.on_click(on_add)
@@ -1204,6 +1675,7 @@ def _build_variant_manager(
         ],
         layout=widgets.Layout(width="100%"),
     )
+    state["replace_variants"] = replace_variants
     return state
 
 
@@ -1233,9 +1705,12 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                 variant_entries = algorithm_variants[algorithm_key]["variants"]
                 variant_count = len(variant_entries)
                 selected_configuration_count += variant_count
-                selected.append(f"{DISPLAY_NAME_MAP[algorithm_key]} x{variant_count}")
-                variant_labels = [entry["controls"]["variant_name"].value.strip() or f"Variant {index + 1}" for index, entry in enumerate(variant_entries)]
-                variant_summary.append(f"{DISPLAY_NAME_MAP[algorithm_key]}: {', '.join(variant_labels)}")
+                selected.append(
+                    f"{DISPLAY_NAME_MAP[algorithm_key]} x{variant_count}")
+                variant_labels = [entry["controls"]["variant_name"].value.strip(
+                ) or f"Variant {index + 1}" for index, entry in enumerate(variant_entries)]
+                variant_summary.append(
+                    f"{DISPLAY_NAME_MAP[algorithm_key]}: {', '.join(variant_labels)}")
 
         preview_frame = pd.DataFrame(
             [
@@ -1266,13 +1741,15 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     def build_threshold_value_widget(method: str, value: float | int | None = None) -> widgets.Widget:
         if method == "top_k":
             widget = widgets.IntText(
-                value=max(1, int(round(threshold_defaults[method] if value is None else value))),
+                value=max(
+                    1, int(round(threshold_defaults[method] if value is None else value))),
                 description="Top-k anomalies",
                 layout=widgets.Layout(width="240px"),
             )
         else:
             widget = widgets.FloatText(
-                value=float(threshold_defaults[method] if value is None else value),
+                value=float(threshold_defaults[method]
+                            if value is None else value),
                 description="Threshold sigma" if method == "sigma" else "Threshold quantile",
                 layout=widgets.Layout(width="240px"),
             )
@@ -1282,21 +1759,28 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     def refresh_threshold_value_control(*_args: Any) -> None:
         method = str(controls["threshold_method"].value)
         next_value = threshold_defaults[method]
-        controls["threshold_value"] = build_threshold_value_widget(method, next_value)
-        threshold_value_slot.children = [_with_tooltip(controls["threshold_value"], "threshold_value")]
+        controls["threshold_value"] = build_threshold_value_widget(
+            method, next_value)
+        threshold_value_slot.children = [_with_tooltip(
+            controls["threshold_value"], "threshold_value")]
         render_preview()
 
-    controls["dataset_limit"] = widgets.IntText(value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
+    controls["dataset_limit"] = widgets.IntText(
+        value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
     controls["normalization_method"] = widgets.Dropdown(
         options=["none", "zscore", "minmax", "robust"],
         value="zscore",
         description="Normalize",
         layout=widgets.Layout(width="240px"),
     )
-    controls["clip_quantile"] = widgets.FloatText(value=0.0, description="Clip q", layout=widgets.Layout(width="220px"))
-    controls["overwrite_normalized"] = widgets.Checkbox(value=False, description="Rebuild normalized datasets")
-    controls["window_size"] = widgets.IntText(value=0, description="Window size", layout=widgets.Layout(width="220px"))
-    controls["window_stride"] = widgets.IntText(value=1, description="Window stride", layout=widgets.Layout(width="220px"))
+    controls["clip_quantile"] = widgets.FloatText(
+        value=0.0, description="Clip q", layout=widgets.Layout(width="220px"))
+    controls["overwrite_normalized"] = widgets.Checkbox(
+        value=False, description="Rebuild normalized datasets")
+    controls["window_size"] = widgets.IntText(
+        value=0, description="Window size", layout=widgets.Layout(width="220px"))
+    controls["window_stride"] = widgets.IntText(
+        value=1, description="Window stride", layout=widgets.Layout(width="220px"))
     controls["threshold_method"] = widgets.Dropdown(
         options=["sigma", "quantile", "top_k"],
         value="sigma",
@@ -1309,11 +1793,15 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         description="Evaluation mode",
         layout=widgets.Layout(width="220px"),
     )
-    controls["save_scores"] = widgets.Checkbox(value=False, description="Save per-dataset scores")
-    controls["run_iforest"] = widgets.Checkbox(value=True, description="Isolation Forest")
-    controls["run_lof"] = widgets.Checkbox(value=True, description="Local Outlier Factor")
+    controls["save_scores"] = widgets.Checkbox(
+        value=False, description="Save per-dataset scores")
+    controls["run_iforest"] = widgets.Checkbox(
+        value=True, description="Isolation Forest")
+    controls["run_lof"] = widgets.Checkbox(
+        value=True, description="Local Outlier Factor")
     controls["run_sand"] = widgets.Checkbox(value=False, description="SAND")
-    controls["run_matrix_profile"] = widgets.Checkbox(value=True, description="Matrix Profile")
+    controls["run_matrix_profile"] = widgets.Checkbox(
+        value=True, description="Matrix Profile")
     controls["run_damp"] = widgets.Checkbox(value=False, description="DAMP")
     controls["run_hbos"] = widgets.Checkbox(value=True, description="HBOS")
     controls["run_ocsvm"] = widgets.Checkbox(value=False, description="OCSVM")
@@ -1340,16 +1828,25 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     ]:
         register_widget(controls[key])
 
-    controls["threshold_method"].observe(refresh_threshold_value_control, names="value")
+    controls["threshold_method"].observe(
+        refresh_threshold_value_control, names="value")
 
-    algorithm_variants["isolation_forest"] = _build_variant_manager("isolation_forest", _make_if_variant, register_widget, render_preview)
-    algorithm_variants["local_outlier_factor"] = _build_variant_manager("local_outlier_factor", _make_lof_variant, register_widget, render_preview)
-    algorithm_variants["sand"] = _build_variant_manager("sand", _make_sand_variant, register_widget, render_preview)
-    algorithm_variants["matrix_profile"] = _build_variant_manager("matrix_profile", _make_matrix_profile_variant, register_widget, render_preview)
-    algorithm_variants["damp"] = _build_variant_manager("damp", _make_damp_variant, register_widget, render_preview)
-    algorithm_variants["hbos"] = _build_variant_manager("hbos", _make_hbos_variant, register_widget, render_preview)
-    algorithm_variants["ocsvm"] = _build_variant_manager("ocsvm", _make_ocsvm_variant, register_widget, render_preview)
-    algorithm_variants["pca"] = _build_variant_manager("pca", _make_pca_variant, register_widget, render_preview)
+    algorithm_variants["isolation_forest"] = _build_variant_manager(
+        "isolation_forest", _make_if_variant, register_widget, render_preview)
+    algorithm_variants["local_outlier_factor"] = _build_variant_manager(
+        "local_outlier_factor", _make_lof_variant, register_widget, render_preview)
+    algorithm_variants["sand"] = _build_variant_manager(
+        "sand", _make_sand_variant, register_widget, render_preview)
+    algorithm_variants["matrix_profile"] = _build_variant_manager(
+        "matrix_profile", _make_matrix_profile_variant, register_widget, render_preview)
+    algorithm_variants["damp"] = _build_variant_manager(
+        "damp", _make_damp_variant, register_widget, render_preview)
+    algorithm_variants["hbos"] = _build_variant_manager(
+        "hbos", _make_hbos_variant, register_widget, render_preview)
+    algorithm_variants["ocsvm"] = _build_variant_manager(
+        "ocsvm", _make_ocsvm_variant, register_widget, render_preview)
+    algorithm_variants["pca"] = _build_variant_manager(
+        "pca", _make_pca_variant, register_widget, render_preview)
     controls["algorithm_variants"] = algorithm_variants
 
     general_box = _control_block(
@@ -1358,7 +1855,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _control_row(
                 [
                     _with_tooltip(controls["dataset_limit"], "dataset_limit"),
-                    _with_tooltip(controls["normalization_method"], "normalization_method"),
+                    _with_tooltip(
+                        controls["normalization_method"], "normalization_method"),
                     _with_tooltip(controls["clip_quantile"], "clip_quantile"),
                 ]
             ),
@@ -1370,14 +1868,17 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             ),
             _control_row(
                 [
-                    _with_tooltip(controls["threshold_method"], "threshold_method"),
+                    _with_tooltip(
+                        controls["threshold_method"], "threshold_method"),
                     threshold_value_slot,
-                    _with_tooltip(controls["evaluation_mode"], "evaluation_mode"),
+                    _with_tooltip(
+                        controls["evaluation_mode"], "evaluation_mode"),
                 ]
             ),
             _control_row(
                 [
-                    _with_tooltip(controls["overwrite_normalized"], "overwrite_normalized"),
+                    _with_tooltip(
+                        controls["overwrite_normalized"], "overwrite_normalized"),
                     _with_tooltip(controls["save_scores"], "save_scores"),
                 ]
             ),
@@ -1386,7 +1887,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                     _with_tooltip(controls["run_iforest"], "run_iforest"),
                     _with_tooltip(controls["run_lof"], "run_lof"),
                     _with_tooltip(controls["run_sand"], "run_sand"),
-                    _with_tooltip(controls["run_matrix_profile"], "run_matrix_profile"),
+                    _with_tooltip(
+                        controls["run_matrix_profile"], "run_matrix_profile"),
                     _with_tooltip(controls["run_damp"], "run_damp"),
                     _with_tooltip(controls["run_hbos"], "run_hbos"),
                     _with_tooltip(controls["run_ocsvm"], "run_ocsvm"),
@@ -1400,10 +1902,10 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                     "normalization_method",
                     "clip_quantile",
                     "overwrite_normalized",
-        "window_size",
-        "window_stride",
-        "threshold_value",
-        "evaluation_mode",
+                    "window_size",
+                    "window_stride",
+                    "threshold_value",
+                    "evaluation_mode",
                     "save_scores",
                     "run_iforest",
                     "run_lof",
@@ -1454,7 +1956,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             ),
             general_box,
             algorithm_tabs,
-            widgets.HTML("<h3 style='margin:8px 0 4px 0;'>Current Selection</h3>"),
+            widgets.HTML(
+                "<h3 style='margin:8px 0 4px 0;'>Current Selection</h3>"),
             preview_output,
         ]
     )
@@ -1462,11 +1965,66 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     return {"controls": controls, "panel": panel}
 
 
+def list_paper_presets() -> pd.DataFrame:
+    rows = []
+    for preset_name, preset in PAPER_PRESET_DEFINITIONS.items():
+        rows.append(
+            {
+                "preset_name": preset_name,
+                "label": preset["label"],
+                "enabled_algorithms": ", ".join(DISPLAY_NAME_MAP[key] for key in preset["enabled_algorithms"]),
+                "variant_count": sum(len(preset["variants"].get(key, [])) for key in preset["enabled_algorithms"]),
+                "description": preset["description"],
+            }
+        )
+    return pd.DataFrame(rows).sort_values("preset_name").reset_index(drop=True)
+
+
+def build_preset_reference_table(preset_name: str) -> pd.DataFrame:
+    preset = PAPER_PRESET_DEFINITIONS[preset_name]
+    rows = []
+    for algorithm_key in preset["enabled_algorithms"]:
+        for index, variant in enumerate(preset["variants"].get(algorithm_key, []), start=1):
+            params = {key: value for key, value in variant.items() if key not in {
+                "variant_name", "focus"}}
+            rows.append(
+                {
+                    "preset_name": preset_name,
+                    "algorithm": DISPLAY_NAME_MAP[algorithm_key],
+                    "variant_index": index,
+                    "variant_name": variant["variant_name"],
+                    "focus": variant["focus"],
+                    "params_json": json.dumps(params, sort_keys=True),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def apply_paper_experiment_preset(controls: dict[str, Any], preset_name: str = "paper_high_roi") -> None:
+    if preset_name not in PAPER_PRESET_DEFINITIONS:
+        available = ", ".join(sorted(PAPER_PRESET_DEFINITIONS))
+        raise ValueError(
+            f"Unknown preset '{preset_name}'. Available presets: {available}")
+
+    preset = PAPER_PRESET_DEFINITIONS[preset_name]
+    enabled = set(preset["enabled_algorithms"])
+
+    for algorithm_key in ALGORITHM_ORDER:
+        enabled_key = ALGORITHM_ENABLE_CONTROL[algorithm_key]
+        controls[enabled_key].value = algorithm_key in enabled
+        variant_manager = controls["algorithm_variants"][algorithm_key]
+        variant_manager["replace_variants"](
+            preset["variants"].get(algorithm_key, [{}]))
+
+
 def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
-    clip_value = None if controls["clip_quantile"].value <= 0 else float(controls["clip_quantile"].value)
-    window_size = None if controls["window_size"].value <= 0 else int(controls["window_size"].value)
+    clip_value = None if controls["clip_quantile"].value <= 0 else float(
+        controls["clip_quantile"].value)
+    window_size = None if controls["window_size"].value <= 0 else int(
+        controls["window_size"].value)
     window_stride = max(1, int(controls["window_stride"].value))
-    dataset_limit = None if controls["dataset_limit"].value <= 0 else int(controls["dataset_limit"].value)
+    dataset_limit = None if controls["dataset_limit"].value <= 0 else int(
+        controls["dataset_limit"].value)
     threshold_method = str(controls["threshold_method"].value)
     threshold_value = (
         max(1, int(controls["threshold_value"].value))
@@ -1492,11 +2050,11 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
 
         for variant_index, variant_entry in enumerate(variant_entries, start=1):
             variant_controls = variant_entry["controls"]
-            variant_name = variant_controls["variant_name"].value.strip() or _default_variant_name(variant_index)
+            variant_name = variant_controls["variant_name"].value.strip(
+            ) or _default_variant_name(variant_index)
             if algorithm_key == "isolation_forest":
                 params = {
                     "n_estimators": int(variant_controls["n_estimators"].value),
-                    "contamination": float(variant_controls["contamination"].value),
                     "max_samples": parse_freeform_value(variant_controls["max_samples"].value),
                     "max_features": float(variant_controls["max_features"].value),
                     "bootstrap": bool(variant_controls["bootstrap"].value),
@@ -1505,7 +2063,6 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
             elif algorithm_key == "local_outlier_factor":
                 params = {
                     "n_neighbors": int(variant_controls["n_neighbors"].value),
-                    "contamination": float(variant_controls["contamination"].value),
                     "algorithm": variant_controls["algorithm"].value,
                     "leaf_size": int(variant_controls["leaf_size"].value),
                     "metric": variant_controls["metric"].value,
@@ -1534,7 +2091,6 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
                     "n_bins": int(variant_controls["n_bins"].value),
                     "alpha": float(variant_controls["alpha"].value),
                     "tol": float(variant_controls["tol"].value),
-                    "contamination": float(variant_controls["contamination"].value),
                 }
             elif algorithm_key == "ocsvm":
                 params = {
@@ -1544,7 +2100,8 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
                     "train_fraction": float(variant_controls["train_fraction"].value),
                 }
             else:
-                n_components_text = variant_controls["n_components"].value.strip()
+                n_components_text = variant_controls["n_components"].value.strip(
+                )
                 params = {
                     "n_components": None if n_components_text == "" else parse_freeform_value(n_components_text),
                     "n_selected_components": None if int(variant_controls["n_selected_components"].value) <= 0 else int(variant_controls["n_selected_components"].value),
@@ -1606,10 +2163,10 @@ def parse_dataset_metadata(dataset_path: Path) -> dict[str, int | str]:
     clean_name = core_name
     if core_name.startswith("DISTORTED"):
         variant = "distorted"
-        clean_name = core_name[len("DISTORTED") :]
+        clean_name = core_name[len("DISTORTED"):]
     elif core_name.startswith("NOISE"):
         variant = "noise"
-        clean_name = core_name[len("NOISE") :]
+        clean_name = core_name[len("NOISE"):]
     family = re.sub(r"\d+$", "", clean_name) or clean_name
     return {
         "dataset_name": dataset_path.stem,
@@ -1628,7 +2185,8 @@ def load_raw_values_from_file(raw_dataset_path: Path) -> np.ndarray:
     text = raw_dataset_path.read_text(encoding="utf-8", errors="ignore")
     values = np.fromstring(text, sep=" ")
     if values.size == 0:
-        raise ValueError(f"Could not parse numeric values from {raw_dataset_path}")
+        raise ValueError(
+            f"Could not parse numeric values from {raw_dataset_path}")
     return values.astype(float)
 
 
@@ -1650,7 +2208,8 @@ def apply_normalization(values: np.ndarray, method: str = "zscore", clip_quantil
     if clip_quantile is not None:
         if not (0.0 < clip_quantile < 0.5):
             raise ValueError("clip_quantile must be between 0 and 0.5.")
-        lower, upper = np.quantile(transformed, [clip_quantile, 1.0 - clip_quantile])
+        lower, upper = np.quantile(
+            transformed, [clip_quantile, 1.0 - clip_quantile])
         transformed = np.clip(transformed, lower, upper)
 
     if method == "none":
@@ -1674,7 +2233,8 @@ def apply_normalization(values: np.ndarray, method: str = "zscore", clip_quantil
 def ensure_raw_datasets_available() -> list[Path]:
     source_paths = sorted(LEGACY_VIRGIN_DIR.glob("*.txt"))
     if not source_paths:
-        raise FileNotFoundError(f"No raw datasets found in {LEGACY_VIRGIN_DIR}")
+        raise FileNotFoundError(
+            f"No raw datasets found in {LEGACY_VIRGIN_DIR}")
     for source_path in source_paths:
         target_path = RAW_DATASET_DIR / source_path.name
         if not target_path.exists():
@@ -1694,8 +2254,10 @@ def write_normalized_dataset(
         return output_path
     metadata = parse_dataset_metadata(raw_dataset_path)
     raw_values = load_raw_values_from_file(raw_dataset_path)
-    labels = build_labels(len(raw_values), metadata["anomaly_start"], metadata["anomaly_end"])
-    normalized_values = apply_normalization(raw_values, method=method, clip_quantile=clip_quantile)
+    labels = build_labels(
+        len(raw_values), metadata["anomaly_start"], metadata["anomaly_end"])
+    normalized_values = apply_normalization(
+        raw_values, method=method, clip_quantile=clip_quantile)
     output_dir.mkdir(parents=True, exist_ok=True)
     data = np.column_stack([normalized_values, labels])
     np.savetxt(output_path, data, delimiter=",", fmt=["%.10g", "%d"])
@@ -1708,13 +2270,16 @@ def ensure_normalized_datasets(
     overwrite: bool = False,
 ) -> tuple[Path, list[Path]]:
     raw_dataset_paths = ensure_raw_datasets_available()
-    output_dir = NORMALIZED_DATASET_ROOT / normalization_tag(method, clip_quantile)
-    prepared_paths = [write_normalized_dataset(path, output_dir, method, clip_quantile, overwrite=overwrite) for path in raw_dataset_paths]
+    output_dir = NORMALIZED_DATASET_ROOT / \
+        normalization_tag(method, clip_quantile)
+    prepared_paths = [write_normalized_dataset(
+        path, output_dir, method, clip_quantile, overwrite=overwrite) for path in raw_dataset_paths]
     return output_dir, sorted(prepared_paths)
 
 
 def load_prepared_dataset(prepared_dataset_path: Path) -> dict[str, Any]:
-    frame = pd.read_csv(prepared_dataset_path, header=None, names=["value", "label"])
+    frame = pd.read_csv(prepared_dataset_path, header=None,
+                        names=["value", "label"])
     metadata = parse_dataset_metadata(prepared_dataset_path)
     metadata["dataset_path"] = str(prepared_dataset_path)
     metadata["values"] = frame["value"].to_numpy(dtype=float)
@@ -1733,7 +2298,8 @@ def estimate_window_size(values: np.ndarray, default: int = 125, max_lag: int = 
     usable_max_lag = min(max_lag, values.size - 2)
     if denominator == 0 or usable_max_lag <= 3:
         return fallback
-    autocorrelation = np.array([float(np.dot(centered[:-lag], centered[lag:]) / denominator) for lag in range(3, usable_max_lag + 1)])
+    autocorrelation = np.array([float(np.dot(
+        centered[:-lag], centered[lag:]) / denominator) for lag in range(3, usable_max_lag + 1)])
     candidate_lags = []
     for index in range(1, len(autocorrelation) - 1):
         if autocorrelation[index] > autocorrelation[index - 1] and autocorrelation[index] > autocorrelation[index + 1]:
@@ -1848,7 +2414,8 @@ def apply_threshold_strategy(
             selected_indices = ranked_indices[:1].tolist()
             predictions[selected_indices] = 1
 
-    score_threshold = float(np.min(scores[selected_indices])) if selected_indices else float("nan")
+    score_threshold = float(
+        np.min(scores[selected_indices])) if selected_indices else float("nan")
     return {
         "predictions": predictions,
         "score_threshold": score_threshold,
@@ -1942,8 +2509,10 @@ def compute_metrics(
 
     try:
         grader = components["basic_metricor"]()
-        range_recall, existence_reward, overlap_reward = grader.range_recall_new(labels, predictions, alpha=0.2)
-        range_precision = grader.range_recall_new(predictions, labels, alpha=0)[0]
+        range_recall, existence_reward, overlap_reward = grader.range_recall_new(
+            labels, predictions, alpha=0.2)
+        range_precision = grader.range_recall_new(
+            predictions, labels, alpha=0)[0]
         range_f1 = (
             0.0
             if np.isclose(range_precision + range_recall, 0.0)
@@ -1957,9 +2526,11 @@ def compute_metrics(
         overlap_reward = float("nan")
 
     try:
-        events_pred = components["convert_vector_to_events"](predictions.astype(np.float32))
+        events_pred = components["convert_vector_to_events"](
+            predictions.astype(np.float32))
         events_gt = components["convert_vector_to_events"](labels)
-        affiliation = components["pr_from_events"](events_pred, events_gt, (0, len(predictions)))
+        affiliation = components["pr_from_events"](
+            events_pred, events_gt, (0, len(predictions)))
         affiliation_precision = float(affiliation["Affiliation_Precision"])
         affiliation_recall = float(affiliation["Affiliation_Recall"])
     except Exception:
@@ -1999,8 +2570,10 @@ def compute_surface_metrics(labels: np.ndarray, scores: np.ndarray, window_size:
             "vus_pr": float("nan"),
         }
     try:
-        range_metrics = components["get_tsb_metrics"](scores, labels, metric="range_auc", slidingWindow=window_size)
-        vus_metrics = components["get_tsb_metrics"](scores, labels, metric="vus", slidingWindow=window_size)
+        range_metrics = components["get_tsb_metrics"](
+            scores, labels, metric="range_auc", slidingWindow=window_size)
+        vus_metrics = components["get_tsb_metrics"](
+            scores, labels, metric="vus", slidingWindow=window_size)
         return {
             "range_auc_roc": float(range_metrics.get("R_AUC_ROC", float("nan"))),
             "range_auc_pr": float(range_metrics.get("R_AUC_PR", float("nan"))),
@@ -2020,12 +2593,15 @@ def save_scores_if_needed(dataset_name: str, run_id: str, labels: np.ndarray, sc
     if not enabled:
         return
     RESULT_SCORES_DIR.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame({"label": labels, "score": scores}).to_csv(result_score_path(dataset_name, run_id), index=False)
+    pd.DataFrame({"label": labels, "score": scores}).to_csv(
+        result_score_path(dataset_name, run_id), index=False)
 
 
 def build_dataset_catalog(results_frame: pd.DataFrame) -> pd.DataFrame:
-    catalog = results_frame.sort_values(["dataset_sequence", "algorithm"]).drop_duplicates("dataset_name").copy()
-    catalog["anomaly_ratio"] = catalog["anomaly_count"] / catalog["series_length"]
+    catalog = results_frame.sort_values(
+        ["dataset_sequence", "algorithm"]).drop_duplicates("dataset_name").copy()
+    catalog["anomaly_ratio"] = catalog["anomaly_count"] / \
+        catalog["series_length"]
     return catalog[
         [
             "dataset_name",
@@ -2047,6 +2623,78 @@ def build_dataset_catalog(results_frame: pd.DataFrame) -> pd.DataFrame:
             "prepared_dataset_dir",
         ]
     ].reset_index(drop=True)
+
+
+def add_analysis_regime_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    enriched = frame.copy()
+    if enriched.empty:
+        return enriched
+    enriched["anomaly_ratio"] = enriched["anomaly_count"] / \
+        enriched["series_length"]
+    enriched["length_bucket"] = pd.cut(
+        enriched["series_length"],
+        bins=[-np.inf, 5_000, 20_000, np.inf],
+        labels=LENGTH_BUCKET_ORDER,
+    )
+    enriched["anomaly_ratio_bucket"] = pd.cut(
+        enriched["anomaly_ratio"],
+        bins=[-np.inf, 0.01, 0.05, np.inf],
+        labels=ANOMALY_RATIO_BUCKET_ORDER,
+    )
+    return enriched
+
+
+def _evaluation_metric_spec(frame: pd.DataFrame | None = None, evaluation_mode: str | None = None) -> dict[str, str]:
+    mode = str(
+        evaluation_mode
+        if evaluation_mode is not None
+        else (frame["evaluation_mode"].iloc[0] if frame is not None and not frame.empty else "range")
+    ).lower()
+    label = "Range F1" if mode == "range" else "Point F1"
+    return {
+        "mode": mode,
+        "metric_column": "evaluation_f1",
+        "mean_column": "mean_evaluation_f1",
+        "label": label,
+        "mean_label": f"Mean {label}",
+    }
+
+
+def build_overall_regime_summary(results_frame: pd.DataFrame) -> pd.DataFrame:
+    enriched = add_analysis_regime_columns(results_frame)
+    rows = []
+    for regime_column in ("variant", "length_bucket", "anomaly_ratio_bucket"):
+        summary = (
+            enriched.groupby(
+                ["algorithm_display", regime_column], as_index=False)
+            .agg(
+                dataset_count=("dataset_name", "nunique"),
+                mean_roc_auc=("roc_auc", "mean"),
+                mean_f1=("f1", "mean"),
+                mean_evaluation_f1=("evaluation_f1", "mean"),
+                mean_range_f1=("range_f1", "mean"),
+                mean_runtime_seconds=("runtime_seconds", "mean"),
+            )
+            .rename(columns={regime_column: "regime_value"})
+        )
+        summary["regime_dimension"] = regime_column
+        rows.append(summary)
+    return pd.concat(rows, ignore_index=True)[
+        [
+            "regime_dimension",
+            "regime_value",
+            "algorithm_display",
+            "dataset_count",
+            "mean_roc_auc",
+            "mean_f1",
+            "mean_evaluation_f1",
+            "mean_range_f1",
+            "mean_runtime_seconds",
+        ]
+    ].sort_values(
+        ["regime_dimension", "regime_value", "mean_evaluation_f1", "mean_roc_auc"],
+        ascending=[True, True, False, False],
+    ).reset_index(drop=True)
 
 
 def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
@@ -2098,7 +2746,8 @@ def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
 def summarize_families(results_frame: pd.DataFrame) -> pd.DataFrame:
     return (
         results_frame.groupby(
-            ["family", "algorithm_display", "algorithm_superfamily", "algorithm_category", "evaluation_mode"],
+            ["family", "algorithm_display", "algorithm_superfamily",
+                "algorithm_category", "evaluation_mode"],
             as_index=False,
         )
         .agg(
@@ -2160,14 +2809,17 @@ def build_best_algorithm_table(results_frame: pd.DataFrame, metric: str) -> pd.D
 
 
 def build_algorithm_section_tables(results_frame: pd.DataFrame, algorithm_key: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    subset = results_frame.loc[results_frame["algorithm"]
+                               == algorithm_key].copy()
     if subset.empty:
         return pd.DataFrame(), pd.DataFrame()
     summary = (
-        subset.groupby(["algorithm_display", "algorithm_variant", "algorithm_run_id", "evaluation_mode"], as_index=False)
+        subset.groupby(["algorithm_display", "algorithm_variant",
+                       "algorithm_run_id", "evaluation_mode"], as_index=False)
         .agg(
             runs=("dataset_name", "count"),
-            success_rate=("error", lambda series: float((series == "").mean())),
+            success_rate=("error", lambda series: float(
+                (series == "").mean())),
             mean_roc_auc=("roc_auc", "mean"),
             mean_average_precision=("average_precision", "mean"),
             mean_f1=("f1", "mean"),
@@ -2220,6 +2872,85 @@ def build_variant_config_table(config: dict[str, Any], algorithm_key: str) -> pd
     return pd.DataFrame(rows)
 
 
+def _summarized_param_columns(frame: pd.DataFrame) -> list[str]:
+    param_columns = [
+        column
+        for column in frame.columns
+        if column.startswith("param__") and not frame[column].isna().all()
+    ]
+    varying_columns = [
+        column for column in param_columns if frame[column].dropna().nunique() > 1
+    ]
+    return varying_columns if varying_columns else param_columns
+
+
+def build_algorithm_parameter_effect_table(results_frame: pd.DataFrame, algorithm_key: str) -> pd.DataFrame:
+    subset = results_frame.loc[results_frame["algorithm"]
+                               == algorithm_key].copy()
+    if subset.empty:
+        return pd.DataFrame()
+    param_columns = _summarized_param_columns(subset)
+    group_columns = ["algorithm_display", "algorithm_variant", *param_columns]
+    summary = (
+        subset.groupby(group_columns, as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            mean_roc_auc=("roc_auc", "mean"),
+            mean_f1=("f1", "mean"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
+            median_evaluation_f1=("evaluation_f1", "median"),
+            mean_range_f1=("range_f1", "mean"),
+            success_rate=("error", lambda series: float((series == "").mean())),
+            mean_runtime_seconds=("runtime_seconds", "mean"),
+        )
+        .sort_values(["mean_evaluation_f1", "mean_roc_auc", "mean_runtime_seconds"], ascending=[False, False, True])
+        .reset_index(drop=True)
+    )
+    return summary
+
+
+def build_algorithm_regime_table(results_frame: pd.DataFrame, algorithm_key: str, regime_column: str) -> pd.DataFrame:
+    subset = add_analysis_regime_columns(
+        results_frame.loc[results_frame["algorithm"] == algorithm_key].copy())
+    if subset.empty:
+        return pd.DataFrame()
+    return (
+        subset.groupby(["algorithm_display", "algorithm_variant",
+                       regime_column], as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            mean_roc_auc=("roc_auc", "mean"),
+            mean_f1=("f1", "mean"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
+            mean_range_f1=("range_f1", "mean"),
+            mean_runtime_seconds=("runtime_seconds", "mean"),
+        )
+        .sort_values([regime_column, "mean_evaluation_f1", "mean_roc_auc"], ascending=[True, False, False])
+        .reset_index(drop=True)
+    )
+
+
+def _ordered_regime_pivot(
+    results_frame: pd.DataFrame,
+    algorithm_key: str,
+    regime_column: str,
+    order: list[str],
+    metric: str = "range_f1",
+) -> pd.DataFrame:
+    subset = add_analysis_regime_columns(
+        results_frame.loc[results_frame["algorithm"] == algorithm_key].copy())
+    if subset.empty:
+        return pd.DataFrame()
+    grouped = (
+        subset.groupby(["algorithm_display", regime_column],
+                       as_index=False)[metric]
+        .mean()
+        .pivot(index="algorithm_display", columns=regime_column, values=metric)
+    )
+    present_columns = [column for column in order if column in grouped.columns]
+    return grouped.reindex(columns=present_columns).fillna(0.0)
+
+
 def select_deep_dive_variant(
     results_frame: pd.DataFrame,
     deep_dive_payload: dict[str, Any] | None,
@@ -2228,13 +2959,15 @@ def select_deep_dive_variant(
     if deep_dive_payload is None:
         return None, None
     subset = results_frame.loc[
-        (results_frame["dataset_name"] == deep_dive_payload["dataset"]["dataset_name"])
+        (results_frame["dataset_name"] ==
+         deep_dive_payload["dataset"]["dataset_name"])
         & (results_frame["algorithm"] == algorithm_key)
     ].sort_values(["evaluation_f1", "evaluation_recall", "roc_auc", "runtime_seconds"], ascending=[False, False, False, True])
     if subset.empty:
         return None, None
     metric_row = subset.iloc[0]
-    score_values = deep_dive_payload["scores"].get(metric_row["algorithm_run_id"])
+    score_values = deep_dive_payload["scores"].get(
+        metric_row["algorithm_run_id"])
     return metric_row, score_values
 
 
@@ -2248,7 +2981,8 @@ def build_deep_dive_research_table(
 
     rows = []
     for algorithm_key in algorithm_keys:
-        metric_row, score_values = select_deep_dive_variant(results_frame, deep_dive_payload, algorithm_key)
+        metric_row, score_values = select_deep_dive_variant(
+            results_frame, deep_dive_payload, algorithm_key)
         if metric_row is None or score_values is None:
             continue
         surface_metrics = compute_surface_metrics(
@@ -2280,11 +3014,13 @@ def build_deep_dive_research_table(
 
 
 def select_algorithm_showcase(results_frame: pd.DataFrame, algorithm_key: str) -> pd.Series | None:
-    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    subset = results_frame.loc[results_frame["algorithm"]
+                               == algorithm_key].copy()
     if subset.empty:
         return None
     subset = subset.sort_values(
-        ["evaluation_recall", "evaluation_f1", "overlap_reward", "roc_auc", "f1", "runtime_seconds"],
+        ["evaluation_recall", "evaluation_f1", "overlap_reward",
+            "roc_auc", "f1", "runtime_seconds"],
         ascending=[False, False, False, False, False, True],
         na_position="last",
     )
@@ -2302,13 +3038,15 @@ def build_algorithm_showcase(
         return None
 
     run_config = next(
-        (entry for entry in config["selected_runs"] if entry["algorithm_run_id"] == metric_row["algorithm_run_id"]),
+        (entry for entry in config["selected_runs"]
+         if entry["algorithm_run_id"] == metric_row["algorithm_run_id"]),
         None,
     )
     if run_config is None:
         return None
 
-    prepared_dataset_path = Path(prepared_dataset_dir) / f"{metric_row['dataset_name']}.txt"
+    prepared_dataset_path = Path(
+        prepared_dataset_dir) / f"{metric_row['dataset_name']}.txt"
     raw_dataset_path = RAW_DATASET_DIR / f"{metric_row['dataset_name']}.txt"
     if not prepared_dataset_path.exists() or not raw_dataset_path.exists():
         return None
@@ -2364,7 +3102,8 @@ def build_algorithm_showcase(
 
 
 def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
-    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    subset = results_frame.loc[results_frame["algorithm"]
+                               == algorithm_key].copy()
     if subset.empty:
         return None
     plt = _load_plotting_module()
@@ -2374,17 +3113,93 @@ def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: s
     palette = plt.get_cmap("tab10")
     for color_index, (display_name, frame) in enumerate(subset.groupby("algorithm_display")):
         color = palette(color_index % 10)
-        axes[0].hist(frame["evaluation_f1"].dropna(), bins=20, alpha=0.45, label=display_name, color=color, edgecolor="white")
-        axes[1].scatter(frame["runtime_seconds"], frame["evaluation_f1"], alpha=0.7, color=color, label=display_name)
-    axes[0].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_label} distribution")
+        axes[0].hist(frame["evaluation_f1"].dropna(), bins=20, alpha=0.45,
+                     label=display_name, color=color, edgecolor="white")
+        axes[1].scatter(frame["runtime_seconds"], frame["evaluation_f1"],
+                        alpha=0.7, color=color, label=display_name)
+    axes[0].set_title(
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_label} distribution")
     axes[0].set_xlabel(metric_label)
     axes[0].set_ylabel("Dataset count")
     axes[0].legend()
-    axes[1].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs {metric_label}")
+    axes[1].set_title(
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs {metric_label}")
     axes[1].set_xlabel("Runtime (seconds)")
     axes[1].set_ylabel(metric_label)
     axes[1].legend()
 
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def _draw_metric_heatmap(ax: Any, frame: pd.DataFrame, title: str, cmap: str) -> Any:
+    if frame.empty:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=11)
+        ax.set_axis_off()
+        ax.set_title(title)
+        return None
+    image = ax.imshow(frame.to_numpy(), cmap=cmap,
+                      aspect="auto", vmin=0.0, vmax=1.0)
+    ax.set_title(title)
+    ax.set_xticks(range(len(frame.columns)))
+    ax.set_xticklabels(frame.columns, rotation=20, ha="right")
+    ax.set_yticks(range(len(frame.index)))
+    ax.set_yticklabels(frame.index)
+    for row_index in range(frame.shape[0]):
+        for col_index in range(frame.shape[1]):
+            ax.text(col_index, row_index,
+                    f"{frame.iloc[row_index, col_index]:.2f}", ha="center", va="center", fontsize=9)
+    return image
+
+
+def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
+    subset = results_frame.loc[results_frame["algorithm"]
+                               == algorithm_key].copy()
+    if subset.empty:
+        return None
+
+    plt = _load_plotting_module()
+    metric_spec = _evaluation_metric_spec(subset)
+    variant_pivot = _ordered_regime_pivot(
+        results_frame, algorithm_key, "variant", DATASET_VARIANT_ORDER, metric=metric_spec["metric_column"])
+    length_pivot = _ordered_regime_pivot(
+        results_frame, algorithm_key, "length_bucket", LENGTH_BUCKET_ORDER, metric=metric_spec["metric_column"])
+    anomaly_pivot = _ordered_regime_pivot(
+        results_frame, algorithm_key, "anomaly_ratio_bucket", ANOMALY_RATIO_BUCKET_ORDER, metric=metric_spec["metric_column"])
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
+    image = _draw_metric_heatmap(
+        axes[0, 0],
+        variant_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_spec['mean_label']} by dataset variant",
+        "YlGnBu",
+    )
+    _draw_metric_heatmap(
+        axes[0, 1],
+        length_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_spec['mean_label']} by series length",
+        "YlOrBr",
+    )
+    _draw_metric_heatmap(
+        axes[1, 0],
+        anomaly_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_spec['mean_label']} by anomaly ratio",
+        "PuBuGn",
+    )
+
+    for display_name, frame in subset.groupby("algorithm_display"):
+        axes[1, 1].scatter(frame["runtime_seconds"],
+                           frame[metric_spec["metric_column"]], alpha=0.7, label=display_name)
+    axes[1, 1].set_title(
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs {metric_spec['label']}")
+    axes[1, 1].set_xlabel("Runtime (seconds)")
+    axes[1, 1].set_ylabel(metric_spec["label"])
+    axes[1, 1].legend()
+
+    if image is not None:
+        fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02)
     if save_path is not None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, dpi=160)
@@ -2404,7 +3219,8 @@ def plot_algorithm_deep_dive(
 ) -> plt.Figure:
     plt = _load_plotting_module()
     start_index = max(0, int(dataset["anomaly_start"]) - context_points)
-    end_index = min(len(normalized_values), int(dataset["anomaly_end"]) + context_points + 1)
+    end_index = min(len(normalized_values), int(
+        dataset["anomaly_end"]) + context_points + 1)
     threshold = float(metric_row["score_threshold"])
     prediction_mask = np.asarray(predictions, dtype=bool)
     predicted_segments = [
@@ -2413,7 +3229,8 @@ def plot_algorithm_deep_dive(
         if segment_end > start_index and segment_start < end_index
     ]
 
-    fig, axes = plt.subplots(3, 1, figsize=(16, 10), sharex=True, constrained_layout=True)
+    fig, axes = plt.subplots(3, 1, figsize=(
+        16, 10), sharex=True, constrained_layout=True)
     fig.suptitle(
         f"{DISPLAY_NAME_MAP[algorithm_key]} | showcase dataset: {dataset['dataset_name']}",
         fontsize=16,
@@ -2442,19 +3259,23 @@ def plot_algorithm_deep_dive(
     axes[0].plot(raw_values[start_index:end_index], color="black", linewidth=1)
     axes[0].set_title("raw signal")
     axes[0].set_ylabel("raw")
-    legend_handles = [ground_truth_patch] if ground_truth_patch is not None else []
-    legend_labels = ["Ground-truth anomaly"] if ground_truth_patch is not None else []
+    legend_handles = [
+        ground_truth_patch] if ground_truth_patch is not None else []
+    legend_labels = [
+        "Ground-truth anomaly"] if ground_truth_patch is not None else []
     if predicted_patch is not None:
         legend_handles.append(predicted_patch)
         legend_labels.append("Predicted above threshold")
     if legend_handles:
         axes[0].legend(legend_handles, legend_labels, loc="upper right")
 
-    axes[1].plot(normalized_values[start_index:end_index], color="#0f766e", linewidth=1)
+    axes[1].plot(normalized_values[start_index:end_index],
+                 color="#0f766e", linewidth=1)
     axes[1].set_title("normalized signal")
     axes[1].set_ylabel("normalized")
 
-    axes[2].plot(score_values[start_index:end_index], color="#7c3aed", linewidth=1.2)
+    axes[2].plot(score_values[start_index:end_index],
+                 color="#7c3aed", linewidth=1.2)
     axes[2].axhline(threshold, color="tomato", linestyle="--", linewidth=1)
     axes[2].set_title(
         "score | "
@@ -2473,6 +3294,88 @@ def plot_algorithm_deep_dive(
     return fig
 
 
+def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, context_points: int = 1200) -> None:
+    ns = notebook_state["ns"]
+    config = notebook_state["config"]
+    benchmark = notebook_state["benchmark"]
+
+    if algorithm_key not in config["selected_algorithms"]:
+        print(
+            f"{DISPLAY_NAME_MAP[algorithm_key]} is disabled in the control panel.")
+        return
+
+    results = benchmark["results"]
+    context = notebook_state["context"]
+
+    variant_config = ns.build_variant_config_table(config, algorithm_key)
+    parameter_effects = ns.build_algorithm_parameter_effect_table(
+        results, algorithm_key)
+    dataset_variant_summary = ns.build_algorithm_regime_table(
+        results, algorithm_key, "variant")
+    length_summary = ns.build_algorithm_regime_table(
+        results, algorithm_key, "length_bucket")
+    anomaly_ratio_summary = ns.build_algorithm_regime_table(
+        results, algorithm_key, "anomaly_ratio_bucket")
+    section_summary, section_top = ns.build_algorithm_section_tables(
+        results, algorithm_key)
+
+    display(variant_config)
+    display(parameter_effects)
+    display(dataset_variant_summary)
+    display(length_summary)
+    display(anomaly_ratio_summary)
+    display(section_summary)
+    display(section_top)
+
+    parameter_effects.to_csv(ns.result_table_path(
+        f"{algorithm_key}_parameter_effects.csv"), index=False)
+    dataset_variant_summary.to_csv(ns.result_table_path(
+        f"{algorithm_key}_dataset_variant_summary.csv"), index=False)
+    length_summary.to_csv(ns.result_table_path(
+        f"{algorithm_key}_length_summary.csv"), index=False)
+    anomaly_ratio_summary.to_csv(ns.result_table_path(
+        f"{algorithm_key}_anomaly_ratio_summary.csv"), index=False)
+
+    fig = ns.plot_algorithm_benchmark_panel(
+        results, algorithm_key, ns.result_algorithm_panel_path(algorithm_key))
+    if fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+    paper_fig = ns.plot_algorithm_paper_panel(
+        results, algorithm_key, ns.result_algorithm_paper_panel_path(algorithm_key))
+    if paper_fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+    showcase = ns.build_algorithm_showcase(
+        config,
+        context["prepared_dataset_dir"],
+        results,
+        algorithm_key,
+    )
+    if showcase is None:
+        print(f"No showcase case available for {DISPLAY_NAME_MAP[algorithm_key]} in the current run.")
+        return
+
+    display(showcase["summary"])
+    print(f"Showcase variant: {showcase['metric_row']['algorithm_display']}")
+    fig = ns.plot_algorithm_deep_dive(
+        showcase["raw_values"],
+        showcase["dataset"]["values"],
+        showcase["dataset"],
+        showcase["scores"],
+        showcase["predictions"],
+        showcase["metric_row"],
+        algorithm_key,
+        context_points=context_points,
+        save_path=ns.result_deep_dive_path(
+            showcase["metric_row"]["algorithm_run_id"], showcase["dataset"]["dataset_name"]),
+    )
+    plt = ns._load_plotting_module()
+    plt.show()
+
+
 def run_algorithm(
     algorithm_key: str,
     values: np.ndarray,
@@ -2480,10 +3383,12 @@ def run_algorithm(
     params: dict[str, Any],
     window_stride: int = 1,
 ) -> np.ndarray:
-    cleaned_params = {key: value for key, value in params.items() if value is not None}
+    cleaned_params = {key: value for key,
+                      value in params.items() if value is not None}
     algorithm_function = _load_algorithm_function(algorithm_key)
     return np.asarray(
-        algorithm_function(values, window_size, window_stride=max(1, int(window_stride)), **cleaned_params),
+        algorithm_function(values, window_size, window_stride=max(
+            1, int(window_stride)), **cleaned_params),
         dtype=float,
     ).ravel()
 
@@ -2513,7 +3418,8 @@ def _progress_html(inner_html: str) -> widgets.HTML:
 
 def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
     if not config["selected_runs"]:
-        raise ValueError("Select at least one algorithm in the control panel before running the notebook.")
+        raise ValueError(
+            "Select at least one algorithm in the control panel before running the notebook.")
 
     raw_dataset_paths = ensure_raw_datasets_available()
     prepared_dataset_dir, prepared_dataset_paths = ensure_normalized_datasets(
@@ -2521,8 +3427,10 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         config["clip_quantile"],
         overwrite=config["overwrite_normalized_datasets"],
     )
-    prepared_dataset_paths = sorted(prepared_dataset_paths, key=lambda path: (path.stat().st_size, path.name))
-    benchmark_dataset_paths = prepared_dataset_paths[: config["dataset_limit"]] if config["dataset_limit"] is not None else prepared_dataset_paths
+    prepared_dataset_paths = sorted(
+        prepared_dataset_paths, key=lambda path: (path.stat().st_size, path.name))
+    benchmark_dataset_paths = prepared_dataset_paths[: config["dataset_limit"]
+                                                     ] if config["dataset_limit"] is not None else prepared_dataset_paths
 
     run_config_frame = pd.DataFrame(
         [
@@ -2565,9 +3473,14 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
             }
         ]
     )
+    selected_run_parameters = build_selected_run_parameter_frame(config)
 
-    run_config_frame.to_csv(result_table_path("run_configuration.csv"), index=False)
-    preparation_summary.to_csv(result_table_path("dataset_preparation_summary.csv"), index=False)
+    run_config_frame.to_csv(result_table_path(
+        "run_configuration.csv"), index=False)
+    selected_run_parameters.to_csv(result_table_path(
+        "selected_run_parameters.csv"), index=False)
+    preparation_summary.to_csv(result_table_path(
+        "dataset_preparation_summary.csv"), index=False)
 
     return {
         "raw_dataset_paths": raw_dataset_paths,
@@ -2575,6 +3488,7 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         "prepared_dataset_paths": prepared_dataset_paths,
         "benchmark_dataset_paths": benchmark_dataset_paths,
         "run_config_frame": run_config_frame,
+        "selected_run_parameters": selected_run_parameters,
         "preparation_summary": preparation_summary,
     }
 
@@ -2631,7 +3545,8 @@ def run_benchmark(
         dataset = load_prepared_dataset(prepared_dataset_path)
         values = dataset["values"]
         labels = dataset["labels"]
-        window_size = config["window_size"] if config["window_size"] is not None else estimate_window_size(values)
+        window_size = config["window_size"] if config["window_size"] is not None else estimate_window_size(
+            values)
         window_stride = max(1, int(config["window_stride"]))
 
         for algorithm_index, run_config in enumerate(selected_runs, start=1):
@@ -2683,7 +3598,8 @@ def run_benchmark(
                     window_stride=window_stride,
                 )
                 error_message = ""
-                save_scores_if_needed(dataset["dataset_name"], run_config["algorithm_run_id"], labels, scores, config["save_per_dataset_scores"])
+                save_scores_if_needed(
+                    dataset["dataset_name"], run_config["algorithm_run_id"], labels, scores, config["save_per_dataset_scores"])
             except Exception as error:
                 scores = np.array([], dtype=float)
                 runtime_seconds = time.perf_counter() - start_time
@@ -2745,7 +3661,9 @@ def run_benchmark(
                     "runtime_seconds": runtime_seconds,
                     "score_mean": float(scores.mean()) if scores.size else float("nan"),
                     "score_std": float(scores.std()) if scores.size else float("nan"),
+                    "params_json": json.dumps(run_config["params"], sort_keys=True),
                     "error": error_message,
+                    **{f"param__{key}": value for key, value in run_config["params"].items()},
                     **metrics,
                 }
             )
@@ -2753,7 +3671,8 @@ def run_benchmark(
 
             if show_progress and progress_bar is not None and progress_summary is not None and progress_recent is not None:
                 elapsed_seconds = time.perf_counter() - benchmark_started_at
-                average_seconds_per_run = elapsed_seconds / max(completed_runs, 1)
+                average_seconds_per_run = elapsed_seconds / \
+                    max(completed_runs, 1)
                 remaining_runs = max(total_run_count - completed_runs, 0)
                 eta_seconds = average_seconds_per_run * remaining_runs
                 progress_bar.value = completed_runs
@@ -2777,7 +3696,8 @@ def run_benchmark(
                 progress_recent.value = (
                     "<div style='white-space: normal; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; line-height: 1.45;'>"
                     "<b>Recent runs</b><br>"
-                    + "<br>".join(html.escape(line) for line in recent_messages)
+                    + "<br>".join(html.escape(line)
+                                  for line in recent_messages)
                     + "</div>"
                 )
 
@@ -2785,20 +3705,31 @@ def run_benchmark(
     dataset_catalog = build_dataset_catalog(results)
     algorithm_summary = summarize_algorithms(results)
     family_summary = summarize_families(results)
-    best_by_f1 = build_best_algorithm_table(results, "evaluation_f1")
+    overall_regime_summary = build_overall_regime_summary(results)
+    best_by_evaluation = build_best_algorithm_table(results, "evaluation_f1")
+    best_by_f1 = build_best_algorithm_table(results, "f1")
     best_by_auc = build_best_algorithm_table(results, "roc_auc")
     errors = results.loc[results["error"] != ""].copy()
 
     results.to_csv(result_table_path("benchmark_results.csv"), index=False)
-    dataset_catalog.to_csv(result_table_path("dataset_catalog.csv"), index=False)
-    algorithm_summary.to_csv(result_table_path("algorithm_summary.csv"), index=False)
+    dataset_catalog.to_csv(result_table_path(
+        "dataset_catalog.csv"), index=False)
+    algorithm_summary.to_csv(result_table_path(
+        "algorithm_summary.csv"), index=False)
     family_summary.to_csv(result_table_path("family_summary.csv"), index=False)
-    best_by_f1.to_csv(result_table_path("best_algorithm_by_dataset_f1.csv"), index=False)
-    best_by_auc.to_csv(result_table_path("best_algorithm_by_dataset_auc.csv"), index=False)
+    overall_regime_summary.to_csv(result_table_path(
+        "overall_regime_summary.csv"), index=False)
+    best_by_evaluation.to_csv(result_table_path(
+        "best_algorithm_by_dataset_evaluation.csv"), index=False)
+    best_by_f1.to_csv(result_table_path(
+        "best_algorithm_by_dataset_f1.csv"), index=False)
+    best_by_auc.to_csv(result_table_path(
+        "best_algorithm_by_dataset_auc.csv"), index=False)
     errors.to_csv(result_table_path("error_report.csv"), index=False)
 
     for algorithm_key in config["selected_algorithms"]:
-        results.loc[results["algorithm"] == algorithm_key].to_csv(result_per_algorithm_table_path(algorithm_key), index=False)
+        results.loc[results["algorithm"] == algorithm_key].to_csv(
+            result_per_algorithm_table_path(algorithm_key), index=False)
 
     overview = pd.DataFrame(
         [
@@ -2842,6 +3773,8 @@ def run_benchmark(
         "dataset_catalog": dataset_catalog,
         "algorithm_summary": algorithm_summary,
         "family_summary": family_summary,
+        "overall_regime_summary": overall_regime_summary,
+        "best_by_evaluation": best_by_evaluation,
         "best_by_f1": best_by_f1,
         "best_by_auc": best_by_auc,
         "errors": errors,
