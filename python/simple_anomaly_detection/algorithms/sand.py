@@ -63,6 +63,7 @@ def _count_subsequences(
 def score_time_series(
     values: np.ndarray,
     window_size: int,
+    window_stride: int = 1,
     *,
     alpha: float = 0.5,
     init_length: int = 5_000,
@@ -81,7 +82,8 @@ def score_time_series(
     if subsequence_length <= window_size:
         subsequence_length = window_size + 1
 
-    overlap = max(1, window_size if overlap is None else int(overlap))
+    window_stride = max(1, int(window_stride))
+    overlap = max(1, window_size if overlap is None and window_stride <= 1 else (window_stride if overlap is None else int(overlap)))
     effective_init_length = min(max(init_length, subsequence_length + 1), values.size)
     effective_batch_size = max(batch_size, subsequence_length + 1)
 

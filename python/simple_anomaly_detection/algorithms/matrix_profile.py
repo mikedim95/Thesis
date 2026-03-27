@@ -22,15 +22,24 @@ def _normalize_scores(scores: np.ndarray) -> np.ndarray:
     return MinMaxScaler().fit_transform(cleaned).ravel()
 
 
-def _align_scores(window_scores: np.ndarray, subsequence_length: int, series_length: int) -> np.ndarray:
-    pad_left = math.ceil((subsequence_length - 1) / 2)
-    pad_right = (subsequence_length - 1) // 2
-    return np.pad(window_scores, (pad_left, pad_right), mode="edge")[:series_length]
+def _align_scores(window_scores: np.ndarray, subsequence_length: int, series_length: int, window_stride: int = 1) -> np.ndarray:
+    if window_scores.size == 0:
+        return np.zeros(series_length, dtype=float)
+    if max(1, int(window_stride)) == 1:
+        pad_left = math.ceil((subsequence_length - 1) / 2)
+        pad_right = (subsequence_length - 1) // 2
+        return np.pad(window_scores, (pad_left, pad_right), mode="edge")[:series_length]
+    window_starts = np.arange(window_scores.size, dtype=float) * max(1, int(window_stride))
+    centers = np.clip(window_starts + (subsequence_length - 1) / 2.0, 0, series_length - 1)
+    if window_scores.size == 1:
+        return np.full(series_length, float(window_scores[0]), dtype=float)
+    return np.interp(np.arange(series_length, dtype=float), centers, window_scores, left=window_scores[0], right=window_scores[-1])
 
 
 def score_time_series(
     values: np.ndarray,
     window_size: int,
+    window_stride: int = 1,
     *,
     subsequence_multiplier: int = 1,
 ) -> np.ndarray:
@@ -43,8 +52,9 @@ def score_time_series(
         raise ValueError("subsequence_length must be smaller than the time-series length")
 
     profile = stumpy.stump(values, m=subsequence_length)[:, 0]
+    profile = profile[:: max(1, int(window_stride))]
     normalized_scores = _normalize_scores(profile)
-    return _align_scores(normalized_scores, subsequence_length, values.size)
+    return _align_scores(normalized_scores, subsequence_length, values.size, window_stride=window_stride)
 
 
 __all__ = ["score_time_series"]

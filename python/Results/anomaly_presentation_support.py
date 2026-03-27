@@ -797,6 +797,91 @@ def dataset_statistics_frame(values: np.ndarray, normalized_values: np.ndarray) 
     return pd.DataFrame(rows)
 
 
+def _segment_slices(metadata: dict[str, Any], series_length: int) -> dict[str, slice]:
+    train_stop = max(0, min(int(metadata["train_until"]), series_length))
+    anomaly_start = max(0, min(int(metadata["anomaly_start"]), series_length))
+    anomaly_stop = max(anomaly_start, min(int(metadata["anomaly_end"]) + 1, series_length))
+    return {
+        "Train": slice(0, train_stop),
+        "Anomaly": slice(anomaly_start, anomaly_stop),
+        "Post-anomaly": slice(anomaly_stop, series_length),
+    }
+
+
+def _safe_segment_summary(values: np.ndarray) -> dict[str, float]:
+    series = np.asarray(values, dtype=float)
+    if series.size == 0:
+        return {
+            "Mean": float("nan"),
+            "Std": float("nan"),
+            "Min": float("nan"),
+            "Median": float("nan"),
+            "Max": float("nan"),
+            "Mean |delta|": float("nan"),
+        }
+    deltas = np.abs(np.diff(series))
+    return {
+        "Mean": float(np.mean(series)),
+        "Std": float(np.std(series)),
+        "Min": float(np.min(series)),
+        "Median": float(np.median(series)),
+        "Max": float(np.max(series)),
+        "Mean |delta|": float(np.mean(deltas)) if deltas.size else 0.0,
+    }
+
+
+def build_dataset_deep_dive_frame(bundle: dict[str, Any]) -> pd.DataFrame:
+    metadata = bundle["metadata"]
+    point_count = len(bundle["raw_values"])
+    anomaly_ratio = (metadata["anomaly_length"] / point_count) if point_count else float("nan")
+    rows = [
+        {"Metric": "Dataset", "Value": bundle["dataset_name"]},
+        {"Metric": "Family", "Value": metadata["dataset_family"]},
+        {"Metric": "Variant", "Value": metadata["dataset_variant"]},
+        {"Metric": "Datapoints", "Value": point_count},
+        {"Metric": "Training cutoff", "Value": metadata["train_until"]},
+        {"Metric": "Anomaly start", "Value": metadata["anomaly_start"]},
+        {"Metric": "Anomaly end", "Value": metadata["anomaly_end"]},
+        {"Metric": "Anomaly length", "Value": metadata["anomaly_length"]},
+        {"Metric": "Anomaly ratio", "Value": round(anomaly_ratio * 100.0, 3)},
+        {"Metric": "Estimated window", "Value": bundle["window"]},
+        {"Metric": "Normalization", "Value": bundle["normalization_method"]},
+        {"Metric": "Clip quantile", "Value": bundle["clip_quantile"] if bundle["clip_quantile"] is not None else "None"},
+    ]
+    return pd.DataFrame(rows)
+
+
+def build_dataset_segment_frame(bundle: dict[str, Any]) -> pd.DataFrame:
+    metadata = bundle["metadata"]
+    raw_values = np.asarray(bundle["raw_values"], dtype=float)
+    prepared_values = np.asarray(bundle["normalized_values"], dtype=float)
+    segment_map = _segment_slices(metadata, len(raw_values))
+
+    rows = []
+    for series_label, series in [("Raw", raw_values), ("Prepared", prepared_values)]:
+        rows.append(
+            {
+                "Series": series_label,
+                "Segment": "Whole series",
+                "Points": len(series),
+                "Share %": 100.0,
+                **_safe_segment_summary(series),
+            }
+        )
+        for segment_label, segment_slice in segment_map.items():
+            segment_values = series[segment_slice]
+            rows.append(
+                {
+                    "Series": series_label,
+                    "Segment": segment_label,
+                    "Points": int(segment_values.size),
+                    "Share %": (float(segment_values.size) * 100.0 / len(series)) if len(series) else float("nan"),
+                    **_safe_segment_summary(segment_values),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def prepare_dataset_bundle(
     dataset_name: str,
     normalization_method: str = "zscore",
@@ -867,6 +952,123 @@ def plot_preprocessing_story(
     axes[1, 1].set_title("Prepared distribution")
     axes[1, 1].set_xlabel("Prepared value")
     axes[1, 1].set_ylabel("Count")
+
+    fig.tight_layout()
+    _save_figure(fig, save_path)
+    return fig
+
+
+def plot_dataset_deep_dive(
+    bundle: dict[str, Any],
+    save_path: Path | None = None,
+    context_points: int = 1000,
+) -> plt.Figure:
+    metadata = bundle["metadata"]
+    raw_values = np.asarray(bundle["raw_values"], dtype=float)
+    prepared_values = np.asarray(bundle["normalized_values"], dtype=float)
+    segment_frame = build_dataset_segment_frame(bundle)
+    segment_labels = ["Train", "Anomaly", "Post-anomaly"]
+    start = max(0, metadata["anomaly_start"] - context_points)
+    end = min(len(raw_values), metadata["anomaly_end"] + context_points + 1)
+
+    fig, axes = plt.subplots(2, 2, figsize=(17, 11))
+    fig.suptitle(
+        f"Deep Dive Dataset Analysis: {bundle['dataset_name']}",
+        fontsize=19,
+        fontweight="bold",
+        y=1.01,
+    )
+
+    axes[0, 0].plot(raw_values, color="#475569", linewidth=1.0)
+    axes[0, 0].axvline(
+        metadata["train_until"],
+        color="#2563eb",
+        linestyle="--",
+        linewidth=1.3,
+        label="Training cutoff",
+    )
+    axes[0, 0].axvspan(
+        metadata["anomaly_start"],
+        metadata["anomaly_end"],
+        color="#f59e0b",
+        alpha=0.18,
+        label="Annotated anomaly",
+    )
+    axes[0, 0].set_title("Full raw series with benchmark annotations")
+    axes[0, 0].set_xlabel("Datapoint index")
+    axes[0, 0].set_ylabel("Raw value")
+    axes[0, 0].legend(loc="upper right")
+
+    axes[0, 1].plot(
+        np.arange(start, end),
+        raw_values[start:end],
+        color="#334155",
+        linewidth=1.2,
+        label="Raw signal",
+    )
+    axes[0, 1].axvspan(
+        metadata["anomaly_start"],
+        metadata["anomaly_end"],
+        color="#f59e0b",
+        alpha=0.18,
+    )
+    axes[0, 1].set_title("Zoomed raw context around the anomaly")
+    axes[0, 1].set_xlabel("Datapoint index")
+    axes[0, 1].set_ylabel("Raw value")
+
+    axis_prepared = axes[0, 1].twinx()
+    axis_prepared.plot(
+        np.arange(start, end),
+        prepared_values[start:end],
+        color="#0f766e",
+        linewidth=1.0,
+        alpha=0.85,
+        label=f"Prepared ({bundle['normalization_method']})",
+    )
+    axis_prepared.set_ylabel("Prepared value")
+
+    left_handles, left_labels = axes[0, 1].get_legend_handles_labels()
+    right_handles, right_labels = axis_prepared.get_legend_handles_labels()
+    axes[0, 1].legend(left_handles + right_handles, left_labels + right_labels, loc="upper right")
+
+    prepared_segments = (
+        segment_frame.loc[
+            (segment_frame["Series"] == "Prepared") & (segment_frame["Segment"].isin(segment_labels)),
+            ["Segment", "Mean", "Std", "Mean |delta|"],
+        ]
+        .set_index("Segment")
+        .reindex(segment_labels)
+    )
+    x = np.arange(len(segment_labels))
+    axes[1, 0].bar(x - 0.18, prepared_segments["Mean"], width=0.36, color="#0f766e", label="Mean")
+    axes[1, 0].bar(x + 0.18, prepared_segments["Std"], width=0.36, color="#f97316", label="Std")
+    axes[1, 0].plot(
+        x,
+        prepared_segments["Mean |delta|"],
+        color="#7c3aed",
+        marker="o",
+        linewidth=2.0,
+        label="Mean |delta|",
+    )
+    axes[1, 0].set_xticks(x)
+    axes[1, 0].set_xticklabels(segment_labels)
+    axes[1, 0].set_title("Prepared segment profile")
+    axes[1, 0].set_ylabel("Value")
+    axes[1, 0].legend(loc="upper right")
+
+    train_values = prepared_values[_segment_slices(metadata, len(prepared_values))["Train"]]
+    anomaly_values = prepared_values[_segment_slices(metadata, len(prepared_values))["Anomaly"]]
+    post_values = prepared_values[_segment_slices(metadata, len(prepared_values))["Post-anomaly"]]
+    if train_values.size:
+        axes[1, 1].hist(train_values, bins=36, alpha=0.6, color="#2563eb", label="Train")
+    if anomaly_values.size:
+        axes[1, 1].hist(anomaly_values, bins=min(20, max(5, anomaly_values.size)), alpha=0.8, color="#f59e0b", label="Anomaly")
+    if post_values.size:
+        axes[1, 1].hist(post_values, bins=36, alpha=0.45, color="#6b7280", label="Post-anomaly")
+    axes[1, 1].set_title("Prepared value distribution by segment")
+    axes[1, 1].set_xlabel("Prepared value")
+    axes[1, 1].set_ylabel("Count")
+    axes[1, 1].legend(loc="upper right")
 
     fig.tight_layout()
     _save_figure(fig, save_path)

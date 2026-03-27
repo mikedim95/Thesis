@@ -1,0 +1,11 @@
+dataset_name,best_algorithm,best_algorithm_base_display,best_algorithm_superfamily,best_algorithm_category,best_algorithm_display,best_algorithm_variant,best_window_size,best_window_stride,best_threshold_method,best_threshold_value,best_evaluation_mode,best_evaluation_f1
+032_UCR_Anomaly_DISTORTEDInternalBleeding4_1000_4675_5033,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,178,1,sigma,3.0,range,0.5522651132864788
+033_UCR_Anomaly_DISTORTEDInternalBleeding5_4000_6200_6370,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,173,1,sigma,3.0,range,0.7150082775571557
+035_UCR_Anomaly_DISTORTEDInternalBleeding8_2500_5865_5974,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,165,1,sigma,3.0,range,0.0
+053_UCR_Anomaly_DISTORTEDWalkingAceleration1_1500_2764_2995,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,115,1,sigma,3.0,range,0.0
+054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,hbos,HBOS,Density-based,Distribution,HBOS | Baseline,Baseline,115,1,sigma,3.0,range,0.6818181818181819
+140_UCR_Anomaly_InternalBleeding4_1000_4675_5033,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,178,1,sigma,3.0,range,0.714151694631046
+141_UCR_Anomaly_InternalBleeding5_4000_6200_6370,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,173,1,sigma,3.0,range,0.8335607094133697
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,165,1,sigma,3.0,range,0.7515937568696417
+161_UCR_Anomaly_WalkingAceleration1_1500_2764_2995,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,115,1,sigma,3.0,range,0.0
+162_UCR_Anomaly_WalkingAceleration5_2700_5920_5979,hbos,HBOS,Density-based,Distribution,HBOS | Baseline,Baseline,115,1,sigma,3.0,range,0.6936416184971099

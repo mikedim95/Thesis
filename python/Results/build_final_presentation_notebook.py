@@ -85,10 +85,13 @@ def build_notebook():
                 archived_dataset_metrics,
                 build_algorithm_summary,
                 build_dataset_catalog,
+                build_dataset_deep_dive_frame,
+                build_dataset_segment_frame,
                 build_key_findings,
                 default_algorithm_parameters,
                 load_all_results,
                 plot_algorithm_cards,
+                plot_dataset_deep_dive,
                 plot_dataset_landscape,
                 plot_live_demo_suite,
                 plot_median_metric_heatmap,
@@ -162,6 +165,32 @@ def build_notebook():
         md(
             """
             The notebook is now at the **prepared dataset** stage: the raw series is visible, the normalized series is visible, and the selected sliding-window length is fixed for the next stage unless you override it.
+            """
+        ),
+        md(
+            """
+            ## Deep Dive Dataset Analysis
+
+            This section stays focused on the **currently selected dataset** rather than the whole benchmark. It makes the dataset structure explicit: where training ends, how wide the labeled anomaly is, how the prepared values differ from the raw signal, and how the anomaly segment compares with the train and post-anomaly segments.
+            """
+        ),
+        code(
+            """
+            display(build_dataset_deep_dive_frame(prepared))
+            display(build_dataset_segment_frame(prepared).round(3))
+            """
+        ),
+        code(
+            """
+            _ = plot_dataset_deep_dive(
+                prepared,
+                FIGURE_OUTPUT_DIR / "02_dataset_deep_dive.png",
+            )
+            """
+        ),
+        md(
+            """
+            The deep-dive section is the place to explain the dataset itself before talking about the algorithms: signal length, anomaly sparsity, segment statistics, and the local anomaly context are all visible here.
             """
         ),
         md(
@@ -323,9 +352,10 @@ def build_notebook():
             If you want to demonstrate the notebook live in front of your professor:
 
             1. Change the **Beginning control cell** to switch dataset and normalization.
-            2. Change the **Middle control cell** to tweak `IForest`, `LOF`, or `SAND` arguments.
-            3. Optionally rerun the **Parameter Sweep** cells to show how one argument changes AUC, F1, recall, and runtime.
-            4. Rerun the **End** plot cell to show the updated anomaly graphs.
+            2. Use the **Deep Dive Dataset Analysis** cells to explain the selected dataset before switching to model behaviour.
+            3. Change the **Middle control cell** to tweak `IForest`, `LOF`, or `SAND` arguments.
+            4. Optionally rerun the **Parameter Sweep** cells to show how one argument changes AUC, F1, recall, and runtime.
+            5. Rerun the **End** plot cell to show the updated anomaly graphs.
 
             All exported figures are saved under `python/Results/presentation_figures/`.
             """

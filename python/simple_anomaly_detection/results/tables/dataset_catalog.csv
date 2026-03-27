@@ -1,0 +1,11 @@
+dataset_name,dataset_sequence,family,variant,series_length,anomaly_count,anomaly_ratio,train_end,anomaly_start,anomaly_end,window_size,window_stride,normalization_method,threshold_method,threshold_value,evaluation_mode,prepared_dataset_dir
+032_UCR_Anomaly_DISTORTEDInternalBleeding4_1000_4675_5033,32,InternalBleeding,distorted,7321,359,0.04903701680098347,1000,4675,5033,178,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+033_UCR_Anomaly_DISTORTEDInternalBleeding5_4000_6200_6370,33,InternalBleeding,distorted,7415,171,0.02306136210384356,4000,6200,6370,173,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+035_UCR_Anomaly_DISTORTEDInternalBleeding8_2500_5865_5974,35,InternalBleeding,distorted,7501,110,0.014664711371817091,2500,5865,5974,165,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+053_UCR_Anomaly_DISTORTEDWalkingAceleration1_1500_2764_2995,53,WalkingAceleration,distorted,6684,232,0.034709754637941355,1500,2764,2995,115,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,54,WalkingAceleration,distorted,6684,60,0.008976660682226212,2700,5920,5979,115,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+140_UCR_Anomaly_InternalBleeding4_1000_4675_5033,140,InternalBleeding,raw,7321,359,0.04903701680098347,1000,4675,5033,178,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+141_UCR_Anomaly_InternalBleeding5_4000_6200_6370,141,InternalBleeding,raw,7415,171,0.02306136210384356,4000,6200,6370,173,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,143,InternalBleeding,raw,7501,110,0.014664711371817091,2500,5865,5974,165,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+161_UCR_Anomaly_WalkingAceleration1_1500_2764_2995,161,WalkingAceleration,raw,6684,232,0.034709754637941355,1500,2764,2995,115,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+162_UCR_Anomaly_WalkingAceleration5_2700_5920_5979,162,WalkingAceleration,raw,6684,60,0.008976660682226212,2700,5920,5979,115,1,zscore,sigma,3.0,range,datasets\normalized\zscore

@@ -7,10 +7,10 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.svm import OneClassSVM
 
 
-def _rolling_windows(values: np.ndarray, window_size: int) -> np.ndarray:
+def _rolling_windows(values: np.ndarray, window_size: int, window_stride: int = 1) -> np.ndarray:
     if window_size >= values.size:
         raise ValueError("window_size must be smaller than the time-series length")
-    return np.lib.stride_tricks.sliding_window_view(values, window_shape=window_size)
+    return np.lib.stride_tricks.sliding_window_view(values, window_shape=window_size)[:: max(1, int(window_stride))]
 
 
 def _normalize_scores(scores: np.ndarray) -> np.ndarray:
@@ -20,10 +20,18 @@ def _normalize_scores(scores: np.ndarray) -> np.ndarray:
     return MinMaxScaler().fit_transform(scores).ravel()
 
 
-def _align_scores(window_scores: np.ndarray, window_size: int, series_length: int) -> np.ndarray:
-    pad_left = math.ceil((window_size - 1) / 2)
-    pad_right = (window_size - 1) // 2
-    return np.pad(window_scores, (pad_left, pad_right), mode="edge")[:series_length]
+def _align_scores(window_scores: np.ndarray, window_size: int, series_length: int, window_stride: int = 1) -> np.ndarray:
+    if window_scores.size == 0:
+        return np.zeros(series_length, dtype=float)
+    if max(1, int(window_stride)) == 1:
+        pad_left = math.ceil((window_size - 1) / 2)
+        pad_right = (window_size - 1) // 2
+        return np.pad(window_scores, (pad_left, pad_right), mode="edge")[:series_length]
+    window_starts = np.arange(window_scores.size, dtype=float) * max(1, int(window_stride))
+    centers = np.clip(window_starts + (window_size - 1) / 2.0, 0, series_length - 1)
+    if window_scores.size == 1:
+        return np.full(series_length, float(window_scores[0]), dtype=float)
+    return np.interp(np.arange(series_length, dtype=float), centers, window_scores, left=window_scores[0], right=window_scores[-1])
 
 
 def _rowwise_minmax(windows: np.ndarray) -> np.ndarray:
@@ -46,6 +54,7 @@ def _parse_gamma(gamma: str | float) -> str | float:
 def score_time_series(
     values: np.ndarray,
     window_size: int,
+    window_stride: int = 1,
     *,
     kernel: str = "rbf",
     nu: float = 0.05,
@@ -60,7 +69,7 @@ def score_time_series(
     values = np.asarray(values, dtype=float).ravel()
     window_size = int(window_size)
 
-    windows = _rolling_windows(values, window_size)
+    windows = _rolling_windows(values, window_size, window_stride=window_stride)
     normalized_windows = _rowwise_minmax(windows)
     effective_train_fraction = min(max(float(train_fraction), 0.01), 1.0)
     train_count = min(len(normalized_windows), max(8, int(round(len(normalized_windows) * effective_train_fraction))))
@@ -80,7 +89,7 @@ def score_time_series(
 
     window_scores = -model.decision_function(normalized_windows)
     normalized_scores = _normalize_scores(window_scores)
-    return _align_scores(normalized_scores, window_size, values.size)
+    return _align_scores(normalized_scores, window_size, values.size, window_stride=window_stride)
 
 
 __all__ = ["score_time_series"]

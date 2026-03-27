@@ -1,2 +1,2 @@
-legacy_virgin_count,workspace_raw_count,workspace_normalized_count,benchmark_count,normalization_method,clip_quantile,normalized_dataset_dir
-241,241,241,30,zscore,,datasets\normalized\zscore
+legacy_virgin_count,workspace_raw_count,workspace_normalized_count,benchmark_count,normalization_method,clip_quantile,window_size,window_stride,threshold_method,threshold_value,evaluation_mode,normalized_dataset_dir
+241,241,241,10,zscore,,,1,sigma,3.0,range,datasets\normalized\zscore

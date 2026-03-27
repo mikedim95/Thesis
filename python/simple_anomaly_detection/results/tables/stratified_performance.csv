@@ -1,0 +1,4 @@
+algorithm_display,size_group,ratio_group,dataset_count,mean_range_f1
+SAND | Baseline,Longer than median,Lower anomaly ratio,6,0.250283004908678
+SAND | Baseline,Shorter or equal to median,Higher anomaly ratio,6,0.5071268719255482
+SAND | Baseline,Shorter or equal to median,Lower anomaly ratio,2,0.0

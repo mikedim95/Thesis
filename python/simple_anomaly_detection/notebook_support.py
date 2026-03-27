@@ -178,9 +178,11 @@ TOOLTIP_TEXT = {
     "normalization_method": "How raw dataset values are transformed before any algorithm runs. This controls the files created in datasets/normalized and changes the numeric scale each algorithm sees.",
     "clip_quantile": "Optional outlier clipping before normalization. Example: 0.01 clips the bottom 1% and top 1% of raw values. This can reduce extreme spikes, but it can also weaken anomaly contrast.",
     "overwrite_normalized": "Rebuild the normalized dataset files even if cached versions already exist. Turn this on after changing normalization settings when you want to force fresh prepared data.",
-    "window_override": "Explicit sliding window length for all algorithms. Use 0 to estimate the window automatically per dataset. Larger windows capture longer patterns but cost more runtime and may smooth local anomalies.",
-    "threshold_std": "Decision threshold used only when converting continuous anomaly scores into binary anomaly predictions. It directly affects precision, recall, F1, and confusion counts, but not ROC AUC or average precision.",
-    "deep_dive_dataset": "Dataset used for the detailed raw-signal, normalized-signal, and score plots. This does not change the benchmark itself; it only changes which dataset gets extra visual analysis.",
+    "window_size": "Defines the temporal context length seen by window-based embedding, subsequence scoring, and range-oriented evaluation. Use 0 to keep the current automatic window estimation.",
+    "window_stride": "Step between consecutive windows or subsequences. Smaller strides create denser overlap and higher runtime; larger strides reduce overlap and can lower computational cost.",
+    "threshold_method": "Defines how anomaly scores become final detections after the scoring stage. Sigma uses a mean-plus-standard-deviation cutoff, quantile uses an upper score percentile, and top-k keeps only the strongest anomalies under a fixed budget.",
+    "threshold_value": "Threshold parameter used by the selected threshold method. Sigma is useful for normalized score distributions, quantile is more robust across heterogeneous score scales, and top-k is useful when anomaly count is constrained or benchmark structure is known.",
+    "evaluation_mode": "Controls whether detections are judged as anomalous ranges or as anomalous points. Range mode is better for interval anomalies; point mode is stricter and may underrepresent temporal overlap quality.",
     "save_scores": "Save one CSV per dataset and algorithm with the raw score trace. Useful for later inspection, but it creates many files during large benchmark runs.",
     "run_iforest": "Include Isolation Forest in the benchmark. Disable it when you want to compare only the other algorithms or reduce runtime.",
     "run_lof": "Include Local Outlier Factor in the benchmark. Disable it when you want a smaller run or cleaner comparisons.",
@@ -262,6 +264,7 @@ def _load_sklearn_metric_functions():
 def _load_algorithm_function(algorithm_key: str):
     module_name, function_name = ALGORITHM_REGISTRY[algorithm_key]
     module = importlib.import_module(module_name)
+    module = importlib.reload(module)
     return getattr(module, function_name)
 
 
@@ -312,6 +315,65 @@ def build_results_layout_frame() -> pd.DataFrame:
     return pd.DataFrame(
         [{"output_group": label, "path": portable_path_str(path), "exists": path.exists()} for label, path in rows]
     )
+
+
+def _select_benchmark_dataset_paths(
+    prepared_dataset_paths: list[Path],
+    dataset_limit: int | None,
+    deep_dive_dataset_name: str,
+) -> tuple[list[Path], bool]:
+    if dataset_limit is None:
+        return prepared_dataset_paths, any(path.stem == deep_dive_dataset_name for path in prepared_dataset_paths)
+
+    selected_paths = list(prepared_dataset_paths[:dataset_limit])
+    selected_names = {path.stem for path in selected_paths}
+    if deep_dive_dataset_name in selected_names:
+        return selected_paths, True
+
+    deep_dive_path = next((path for path in prepared_dataset_paths if path.stem == deep_dive_dataset_name), None)
+    if deep_dive_path is None:
+        return selected_paths, False
+
+    if not selected_paths:
+        return [deep_dive_path], True
+
+    # Keep the user-facing dataset limit stable, but guarantee the chosen deep-dive dataset is benchmarked.
+    selected_paths[-1] = deep_dive_path
+    return selected_paths, True
+
+
+@lru_cache(maxsize=32)
+def _ordered_prepared_dataset_names(
+    normalization_method: str,
+    clip_quantile: float | None,
+) -> tuple[str, ...]:
+    _prepared_dataset_dir, prepared_dataset_paths = ensure_normalized_datasets(
+        normalization_method,
+        clip_quantile,
+        overwrite=False,
+    )
+    ordered_paths = sorted(prepared_dataset_paths, key=lambda path: (path.stat().st_size, path.name))
+    return tuple(path.stem for path in ordered_paths)
+
+
+def _available_deep_dive_dataset_names(
+    dataset_names: list[str],
+    dataset_limit: int | None,
+    normalization_method: str,
+    clip_quantile: float | None,
+) -> list[str]:
+    fallback_names = list(dataset_names)
+    if dataset_limit is not None:
+        fallback_names = fallback_names[:dataset_limit]
+
+    try:
+        ordered_names = list(_ordered_prepared_dataset_names(normalization_method, clip_quantile))
+    except Exception:
+        ordered_names = fallback_names
+
+    if dataset_limit is not None:
+        ordered_names = ordered_names[:dataset_limit]
+    return ordered_names
 
 
 def parse_freeform_value(text: str) -> str | int | float:
@@ -1149,6 +1211,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     controls: dict[str, Any] = {}
     preview_output = widgets.Output()
     algorithm_variants: dict[str, Any] = {}
+    threshold_defaults = {"sigma": 3.0, "quantile": 0.995, "top_k": 1}
+    threshold_value_slot = widgets.VBox()
 
     def render_preview(*_args: Any) -> None:
         selected = []
@@ -1179,9 +1243,11 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                     "datasets to run": "all available" if controls["dataset_limit"].value <= 0 else controls["dataset_limit"].value,
                     "normalization": controls["normalization_method"].value,
                     "clip_quantile": None if controls["clip_quantile"].value <= 0 else controls["clip_quantile"].value,
-                    "window_override": None if controls["window_override"].value <= 0 else controls["window_override"].value,
-                    "threshold_sigma": controls["threshold_std"].value,
-                    "deep_dive_dataset": controls["deep_dive_dataset"].value,
+                    "window_size": None if controls["window_size"].value <= 0 else controls["window_size"].value,
+                    "window_stride": max(1, int(controls["window_stride"].value)),
+                    "threshold_method": controls["threshold_method"].value,
+                    "threshold_value": controls["threshold_value"].value,
+                    "evaluation_mode": controls["evaluation_mode"].value,
                     "selected_algorithms": ", ".join(selected) if selected else "none",
                     "selected_configurations": selected_configuration_count,
                     "variant_tabs": " | ".join(variant_summary) if variant_summary else "none",
@@ -1197,6 +1263,29 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         if hasattr(widget, "observe"):
             widget.observe(render_preview, names="value")
 
+    def build_threshold_value_widget(method: str, value: float | int | None = None) -> widgets.Widget:
+        if method == "top_k":
+            widget = widgets.IntText(
+                value=max(1, int(round(threshold_defaults[method] if value is None else value))),
+                description="Top-k anomalies",
+                layout=widgets.Layout(width="240px"),
+            )
+        else:
+            widget = widgets.FloatText(
+                value=float(threshold_defaults[method] if value is None else value),
+                description="Threshold sigma" if method == "sigma" else "Threshold quantile",
+                layout=widgets.Layout(width="240px"),
+            )
+        register_widget(widget)
+        return widget
+
+    def refresh_threshold_value_control(*_args: Any) -> None:
+        method = str(controls["threshold_method"].value)
+        next_value = threshold_defaults[method]
+        controls["threshold_value"] = build_threshold_value_widget(method, next_value)
+        threshold_value_slot.children = [_with_tooltip(controls["threshold_value"], "threshold_value")]
+        render_preview()
+
     controls["dataset_limit"] = widgets.IntText(value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
     controls["normalization_method"] = widgets.Dropdown(
         options=["none", "zscore", "minmax", "robust"],
@@ -1206,20 +1295,19 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     )
     controls["clip_quantile"] = widgets.FloatText(value=0.0, description="Clip q", layout=widgets.Layout(width="220px"))
     controls["overwrite_normalized"] = widgets.Checkbox(value=False, description="Rebuild normalized datasets")
-    controls["window_override"] = widgets.IntText(value=0, description="Window override", layout=widgets.Layout(width="220px"))
-    controls["threshold_std"] = widgets.FloatSlider(
-        value=3.0,
-        min=0.5,
-        max=6.0,
-        step=0.5,
-        description="Threshold sigma",
-        layout=widgets.Layout(width="340px"),
+    controls["window_size"] = widgets.IntText(value=0, description="Window size", layout=widgets.Layout(width="220px"))
+    controls["window_stride"] = widgets.IntText(value=1, description="Window stride", layout=widgets.Layout(width="220px"))
+    controls["threshold_method"] = widgets.Dropdown(
+        options=["sigma", "quantile", "top_k"],
+        value="sigma",
+        description="Threshold method",
+        layout=widgets.Layout(width="240px"),
     )
-    controls["deep_dive_dataset"] = widgets.Dropdown(
-        options=dataset_names,
-        value=dataset_names[0] if dataset_names else None,
-        description="Deep dive",
-        layout=widgets.Layout(width="650px"),
+    controls["evaluation_mode"] = widgets.Dropdown(
+        options=["range", "point"],
+        value="range",
+        description="Evaluation mode",
+        layout=widgets.Layout(width="220px"),
     )
     controls["save_scores"] = widgets.Checkbox(value=False, description="Save per-dataset scores")
     controls["run_iforest"] = widgets.Checkbox(value=True, description="Isolation Forest")
@@ -1236,9 +1324,10 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         "normalization_method",
         "clip_quantile",
         "overwrite_normalized",
-        "window_override",
-        "threshold_std",
-        "deep_dive_dataset",
+        "window_size",
+        "window_stride",
+        "threshold_method",
+        "evaluation_mode",
         "save_scores",
         "run_iforest",
         "run_lof",
@@ -1250,6 +1339,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         "run_pca",
     ]:
         register_widget(controls[key])
+
+    controls["threshold_method"].observe(refresh_threshold_value_control, names="value")
 
     algorithm_variants["isolation_forest"] = _build_variant_manager("isolation_forest", _make_if_variant, register_widget, render_preview)
     algorithm_variants["local_outlier_factor"] = _build_variant_manager("local_outlier_factor", _make_lof_variant, register_widget, render_preview)
@@ -1273,11 +1364,17 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             ),
             _control_row(
                 [
-                    _with_tooltip(controls["window_override"], "window_override"),
-                    _with_tooltip(controls["threshold_std"], "threshold_std"),
+                    _with_tooltip(controls["window_size"], "window_size"),
+                    _with_tooltip(controls["window_stride"], "window_stride"),
                 ]
             ),
-            _with_tooltip(controls["deep_dive_dataset"], "deep_dive_dataset"),
+            _control_row(
+                [
+                    _with_tooltip(controls["threshold_method"], "threshold_method"),
+                    threshold_value_slot,
+                    _with_tooltip(controls["evaluation_mode"], "evaluation_mode"),
+                ]
+            ),
             _control_row(
                 [
                     _with_tooltip(controls["overwrite_normalized"], "overwrite_normalized"),
@@ -1303,9 +1400,10 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                     "normalization_method",
                     "clip_quantile",
                     "overwrite_normalized",
-                    "window_override",
-                    "threshold_std",
-                    "deep_dive_dataset",
+        "window_size",
+        "window_stride",
+        "threshold_value",
+        "evaluation_mode",
                     "save_scores",
                     "run_iforest",
                     "run_lof",
@@ -1321,6 +1419,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         "#334155",
     )
 
+    refresh_threshold_value_control()
     render_preview()
 
     algorithm_tabs = widgets.Tab(
@@ -1365,8 +1464,15 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
 def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
     clip_value = None if controls["clip_quantile"].value <= 0 else float(controls["clip_quantile"].value)
-    window_override = None if controls["window_override"].value <= 0 else int(controls["window_override"].value)
+    window_size = None if controls["window_size"].value <= 0 else int(controls["window_size"].value)
+    window_stride = max(1, int(controls["window_stride"].value))
     dataset_limit = None if controls["dataset_limit"].value <= 0 else int(controls["dataset_limit"].value)
+    threshold_method = str(controls["threshold_method"].value)
+    threshold_value = (
+        max(1, int(controls["threshold_value"].value))
+        if threshold_method == "top_k"
+        else float(controls["threshold_value"].value)
+    )
     selected_algorithms: list[str] = []
     algorithm_variants: dict[str, list[dict[str, Any]]] = {}
     selected_runs: list[dict[str, Any]] = []
@@ -1470,9 +1576,13 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
         "normalization_method": controls["normalization_method"].value,
         "clip_quantile": clip_value,
         "overwrite_normalized_datasets": bool(controls["overwrite_normalized"].value),
-        "window_override": window_override,
-        "threshold_std_multiplier": float(controls["threshold_std"].value),
-        "deep_dive_dataset_name": controls["deep_dive_dataset"].value,
+        "window_size": window_size,
+        "window_stride": window_stride,
+        "window_override": window_size,
+        "threshold_method": threshold_method,
+        "threshold_value": threshold_value,
+        "threshold_std_multiplier": threshold_value if threshold_method == "sigma" else None,
+        "evaluation_mode": str(controls["evaluation_mode"].value),
         "save_per_dataset_scores": bool(controls["save_scores"].value),
         "selected_algorithms": selected_algorithms,
         "selected_runs": selected_runs,
@@ -1655,6 +1765,100 @@ def precision_at_k(labels: np.ndarray, scores: np.ndarray) -> float:
     return float(labels[top_indices].sum() / k)
 
 
+def _positive_segments(mask: np.ndarray) -> list[tuple[int, int]]:
+    segments: list[tuple[int, int]] = []
+    start_index: int | None = None
+    for index, value in enumerate(np.asarray(mask, dtype=bool)):
+        if value and start_index is None:
+            start_index = index
+        elif not value and start_index is not None:
+            segments.append((start_index, index))
+            start_index = None
+    if start_index is not None:
+        segments.append((start_index, len(mask)))
+    return segments
+
+
+def apply_threshold_strategy(
+    scores: np.ndarray,
+    threshold_method: str,
+    threshold_value: float,
+    window_size: int,
+    window_stride: int,
+    evaluation_mode: str,
+) -> dict[str, Any]:
+    scores = np.asarray(scores, dtype=float).ravel()
+    if scores.size == 0:
+        return {
+            "predictions": np.zeros(0, dtype=int),
+            "score_threshold": float("nan"),
+            "threshold_method": threshold_method,
+            "threshold_value": threshold_value,
+        }
+
+    method = str(threshold_method).lower()
+    evaluation_mode = str(evaluation_mode).lower()
+    if method == "sigma":
+        sigma = float(threshold_value)
+        threshold = float(scores.mean() + sigma * scores.std())
+        predictions = (scores >= threshold).astype(int)
+        return {
+            "predictions": predictions,
+            "score_threshold": threshold,
+            "threshold_method": method,
+            "threshold_value": sigma,
+        }
+
+    if method == "quantile":
+        quantile = float(threshold_value)
+        quantile = min(max(quantile, 0.0), 1.0)
+        threshold = float(np.quantile(scores, quantile))
+        predictions = (scores >= threshold).astype(int)
+        return {
+            "predictions": predictions,
+            "score_threshold": threshold,
+            "threshold_method": method,
+            "threshold_value": quantile,
+        }
+
+    if method != "top_k":
+        raise ValueError(f"Unsupported threshold method: {threshold_method}")
+
+    top_k = max(1, int(round(float(threshold_value))))
+    predictions = np.zeros(scores.size, dtype=int)
+    ranked_indices = np.argsort(scores)[::-1]
+    selected_indices: list[int] = []
+
+    if evaluation_mode == "point":
+        selected_indices = ranked_indices[: min(top_k, scores.size)].tolist()
+        predictions[selected_indices] = 1
+    else:
+        left = math.ceil((window_size - 1) / 2)
+        right = (window_size - 1) // 2
+        for index in ranked_indices:
+            start_index = max(0, int(index) - left)
+            end_index = min(scores.size, int(index) + right + 1)
+            if predictions[start_index:end_index].any():
+                continue
+            predictions[start_index:end_index] = 1
+            selected_indices.append(int(index))
+            if len(selected_indices) >= top_k:
+                break
+        if not selected_indices:
+            selected_indices = ranked_indices[:1].tolist()
+            predictions[selected_indices] = 1
+
+    score_threshold = float(np.min(scores[selected_indices])) if selected_indices else float("nan")
+    return {
+        "predictions": predictions,
+        "score_threshold": score_threshold,
+        "threshold_method": method,
+        "threshold_value": float(top_k),
+        "decision_window_size": int(window_size),
+        "decision_window_stride": int(window_stride),
+    }
+
+
 @lru_cache(maxsize=1)
 def _load_tsb_uad_components() -> dict[str, Any] | None:
     try:
@@ -1675,11 +1879,21 @@ def _load_tsb_uad_components() -> dict[str, Any] | None:
 def compute_metrics(
     labels: np.ndarray,
     scores: np.ndarray,
-    threshold_std_multiplier: float,
+    threshold_method: str,
+    threshold_value: float,
     window_size: int,
+    evaluation_mode: str,
+    window_stride: int = 1,
 ) -> dict[str, float]:
-    threshold = float(scores.mean() + threshold_std_multiplier * scores.std())
-    predictions = (scores >= threshold).astype(int)
+    decision = apply_threshold_strategy(
+        scores,
+        threshold_method=threshold_method,
+        threshold_value=threshold_value,
+        window_size=window_size,
+        window_stride=window_stride,
+        evaluation_mode=evaluation_mode,
+    )
+    predictions = decision["predictions"]
     metric_functions = _load_sklearn_metric_functions()
     precision, recall, f1, _ = metric_functions["precision_recall_fscore_support"](
         labels,
@@ -1698,7 +1912,10 @@ def compute_metrics(
         "recall": float(recall),
         "f1": float(f1),
         "precision_at_k": precision_at_k(labels, scores),
-        "score_threshold": threshold,
+        "score_threshold": float(decision["score_threshold"]),
+        "threshold_method": str(decision["threshold_method"]),
+        "threshold_value": float(decision["threshold_value"]),
+        "evaluation_mode": str(evaluation_mode),
         "tp": tp,
         "tn": tn,
         "fp": fp,
@@ -1716,6 +1933,9 @@ def compute_metrics(
                 "affiliation_precision": float("nan"),
                 "affiliation_recall": float("nan"),
                 "tsb_uad_window": int(window_size),
+                "evaluation_precision": float(precision),
+                "evaluation_recall": float(recall),
+                "evaluation_f1": float(f1),
             }
         )
         return metrics
@@ -1758,6 +1978,14 @@ def compute_metrics(
             "tsb_uad_window": int(window_size),
         }
     )
+    if str(evaluation_mode).lower() == "range" and np.isfinite(range_precision) and np.isfinite(range_recall) and np.isfinite(range_f1):
+        metrics["evaluation_precision"] = float(range_precision)
+        metrics["evaluation_recall"] = float(range_recall)
+        metrics["evaluation_f1"] = float(range_f1)
+    else:
+        metrics["evaluation_precision"] = float(precision)
+        metrics["evaluation_recall"] = float(recall)
+        metrics["evaluation_f1"] = float(f1)
     return metrics
 
 
@@ -1811,7 +2039,11 @@ def build_dataset_catalog(results_frame: pd.DataFrame) -> pd.DataFrame:
             "anomaly_start",
             "anomaly_end",
             "window_size",
+            "window_stride",
             "normalization_method",
+            "threshold_method",
+            "threshold_value",
+            "evaluation_mode",
             "prepared_dataset_dir",
         ]
     ].reset_index(drop=True)
@@ -1828,6 +2060,7 @@ def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
                 "algorithm_display",
                 "algorithm_variant",
                 "algorithm_run_id",
+                "evaluation_mode",
             ],
             as_index=False,
         )
@@ -1842,6 +2075,10 @@ def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
             mean_recall=("recall", "mean"),
             mean_f1=("f1", "mean"),
             median_f1=("f1", "median"),
+            mean_evaluation_precision=("evaluation_precision", "mean"),
+            mean_evaluation_recall=("evaluation_recall", "mean"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
+            median_evaluation_f1=("evaluation_f1", "median"),
             mean_precision_at_k=("precision_at_k", "mean"),
             mean_range_precision=("range_precision", "mean"),
             mean_range_recall=("range_recall", "mean"),
@@ -1851,7 +2088,7 @@ def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
             mean_runtime_seconds=("runtime_seconds", "mean"),
             median_runtime_seconds=("runtime_seconds", "median"),
         )
-        .sort_values(["mean_range_f1", "mean_f1", "mean_roc_auc"], ascending=False)
+        .sort_values(["mean_evaluation_f1", "mean_roc_auc", "mean_f1"], ascending=False)
         .reset_index(drop=True)
     )
     summary["success_rate"] = summary["success_count"] / summary["run_count"]
@@ -1861,19 +2098,20 @@ def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
 def summarize_families(results_frame: pd.DataFrame) -> pd.DataFrame:
     return (
         results_frame.groupby(
-            ["family", "algorithm_display", "algorithm_superfamily", "algorithm_category"],
+            ["family", "algorithm_display", "algorithm_superfamily", "algorithm_category", "evaluation_mode"],
             as_index=False,
         )
         .agg(
             dataset_count=("dataset_name", "nunique"),
             mean_roc_auc=("roc_auc", "mean"),
             mean_f1=("f1", "mean"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
             mean_range_f1=("range_f1", "mean"),
             mean_affiliation_precision=("affiliation_precision", "mean"),
             mean_affiliation_recall=("affiliation_recall", "mean"),
             mean_runtime_seconds=("runtime_seconds", "mean"),
         )
-        .sort_values(["dataset_count", "mean_range_f1", "mean_f1"], ascending=[False, False, False])
+        .sort_values(["dataset_count", "mean_evaluation_f1", "mean_f1"], ascending=[False, False, False])
         .reset_index(drop=True)
     )
 
@@ -1893,6 +2131,11 @@ def build_best_algorithm_table(results_frame: pd.DataFrame, metric: str) -> pd.D
             "algorithm_category",
             "algorithm_display",
             "algorithm_variant",
+            "window_size",
+            "window_stride",
+            "threshold_method",
+            "threshold_value",
+            "evaluation_mode",
             metric,
         ],
     ].copy()
@@ -1904,6 +2147,11 @@ def build_best_algorithm_table(results_frame: pd.DataFrame, metric: str) -> pd.D
             "algorithm_category": "best_algorithm_category",
             "algorithm_display": "best_algorithm_display",
             "algorithm_variant": "best_algorithm_variant",
+            "window_size": "best_window_size",
+            "window_stride": "best_window_stride",
+            "threshold_method": "best_threshold_method",
+            "threshold_value": "best_threshold_value",
+            "evaluation_mode": "best_evaluation_mode",
             metric: f"best_{metric}",
         },
         inplace=True,
@@ -1916,31 +2164,37 @@ def build_algorithm_section_tables(results_frame: pd.DataFrame, algorithm_key: s
     if subset.empty:
         return pd.DataFrame(), pd.DataFrame()
     summary = (
-        subset.groupby(["algorithm_display", "algorithm_variant", "algorithm_run_id"], as_index=False)
+        subset.groupby(["algorithm_display", "algorithm_variant", "algorithm_run_id", "evaluation_mode"], as_index=False)
         .agg(
             runs=("dataset_name", "count"),
             success_rate=("error", lambda series: float((series == "").mean())),
             mean_roc_auc=("roc_auc", "mean"),
             mean_average_precision=("average_precision", "mean"),
             mean_f1=("f1", "mean"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
             mean_range_f1=("range_f1", "mean"),
             mean_affiliation_precision=("affiliation_precision", "mean"),
             mean_affiliation_recall=("affiliation_recall", "mean"),
             median_f1=("f1", "median"),
+            median_evaluation_f1=("evaluation_f1", "median"),
             mean_runtime_seconds=("runtime_seconds", "mean"),
         )
-        .sort_values(["mean_range_f1", "mean_f1", "mean_roc_auc"], ascending=False)
+        .sort_values(["mean_evaluation_f1", "mean_roc_auc", "mean_f1"], ascending=False)
         .reset_index(drop=True)
     )
-    top_rows = subset.sort_values(["range_f1", "f1", "roc_auc"], ascending=False)[
+    top_rows = subset.sort_values(["evaluation_f1", "evaluation_recall", "roc_auc"], ascending=False)[
         [
             "algorithm_display",
             "dataset_name",
+            "evaluation_mode",
             "roc_auc",
             "average_precision",
             "precision",
             "recall",
             "f1",
+            "evaluation_precision",
+            "evaluation_recall",
+            "evaluation_f1",
             "range_f1",
             "affiliation_precision",
             "affiliation_recall",
@@ -1976,7 +2230,7 @@ def select_deep_dive_variant(
     subset = results_frame.loc[
         (results_frame["dataset_name"] == deep_dive_payload["dataset"]["dataset_name"])
         & (results_frame["algorithm"] == algorithm_key)
-    ].sort_values(["range_f1", "f1", "roc_auc", "runtime_seconds"], ascending=[False, False, False, True])
+    ].sort_values(["evaluation_f1", "evaluation_recall", "roc_auc", "runtime_seconds"], ascending=[False, False, False, True])
     if subset.empty:
         return None, None
     metric_row = subset.iloc[0]
@@ -2025,24 +2279,110 @@ def build_deep_dive_research_table(
     ).reset_index(drop=True)
 
 
+def select_algorithm_showcase(results_frame: pd.DataFrame, algorithm_key: str) -> pd.Series | None:
+    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    if subset.empty:
+        return None
+    subset = subset.sort_values(
+        ["evaluation_recall", "evaluation_f1", "overlap_reward", "roc_auc", "f1", "runtime_seconds"],
+        ascending=[False, False, False, False, False, True],
+        na_position="last",
+    )
+    return subset.iloc[0]
+
+
+def build_algorithm_showcase(
+    config: dict[str, Any],
+    prepared_dataset_dir: Path,
+    results_frame: pd.DataFrame,
+    algorithm_key: str,
+) -> dict[str, Any] | None:
+    metric_row = select_algorithm_showcase(results_frame, algorithm_key)
+    if metric_row is None:
+        return None
+
+    run_config = next(
+        (entry for entry in config["selected_runs"] if entry["algorithm_run_id"] == metric_row["algorithm_run_id"]),
+        None,
+    )
+    if run_config is None:
+        return None
+
+    prepared_dataset_path = Path(prepared_dataset_dir) / f"{metric_row['dataset_name']}.txt"
+    raw_dataset_path = RAW_DATASET_DIR / f"{metric_row['dataset_name']}.txt"
+    if not prepared_dataset_path.exists() or not raw_dataset_path.exists():
+        return None
+
+    dataset = load_prepared_dataset(prepared_dataset_path)
+    raw_values = load_raw_values_from_file(raw_dataset_path)
+    scores = run_algorithm(
+        algorithm_key,
+        dataset["values"],
+        int(metric_row["window_size"]),
+        run_config["params"],
+        window_stride=int(metric_row["window_stride"]),
+    )
+
+    summary = pd.DataFrame(
+        [
+            {
+                "showcase_dataset": metric_row["dataset_name"],
+                "algorithm_display": metric_row["algorithm_display"],
+                "window_size": metric_row["window_size"],
+                "window_stride": metric_row["window_stride"],
+                "threshold_method": metric_row["threshold_method"],
+                "threshold_value": metric_row["threshold_value"],
+                "evaluation_mode": metric_row["evaluation_mode"],
+                "evaluation_recall": metric_row["evaluation_recall"],
+                "evaluation_f1": metric_row["evaluation_f1"],
+                "roc_auc": metric_row["roc_auc"],
+                "f1": metric_row["f1"],
+                "range_f1": metric_row["range_f1"],
+                "runtime_seconds": metric_row["runtime_seconds"],
+            }
+        ]
+    )
+
+    decision = apply_threshold_strategy(
+        scores,
+        threshold_method=str(metric_row["threshold_method"]),
+        threshold_value=float(metric_row["threshold_value"]),
+        window_size=int(metric_row["window_size"]),
+        window_stride=int(metric_row["window_stride"]),
+        evaluation_mode=str(metric_row["evaluation_mode"]),
+    )
+
+    return {
+        "dataset": dataset,
+        "raw_values": raw_values,
+        "scores": scores,
+        "predictions": decision["predictions"],
+        "metric_row": metric_row,
+        "summary": summary,
+        "run_config": run_config,
+    }
+
+
 def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
     subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
     if subset.empty:
         return None
     plt = _load_plotting_module()
+    evaluation_mode = str(subset["evaluation_mode"].iloc[0]).lower()
+    metric_label = "Range F1" if evaluation_mode == "range" else "Point F1"
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), constrained_layout=True)
     palette = plt.get_cmap("tab10")
     for color_index, (display_name, frame) in enumerate(subset.groupby("algorithm_display")):
         color = palette(color_index % 10)
-        axes[0].hist(frame["range_f1"].dropna(), bins=20, alpha=0.45, label=display_name, color=color, edgecolor="white")
-        axes[1].scatter(frame["runtime_seconds"], frame["range_f1"], alpha=0.7, color=color, label=display_name)
-    axes[0].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Range F1 distribution")
-    axes[0].set_xlabel("Range F1")
+        axes[0].hist(frame["evaluation_f1"].dropna(), bins=20, alpha=0.45, label=display_name, color=color, edgecolor="white")
+        axes[1].scatter(frame["runtime_seconds"], frame["evaluation_f1"], alpha=0.7, color=color, label=display_name)
+    axes[0].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_label} distribution")
+    axes[0].set_xlabel(metric_label)
     axes[0].set_ylabel("Dataset count")
     axes[0].legend()
-    axes[1].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs Range F1")
+    axes[1].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs {metric_label}")
     axes[1].set_xlabel("Runtime (seconds)")
-    axes[1].set_ylabel("Range F1")
+    axes[1].set_ylabel(metric_label)
     axes[1].legend()
 
     if save_path is not None:
@@ -2056,6 +2396,7 @@ def plot_algorithm_deep_dive(
     normalized_values: np.ndarray,
     dataset: dict[str, Any],
     score_values: np.ndarray,
+    predictions: np.ndarray,
     metric_row: pd.Series,
     algorithm_key: str,
     context_points: int,
@@ -2063,28 +2404,64 @@ def plot_algorithm_deep_dive(
 ) -> plt.Figure:
     plt = _load_plotting_module()
     start_index = max(0, int(dataset["anomaly_start"]) - context_points)
-    end_index = min(len(normalized_values), int(dataset["anomaly_end"]) + context_points)
+    end_index = min(len(normalized_values), int(dataset["anomaly_end"]) + context_points + 1)
     threshold = float(metric_row["score_threshold"])
+    prediction_mask = np.asarray(predictions, dtype=bool)
+    predicted_segments = [
+        (max(segment_start, start_index), min(segment_end, end_index))
+        for segment_start, segment_end in _positive_segments(prediction_mask)
+        if segment_end > start_index and segment_start < end_index
+    ]
 
     fig, axes = plt.subplots(3, 1, figsize=(16, 10), sharex=True, constrained_layout=True)
+    fig.suptitle(
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | showcase dataset: {dataset['dataset_name']}",
+        fontsize=16,
+        y=1.02,
+    )
+
+    ground_truth_patch = None
+    predicted_patch = None
+    for axis in axes:
+        ground_truth_patch = axis.axvspan(
+            int(dataset["anomaly_start"]) - start_index,
+            int(dataset["anomaly_end"]) - start_index,
+            color="tomato",
+            alpha=0.2,
+            label="Ground-truth anomaly",
+        )
+        for segment_start, segment_end in predicted_segments:
+            predicted_patch = axis.axvspan(
+                segment_start - start_index,
+                segment_end - start_index,
+                color="#8b5cf6",
+                alpha=0.10,
+                label="Predicted above threshold",
+            )
+
     axes[0].plot(raw_values[start_index:end_index], color="black", linewidth=1)
-    axes[0].axvspan(int(dataset["anomaly_start"]) - start_index, int(dataset["anomaly_end"]) - start_index, color="tomato", alpha=0.2)
-    axes[0].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | raw signal")
+    axes[0].set_title("raw signal")
     axes[0].set_ylabel("raw")
+    legend_handles = [ground_truth_patch] if ground_truth_patch is not None else []
+    legend_labels = ["Ground-truth anomaly"] if ground_truth_patch is not None else []
+    if predicted_patch is not None:
+        legend_handles.append(predicted_patch)
+        legend_labels.append("Predicted above threshold")
+    if legend_handles:
+        axes[0].legend(legend_handles, legend_labels, loc="upper right")
 
     axes[1].plot(normalized_values[start_index:end_index], color="#0f766e", linewidth=1)
-    axes[1].axvspan(int(dataset["anomaly_start"]) - start_index, int(dataset["anomaly_end"]) - start_index, color="tomato", alpha=0.2)
     axes[1].set_title("normalized signal")
     axes[1].set_ylabel("normalized")
 
     axes[2].plot(score_values[start_index:end_index], color="#7c3aed", linewidth=1.2)
     axes[2].axhline(threshold, color="tomato", linestyle="--", linewidth=1)
-    axes[2].axvspan(int(dataset["anomaly_start"]) - start_index, int(dataset["anomaly_end"]) - start_index, color="tomato", alpha=0.2)
     axes[2].set_title(
         "score | "
         f"ROC AUC={metric_row['roc_auc']:.2f}, "
         f"F1={metric_row['f1']:.2f}, "
-        f"Range F1={metric_row['range_f1']:.2f}, "
+        f"Eval Recall={metric_row['evaluation_recall']:.2f}, "
+        f"Eval F1={metric_row['evaluation_f1']:.2f}, "
         f"runtime={metric_row['runtime_seconds']:.2f}s"
     )
     axes[2].set_ylabel("score")
@@ -2096,10 +2473,19 @@ def plot_algorithm_deep_dive(
     return fig
 
 
-def run_algorithm(algorithm_key: str, values: np.ndarray, window_size: int, params: dict[str, Any]) -> np.ndarray:
+def run_algorithm(
+    algorithm_key: str,
+    values: np.ndarray,
+    window_size: int,
+    params: dict[str, Any],
+    window_stride: int = 1,
+) -> np.ndarray:
     cleaned_params = {key: value for key, value in params.items() if value is not None}
     algorithm_function = _load_algorithm_function(algorithm_key)
-    return np.asarray(algorithm_function(values, window_size, **cleaned_params), dtype=float).ravel()
+    return np.asarray(
+        algorithm_function(values, window_size, window_stride=max(1, int(window_stride)), **cleaned_params),
+        dtype=float,
+    ).ravel()
 
 
 def _format_duration(seconds: float) -> str:
@@ -2136,7 +2522,6 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         overwrite=config["overwrite_normalized_datasets"],
     )
     prepared_dataset_paths = sorted(prepared_dataset_paths, key=lambda path: (path.stat().st_size, path.name))
-
     benchmark_dataset_paths = prepared_dataset_paths[: config["dataset_limit"]] if config["dataset_limit"] is not None else prepared_dataset_paths
 
     run_config_frame = pd.DataFrame(
@@ -2145,9 +2530,11 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "dataset_limit": "all" if config["dataset_limit"] is None else config["dataset_limit"],
                 "normalization_method": config["normalization_method"],
                 "clip_quantile": config["clip_quantile"],
-                "window_override": config["window_override"],
-                "threshold_std_multiplier": config["threshold_std_multiplier"],
-                "deep_dive_dataset": config["deep_dive_dataset_name"],
+                "window_size": config["window_size"],
+                "window_stride": config["window_stride"],
+                "threshold_method": config["threshold_method"],
+                "threshold_value": config["threshold_value"],
+                "evaluation_mode": config["evaluation_mode"],
                 "selected_algorithms": ", ".join(config["selected_algorithms"]),
                 "selected_configurations": len(config["selected_runs"]),
                 "variant_tabs": " | ".join(
@@ -2169,6 +2556,11 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "benchmark_count": len(benchmark_dataset_paths),
                 "normalization_method": config["normalization_method"],
                 "clip_quantile": config["clip_quantile"],
+                "window_size": config["window_size"],
+                "window_stride": config["window_stride"],
+                "threshold_method": config["threshold_method"],
+                "threshold_value": config["threshold_value"],
+                "evaluation_mode": config["evaluation_mode"],
                 "normalized_dataset_dir": portable_path_str(prepared_dataset_dir),
             }
         ]
@@ -2194,7 +2586,6 @@ def run_benchmark(
     show_progress: bool = True,
 ) -> dict[str, Any]:
     records = []
-    deep_dive_payload = None
     selected_runs = config["selected_runs"]
     total_dataset_count = len(benchmark_dataset_paths)
     total_run_count = total_dataset_count * len(selected_runs)
@@ -2240,14 +2631,8 @@ def run_benchmark(
         dataset = load_prepared_dataset(prepared_dataset_path)
         values = dataset["values"]
         labels = dataset["labels"]
-        window_size = config["window_override"] or estimate_window_size(values)
-
-        if dataset["dataset_name"] == config["deep_dive_dataset_name"]:
-            deep_dive_payload = {
-                "dataset": dataset,
-                "window_size": window_size,
-                "scores": {},
-            }
+        window_size = config["window_size"] if config["window_size"] is not None else estimate_window_size(values)
+        window_stride = max(1, int(config["window_stride"]))
 
         for algorithm_index, run_config in enumerate(selected_runs, start=1):
             algorithm_key = run_config["algorithm"]
@@ -2270,20 +2655,35 @@ def run_benchmark(
                     f"<b>Status</b><br>"
                     f"<b>Dataset</b>: {dataset_index}/{total_dataset_count} | {html.escape(dataset['dataset_name'])}<br>"
                     f"<b>Configuration</b>: {algorithm_index}/{len(selected_runs)} | {html.escape(run_config['algorithm_display'])}<br>"
-                    f"<b>Window</b>: {window_size} | <b>Completed</b>: {completed_runs}/{total_run_count} runs | "
+                    f"<b>Window</b>: {window_size} | <b>Stride</b>: {window_stride} | "
+                    f"<b>Threshold</b>: {html.escape(str(config['threshold_method']))}={html.escape(str(config['threshold_value']))} | "
+                    f"<b>Eval</b>: {html.escape(str(config['evaluation_mode']))}<br>"
+                    f"<b>Completed</b>: {completed_runs}/{total_run_count} runs | "
                     f"<b>Elapsed</b>: {_format_duration(elapsed_seconds)}"
                     f"{sand_note}"
                     "</div>"
                 )
             start_time = time.perf_counter()
             try:
-                scores = run_algorithm(algorithm_key, values, window_size, run_config["params"])
+                scores = run_algorithm(
+                    algorithm_key,
+                    values,
+                    window_size,
+                    run_config["params"],
+                    window_stride=window_stride,
+                )
                 runtime_seconds = time.perf_counter() - start_time
-                metrics = compute_metrics(labels, scores, config["threshold_std_multiplier"], window_size)
+                metrics = compute_metrics(
+                    labels,
+                    scores,
+                    threshold_method=str(config["threshold_method"]),
+                    threshold_value=float(config["threshold_value"]),
+                    window_size=window_size,
+                    evaluation_mode=str(config["evaluation_mode"]),
+                    window_stride=window_stride,
+                )
                 error_message = ""
                 save_scores_if_needed(dataset["dataset_name"], run_config["algorithm_run_id"], labels, scores, config["save_per_dataset_scores"])
-                if deep_dive_payload is not None and dataset["dataset_name"] == config["deep_dive_dataset_name"]:
-                    deep_dive_payload["scores"][run_config["algorithm_run_id"]] = scores
             except Exception as error:
                 scores = np.array([], dtype=float)
                 runtime_seconds = time.perf_counter() - start_time
@@ -2297,12 +2697,18 @@ def run_benchmark(
                     "range_precision": float("nan"),
                     "range_recall": float("nan"),
                     "range_f1": float("nan"),
+                    "evaluation_precision": float("nan"),
+                    "evaluation_recall": float("nan"),
+                    "evaluation_f1": float("nan"),
                     "existence_reward": float("nan"),
                     "overlap_reward": float("nan"),
                     "affiliation_precision": float("nan"),
                     "affiliation_recall": float("nan"),
                     "tsb_uad_window": window_size,
                     "score_threshold": float("nan"),
+                    "threshold_method": str(config["threshold_method"]),
+                    "threshold_value": float(config["threshold_value"]),
+                    "evaluation_mode": str(config["evaluation_mode"]),
                     "tp": float("nan"),
                     "tn": float("nan"),
                     "fp": float("nan"),
@@ -2325,12 +2731,16 @@ def run_benchmark(
                     "algorithm_run_id": run_config["algorithm_run_id"],
                     "variant_index": run_config["variant_index"],
                     "window_size": window_size,
+                    "window_stride": window_stride,
                     "series_length": len(values),
                     "anomaly_count": int(labels.sum()),
                     "train_end": dataset["train_end"],
                     "anomaly_start": dataset["anomaly_start"],
                     "anomaly_end": dataset["anomaly_end"],
                     "normalization_method": config["normalization_method"],
+                    "threshold_method": str(config["threshold_method"]),
+                    "threshold_value": float(config["threshold_value"]),
+                    "evaluation_mode": str(config["evaluation_mode"]),
                     "prepared_dataset_dir": portable_path_str(prepared_dataset_dir),
                     "runtime_seconds": runtime_seconds,
                     "score_mean": float(scores.mean()) if scores.size else float("nan"),
@@ -2375,7 +2785,7 @@ def run_benchmark(
     dataset_catalog = build_dataset_catalog(results)
     algorithm_summary = summarize_algorithms(results)
     family_summary = summarize_families(results)
-    best_by_f1 = build_best_algorithm_table(results, "f1")
+    best_by_f1 = build_best_algorithm_table(results, "evaluation_f1")
     best_by_auc = build_best_algorithm_table(results, "roc_auc")
     errors = results.loc[results["error"] != ""].copy()
 
@@ -2400,6 +2810,10 @@ def run_benchmark(
                 "median_series_length": dataset_catalog["series_length"].median(),
                 "median_anomaly_ratio": dataset_catalog["anomaly_ratio"].median(),
                 "median_window_size": dataset_catalog["window_size"].median(),
+                "window_stride": config["window_stride"],
+                "threshold_method": config["threshold_method"],
+                "threshold_value": config["threshold_value"],
+                "evaluation_mode": config["evaluation_mode"],
                 "error_count": len(errors),
                 "normalization_method": config["normalization_method"],
             }
@@ -2432,5 +2846,4 @@ def run_benchmark(
         "best_by_auc": best_by_auc,
         "errors": errors,
         "overview": overview,
-        "deep_dive_payload": deep_dive_payload,
     }

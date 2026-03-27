@@ -20,10 +20,18 @@ def _normalize_scores(scores: np.ndarray) -> np.ndarray:
     return MinMaxScaler().fit_transform(cleaned).ravel()
 
 
-def _align_scores(window_scores: np.ndarray, window_size: int, series_length: int) -> np.ndarray:
-    pad_left = math.ceil((window_size - 1) / 2)
-    pad_right = (window_size - 1) // 2
-    return np.pad(window_scores, (pad_left, pad_right), mode="edge")[:series_length]
+def _align_scores(window_scores: np.ndarray, window_size: int, series_length: int, window_stride: int = 1) -> np.ndarray:
+    if window_scores.size == 0:
+        return np.zeros(series_length, dtype=float)
+    if max(1, int(window_stride)) == 1:
+        pad_left = math.ceil((window_size - 1) / 2)
+        pad_right = (window_size - 1) // 2
+        return np.pad(window_scores, (pad_left, pad_right), mode="edge")[:series_length]
+    window_starts = np.arange(window_scores.size, dtype=float) * max(1, int(window_stride))
+    centers = np.clip(window_starts + (window_size - 1) / 2.0, 0, series_length - 1)
+    if window_scores.size == 1:
+        return np.full(series_length, float(window_scores[0]), dtype=float)
+    return np.interp(np.arange(series_length, dtype=float), centers, window_scores, left=window_scores[0], right=window_scores[-1])
 
 
 class _DAMPModel:
@@ -88,6 +96,7 @@ class _DAMPModel:
 def score_time_series(
     values: np.ndarray,
     window_size: int,
+    window_stride: int = 1,
     *,
     start_index_multiplier: float = 1.0,
     x_lag_multiplier: float | None = None,
@@ -101,8 +110,9 @@ def score_time_series(
     x_lag = None if x_lag_multiplier is None or float(x_lag_multiplier) <= 0 else max(window_size, int(round(window_size * float(x_lag_multiplier))))
     model = _DAMPModel(window_size=window_size, sp_index=sp_index, x_lag=x_lag)
     window_scores = model.fit(values)
+    window_scores = window_scores[:: max(1, int(window_stride))]
     normalized_scores = _normalize_scores(window_scores)
-    return _align_scores(normalized_scores, window_size, values.size)
+    return _align_scores(normalized_scores, window_size, values.size, window_stride=window_stride)
 
 
 __all__ = ["score_time_series"]
