@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import importlib
 import json
+import math
 import re
 import shutil
 import sys
@@ -652,6 +653,10 @@ def result_algorithm_panel_path(algorithm_key: str) -> Path:
 
 def result_algorithm_paper_panel_path(algorithm_key: str) -> Path:
     return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_paper_panel.png"
+
+
+def result_algorithm_variant_comparison_path(algorithm_key: str) -> Path:
+    return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_variant_comparison.png"
 
 
 def result_deep_dive_path(run_id: str, dataset_name: str) -> Path:
@@ -3101,6 +3106,124 @@ def build_algorithm_showcase(
     }
 
 
+def build_algorithm_variant_comparison(
+    config: dict[str, Any],
+    prepared_dataset_dir: Path,
+    results_frame: pd.DataFrame,
+    algorithm_key: str,
+) -> dict[str, Any] | None:
+    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    if subset.empty:
+        return None
+
+    variant_run_configs = [
+        entry for entry in config["selected_runs"] if entry["algorithm"] == algorithm_key
+    ]
+    if not variant_run_configs:
+        return None
+
+    dataset_ranking = (
+        subset.groupby("dataset_name", as_index=False)
+        .agg(
+            variant_count=("algorithm_run_id", "nunique"),
+            evaluation_spread=("evaluation_f1", lambda series: float(series.max() - series.min()) if not series.dropna().empty else float("nan")),
+            best_evaluation_f1=("evaluation_f1", "max"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
+            mean_roc_auc=("roc_auc", "mean"),
+        )
+        .sort_values(
+            ["variant_count", "evaluation_spread", "best_evaluation_f1", "mean_roc_auc"],
+            ascending=[False, False, False, False],
+        )
+        .reset_index(drop=True)
+    )
+    if dataset_ranking.empty:
+        return None
+
+    dataset_name = str(dataset_ranking.iloc[0]["dataset_name"])
+    prepared_dataset_path = Path(prepared_dataset_dir) / f"{dataset_name}.txt"
+    raw_dataset_path = RAW_DATASET_DIR / f"{dataset_name}.txt"
+    if not prepared_dataset_path.exists() or not raw_dataset_path.exists():
+        return None
+
+    dataset = load_prepared_dataset(prepared_dataset_path)
+    raw_values = load_raw_values_from_file(raw_dataset_path)
+    variant_payloads: list[dict[str, Any]] = []
+
+    for run_config in variant_run_configs:
+        metric_subset = subset.loc[
+            (subset["dataset_name"] == dataset_name)
+            & (subset["algorithm_run_id"] == run_config["algorithm_run_id"])
+        ].copy()
+        if metric_subset.empty:
+            continue
+        metric_row = metric_subset.sort_values(
+            ["evaluation_f1", "evaluation_recall", "roc_auc", "runtime_seconds"],
+            ascending=[False, False, False, True],
+        ).iloc[0]
+        scores = run_algorithm(
+            algorithm_key,
+            dataset["values"],
+            int(metric_row["window_size"]),
+            run_config["params"],
+            window_stride=int(metric_row["window_stride"]),
+        )
+        decision = apply_threshold_strategy(
+            scores,
+            threshold_method=str(metric_row["threshold_method"]),
+            threshold_value=float(metric_row["threshold_value"]),
+            window_size=int(metric_row["window_size"]),
+            window_stride=int(metric_row["window_stride"]),
+            evaluation_mode=str(metric_row["evaluation_mode"]),
+        )
+        variant_payloads.append(
+            {
+                "run_config": run_config,
+                "metric_row": metric_row,
+                "scores": scores,
+                "predictions": decision["predictions"],
+            }
+        )
+
+    if not variant_payloads:
+        return None
+
+    variant_summary = pd.DataFrame(
+        [
+            {
+                "comparison_dataset": dataset_name,
+                "algorithm_display": payload["metric_row"]["algorithm_display"],
+                "algorithm_variant": payload["metric_row"]["algorithm_variant"],
+                "window_size": payload["metric_row"]["window_size"],
+                "window_stride": payload["metric_row"]["window_stride"],
+                "roc_auc": payload["metric_row"]["roc_auc"],
+                "average_precision": payload["metric_row"]["average_precision"],
+                "evaluation_precision": payload["metric_row"]["evaluation_precision"],
+                "evaluation_recall": payload["metric_row"]["evaluation_recall"],
+                "evaluation_f1": payload["metric_row"]["evaluation_f1"],
+                "range_f1": payload["metric_row"]["range_f1"],
+                "runtime_seconds": payload["metric_row"]["runtime_seconds"],
+            }
+            for payload in variant_payloads
+        ]
+    ).sort_values(
+        ["evaluation_f1", "roc_auc", "runtime_seconds"],
+        ascending=[False, False, True],
+    ).reset_index(drop=True)
+
+    selection_summary = dataset_ranking.head(1).rename(
+        columns={"dataset_name": "comparison_dataset"}
+    )
+
+    return {
+        "dataset": dataset,
+        "raw_values": raw_values,
+        "selection_summary": selection_summary,
+        "summary": variant_summary,
+        "variants": variant_payloads,
+    }
+
+
 def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
     subset = results_frame.loc[results_frame["algorithm"]
                                == algorithm_key].copy()
@@ -3200,6 +3323,115 @@ def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, 
 
     if image is not None:
         fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02)
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def plot_algorithm_variant_comparison(
+    comparison_payload: dict[str, Any],
+    algorithm_key: str,
+    context_points: int = 1200,
+    save_path: Path | None = None,
+) -> plt.Figure | None:
+    variants = comparison_payload.get("variants", [])
+    if not variants:
+        return None
+
+    plt = _load_plotting_module()
+    dataset = comparison_payload["dataset"]
+    raw_values = np.asarray(comparison_payload["raw_values"], dtype=float)
+    normalized_values = np.asarray(dataset["values"], dtype=float)
+
+    start_index = max(0, int(dataset["anomaly_start"]) - context_points)
+    end_index = min(len(normalized_values), int(dataset["anomaly_end"]) + context_points + 1)
+    columns = 2 if len(variants) > 1 else 1
+    variant_rows = max(1, math.ceil(len(variants) / columns))
+    figure_height = 5.5 + (3.4 * variant_rows)
+
+    fig = plt.figure(figsize=(18 if columns == 2 else 14, figure_height), constrained_layout=True)
+    grid = fig.add_gridspec(variant_rows + 2, columns)
+    raw_ax = fig.add_subplot(grid[0, :])
+    normalized_ax = fig.add_subplot(grid[1, :], sharex=raw_ax)
+    variant_axes = [
+        fig.add_subplot(grid[row + 2, column], sharex=raw_ax)
+        for row in range(variant_rows)
+        for column in range(columns)
+    ]
+
+    title = (
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | side-by-side variant comparison | "
+        f"{dataset['dataset_name']}"
+    )
+    fig.suptitle(title, fontsize=16, y=1.02)
+
+    ground_truth_patch = raw_ax.axvspan(
+        int(dataset["anomaly_start"]) - start_index,
+        int(dataset["anomaly_end"]) - start_index,
+        color="tomato",
+        alpha=0.2,
+        label="Ground-truth anomaly",
+    )
+    normalized_ax.axvspan(
+        int(dataset["anomaly_start"]) - start_index,
+        int(dataset["anomaly_end"]) - start_index,
+        color="tomato",
+        alpha=0.2,
+    )
+
+    raw_ax.plot(raw_values[start_index:end_index], color="black", linewidth=1.0)
+    raw_ax.set_title("raw signal")
+    raw_ax.set_ylabel("raw")
+    raw_ax.legend([ground_truth_patch], ["Ground-truth anomaly"], loc="upper right")
+
+    normalized_ax.plot(normalized_values[start_index:end_index], color="#0f766e", linewidth=1.0)
+    normalized_ax.set_title("normalized signal")
+    normalized_ax.set_ylabel("normalized")
+
+    visible_score_max = 0.0
+    for payload in variants:
+        current_max = float(np.nanmax(payload["scores"][start_index:end_index]))
+        visible_score_max = max(visible_score_max, current_max)
+    visible_score_max = 1.0 if visible_score_max <= 0 else visible_score_max * 1.05
+
+    for axis_index, axis in enumerate(variant_axes):
+        if axis_index >= len(variants):
+            axis.set_axis_off()
+            continue
+        payload = variants[axis_index]
+        metric_row = payload["metric_row"]
+        threshold = float(metric_row["score_threshold"])
+        prediction_mask = np.asarray(payload["predictions"], dtype=bool)
+        predicted_segments = [
+            (max(segment_start, start_index), min(segment_end, end_index))
+            for segment_start, segment_end in _positive_segments(prediction_mask)
+            if segment_end > start_index and segment_start < end_index
+        ]
+        axis.axvspan(
+            int(dataset["anomaly_start"]) - start_index,
+            int(dataset["anomaly_end"]) - start_index,
+            color="tomato",
+            alpha=0.2,
+        )
+        for segment_start, segment_end in predicted_segments:
+            axis.axvspan(
+                segment_start - start_index,
+                segment_end - start_index,
+                color="#8b5cf6",
+                alpha=0.10,
+            )
+        axis.plot(payload["scores"][start_index:end_index], color="#7c3aed", linewidth=1.1)
+        axis.axhline(threshold, color="tomato", linestyle="--", linewidth=1.0)
+        axis.set_ylim(0, visible_score_max)
+        axis.set_title(
+            f"{metric_row['algorithm_variant']} | "
+            f"Eval F1={metric_row['evaluation_f1']:.2f} | "
+            f"ROC AUC={metric_row['roc_auc']:.2f}"
+        )
+        axis.set_ylabel("score")
+        axis.set_xlabel("time index")
+
     if save_path is not None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, dpi=160)
@@ -3347,6 +3579,29 @@ def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, 
     if paper_fig is not None:
         plt = ns._load_plotting_module()
         plt.show()
+
+    variant_comparison = ns.build_algorithm_variant_comparison(
+        config,
+        context["prepared_dataset_dir"],
+        results,
+        algorithm_key,
+    )
+    if variant_comparison is not None and len(variant_comparison["variants"]) > 1:
+        display(variant_comparison["selection_summary"])
+        display(variant_comparison["summary"])
+        variant_comparison["summary"].to_csv(
+            ns.result_table_path(f"{algorithm_key}_variant_comparison.csv"),
+            index=False,
+        )
+        comparison_fig = ns.plot_algorithm_variant_comparison(
+            variant_comparison,
+            algorithm_key,
+            context_points=context_points,
+            save_path=ns.result_algorithm_variant_comparison_path(algorithm_key),
+        )
+        if comparison_fig is not None:
+            plt = ns._load_plotting_module()
+            plt.show()
 
     showcase = ns.build_algorithm_showcase(
         config,
