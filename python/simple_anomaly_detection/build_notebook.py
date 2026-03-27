@@ -36,7 +36,7 @@ def _algorithm_cells(algorithm_key: str, display_name: str) -> list[dict]:
             f"""
             ## On Run: Show {display_name} Paper Report
 
-            This next cell renders the paper-facing report for {display_name}: configured variants, parameter-effect tables, regime-aware summaries by dataset type, the benchmark panel, the paper panel, a side-by-side variant comparison graph on one shared dataset, and the best showcase plot.
+            This next cell renders the paper-facing report for {display_name}: configured variants, parameter-effect tables, regime-aware summaries by dataset type, the benchmark panel, the paper panel, a fixed-layout side-by-side variant comparison graph on one shared dataset, and the best showcase plot.
             """
         ),
         code(

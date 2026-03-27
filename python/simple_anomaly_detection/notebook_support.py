@@ -3192,6 +3192,7 @@ def build_algorithm_variant_comparison(
         [
             {
                 "comparison_dataset": dataset_name,
+                "variant_index": payload["metric_row"]["variant_index"],
                 "algorithm_display": payload["metric_row"]["algorithm_display"],
                 "algorithm_variant": payload["metric_row"]["algorithm_variant"],
                 "window_size": payload["metric_row"]["window_size"],
@@ -3207,9 +3208,13 @@ def build_algorithm_variant_comparison(
             for payload in variant_payloads
         ]
     ).sort_values(
-        ["evaluation_f1", "roc_auc", "runtime_seconds"],
-        ascending=[False, False, True],
+        ["variant_index", "evaluation_f1", "roc_auc"],
+        ascending=[True, False, False],
     ).reset_index(drop=True)
+    variant_payloads = sorted(
+        variant_payloads,
+        key=lambda payload: int(payload["metric_row"]["variant_index"]),
+    )
 
     selection_summary = dataset_ranking.head(1).rename(
         columns={"dataset_name": "comparison_dataset"}
@@ -3346,11 +3351,11 @@ def plot_algorithm_variant_comparison(
 
     start_index = max(0, int(dataset["anomaly_start"]) - context_points)
     end_index = min(len(normalized_values), int(dataset["anomaly_end"]) + context_points + 1)
-    columns = 2 if len(variants) > 1 else 1
+    columns = 2
     variant_rows = max(1, math.ceil(len(variants) / columns))
-    figure_height = 5.5 + (3.4 * variant_rows)
+    figure_height = 5.5 + (3.2 * variant_rows)
 
-    fig = plt.figure(figsize=(18 if columns == 2 else 14, figure_height), constrained_layout=True)
+    fig = plt.figure(figsize=(18, figure_height), constrained_layout=True)
     grid = fig.add_gridspec(variant_rows + 2, columns)
     raw_ax = fig.add_subplot(grid[0, :])
     normalized_ax = fig.add_subplot(grid[1, :], sharex=raw_ax)
@@ -3389,12 +3394,6 @@ def plot_algorithm_variant_comparison(
     normalized_ax.set_title("normalized signal")
     normalized_ax.set_ylabel("normalized")
 
-    visible_score_max = 0.0
-    for payload in variants:
-        current_max = float(np.nanmax(payload["scores"][start_index:end_index]))
-        visible_score_max = max(visible_score_max, current_max)
-    visible_score_max = 1.0 if visible_score_max <= 0 else visible_score_max * 1.05
-
     for axis_index, axis in enumerate(variant_axes):
         if axis_index >= len(variants):
             axis.set_axis_off()
@@ -3423,9 +3422,9 @@ def plot_algorithm_variant_comparison(
             )
         axis.plot(payload["scores"][start_index:end_index], color="#7c3aed", linewidth=1.1)
         axis.axhline(threshold, color="tomato", linestyle="--", linewidth=1.0)
-        axis.set_ylim(0, visible_score_max)
+        axis.set_ylim(0.0, 1.05)
         axis.set_title(
-            f"{metric_row['algorithm_variant']} | "
+            f"Variant {int(metric_row['variant_index'])}: {metric_row['algorithm_variant']} | "
             f"Eval F1={metric_row['evaluation_f1']:.2f} | "
             f"ROC AUC={metric_row['roc_auc']:.2f}"
         )
