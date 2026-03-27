@@ -67,6 +67,7 @@ def ensure_results_layout() -> None:
         "dataset_catalog.csv",
         "algorithm_summary.csv",
         "family_summary.csv",
+        "overall_regime_summary.csv",
         "best_algorithm_by_dataset_f1.csv",
         "best_algorithm_by_dataset_auc.csv",
         "error_report.csv",
@@ -160,6 +161,366 @@ ALGORITHM_ORDER = [
     "ocsvm",
     "pca",
 ]
+ALGORITHM_ENABLE_CONTROL = {
+    "isolation_forest": "run_iforest",
+    "local_outlier_factor": "run_lof",
+    "sand": "run_sand",
+    "matrix_profile": "run_matrix_profile",
+    "damp": "run_damp",
+    "hbos": "run_hbos",
+    "ocsvm": "run_ocsvm",
+    "pca": "run_pca",
+}
+DATASET_VARIANT_ORDER = ["raw", "noise", "distorted"]
+LENGTH_BUCKET_ORDER = ["short", "medium", "long"]
+ANOMALY_RATIO_BUCKET_ORDER = ["sparse", "moderate", "dense"]
+
+PAPER_PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "paper_high_roi": {
+        "label": "Paper High ROI Sweep",
+        "description": (
+            "Focused sweep for the strongest runtime/performance methods plus Isolation Forest for calibration discussion. "
+            "Use this when the paper needs detailed parameter behavior without exploding runtime."
+        ),
+        "enabled_algorithms": [
+            "isolation_forest",
+            "local_outlier_factor",
+            "matrix_profile",
+            "ocsvm",
+        ],
+        "variants": {
+            "isolation_forest": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Stable tree baseline for comparison.",
+                    "n_estimators": 200,
+                    "contamination": 0.10,
+                    "max_samples": "auto",
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Low Contam",
+                    "focus": "Conservative score calibration with more trees and explicit subsampling.",
+                    "n_estimators": 400,
+                    "contamination": 0.03,
+                    "max_samples": 256,
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Feat 0.6",
+                    "focus": "Tests stronger random feature subsampling inside the forest.",
+                    "n_estimators": 400,
+                    "contamination": 0.10,
+                    "max_samples": 256,
+                    "max_features": 0.6,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+            ],
+            "local_outlier_factor": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Balanced neighborhood baseline.",
+                    "n_neighbors": 20,
+                    "contamination": 0.10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Local k10",
+                    "focus": "More sensitive to local shape changes and short anomalies.",
+                    "n_neighbors": 10,
+                    "contamination": 0.10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Global L1",
+                    "focus": "Broader neighborhood with Manhattan distance for more global structure.",
+                    "n_neighbors": 50,
+                    "contamination": 0.10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "manhattan",
+                    "p": 1,
+                },
+            ],
+            "matrix_profile": [
+                {
+                    "variant_name": "Context x1",
+                    "focus": "Shortest context, strongest local discord detection.",
+                    "subsequence_multiplier": 1,
+                },
+                {
+                    "variant_name": "Context x2",
+                    "focus": "Intermediate subsequence context for medium-length anomalies.",
+                    "subsequence_multiplier": 2,
+                },
+                {
+                    "variant_name": "Context x4",
+                    "focus": "Longer context for broad discord patterns.",
+                    "subsequence_multiplier": 4,
+                },
+            ],
+            "ocsvm": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Standard RBF novelty boundary with short warm-up.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Nu 0.10",
+                    "focus": "Tests more permissive abnormal-boundary calibration.",
+                    "kernel": "rbf",
+                    "nu": 0.10,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Warmup 0.20",
+                    "focus": "Uses a longer mostly-normal prefix for model fitting.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.20,
+                },
+            ],
+        },
+    },
+    "paper_full_suite": {
+        "label": "Paper Full Suite Sweep",
+        "description": (
+            "Broader sweep across all implemented algorithms with a small but theory-driven set of variants per method. "
+            "Use this for the final paper appendix or targeted family-specific reruns."
+        ),
+        "enabled_algorithms": ALGORITHM_ORDER,
+        "variants": {
+            "isolation_forest": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Stable tree baseline for comparison.",
+                    "n_estimators": 200,
+                    "contamination": 0.10,
+                    "max_samples": "auto",
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Low Contam",
+                    "focus": "Conservative score calibration with more trees and explicit subsampling.",
+                    "n_estimators": 400,
+                    "contamination": 0.03,
+                    "max_samples": 256,
+                    "max_features": 1.0,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+                {
+                    "variant_name": "Feat 0.6",
+                    "focus": "Tests stronger random feature subsampling inside the forest.",
+                    "n_estimators": 400,
+                    "contamination": 0.10,
+                    "max_samples": 256,
+                    "max_features": 0.6,
+                    "bootstrap": False,
+                    "random_state": 42,
+                },
+            ],
+            "local_outlier_factor": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Balanced neighborhood baseline.",
+                    "n_neighbors": 20,
+                    "contamination": 0.10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Local k10",
+                    "focus": "More sensitive to local shape changes and short anomalies.",
+                    "n_neighbors": 10,
+                    "contamination": 0.10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "minkowski",
+                    "p": 2,
+                },
+                {
+                    "variant_name": "Global L1",
+                    "focus": "Broader neighborhood with Manhattan distance for more global structure.",
+                    "n_neighbors": 50,
+                    "contamination": 0.10,
+                    "algorithm": "auto",
+                    "leaf_size": 30,
+                    "metric": "manhattan",
+                    "p": 1,
+                },
+            ],
+            "sand": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Reference online clustering configuration.",
+                    "alpha": 0.5,
+                    "init_length": 5000,
+                    "batch_size": 2000,
+                    "k": 0,
+                    "subsequence_multiplier": 4,
+                    "overlap": 0,
+                },
+                {
+                    "variant_name": "Adaptive",
+                    "focus": "Faster adaptation with shorter context and smaller batches.",
+                    "alpha": 0.7,
+                    "init_length": 3000,
+                    "batch_size": 1000,
+                    "k": 0,
+                    "subsequence_multiplier": 2,
+                    "overlap": 0,
+                },
+            ],
+            "matrix_profile": [
+                {
+                    "variant_name": "Context x1",
+                    "focus": "Shortest context, strongest local discord detection.",
+                    "subsequence_multiplier": 1,
+                },
+                {
+                    "variant_name": "Context x2",
+                    "focus": "Intermediate subsequence context for medium-length anomalies.",
+                    "subsequence_multiplier": 2,
+                },
+                {
+                    "variant_name": "Context x4",
+                    "focus": "Longer context for broad discord patterns.",
+                    "subsequence_multiplier": 4,
+                },
+            ],
+            "damp": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Reference streaming-discord configuration.",
+                    "start_index_multiplier": 1.0,
+                    "x_lag_multiplier": 0.0,
+                },
+                {
+                    "variant_name": "Delayed Start",
+                    "focus": "Longer historical reference before streaming detection starts.",
+                    "start_index_multiplier": 2.0,
+                    "x_lag_multiplier": 0.0,
+                },
+                {
+                    "variant_name": "Long Lag",
+                    "focus": "Searches further back in the stream for similar windows.",
+                    "start_index_multiplier": 1.0,
+                    "x_lag_multiplier": 8.0,
+                },
+            ],
+            "hbos": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Lightweight histogram baseline.",
+                    "n_bins": 10,
+                    "alpha": 0.10,
+                    "tol": 0.50,
+                    "contamination": 0.10,
+                },
+                {
+                    "variant_name": "Fine Bins",
+                    "focus": "Finer density structure through more bins and milder smoothing.",
+                    "n_bins": 20,
+                    "alpha": 0.05,
+                    "tol": 0.50,
+                    "contamination": 0.10,
+                },
+                {
+                    "variant_name": "Strict Tol",
+                    "focus": "Stricter edge handling for stronger outlier penalties.",
+                    "n_bins": 10,
+                    "alpha": 0.10,
+                    "tol": 0.20,
+                    "contamination": 0.10,
+                },
+            ],
+            "ocsvm": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Standard RBF novelty boundary with short warm-up.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Nu 0.10",
+                    "focus": "Tests more permissive abnormal-boundary calibration.",
+                    "kernel": "rbf",
+                    "nu": 0.10,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+                {
+                    "variant_name": "Warmup 0.20",
+                    "focus": "Uses a longer mostly-normal prefix for model fitting.",
+                    "kernel": "rbf",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.20,
+                },
+                {
+                    "variant_name": "Linear",
+                    "focus": "Tests whether a simpler linear novelty boundary is sufficient.",
+                    "kernel": "linear",
+                    "nu": 0.05,
+                    "gamma": "scale",
+                    "train_fraction": 0.10,
+                },
+            ],
+            "pca": [
+                {
+                    "variant_name": "Baseline",
+                    "focus": "Weighted reconstruction-style baseline.",
+                    "n_components": "",
+                    "n_selected_components": 0,
+                    "whiten": False,
+                    "weighted": True,
+                    "standardization": True,
+                },
+                {
+                    "variant_name": "Residual 2",
+                    "focus": "Focuses scoring on a small set of low-variance components.",
+                    "n_components": 0.95,
+                    "n_selected_components": 2,
+                    "whiten": False,
+                    "weighted": True,
+                    "standardization": True,
+                },
+                {
+                    "variant_name": "Whitened",
+                    "focus": "Tests a whitened non-weighted PCA score.",
+                    "n_components": 0.95,
+                    "n_selected_components": 0,
+                    "whiten": True,
+                    "weighted": False,
+                    "standardization": True,
+                },
+            ],
+        },
+    },
+}
 
 ensure_results_layout()
 
@@ -291,6 +652,10 @@ def result_figure_path(filename: str) -> Path:
 
 def result_algorithm_panel_path(algorithm_key: str) -> Path:
     return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_benchmark_panel.png"
+
+
+def result_algorithm_paper_panel_path(algorithm_key: str) -> Path:
+    return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_paper_panel.png"
 
 
 def result_deep_dive_path(run_id: str, dataset_name: str) -> Path:
@@ -704,7 +1069,11 @@ def _apply_widget_values(widget_map: dict[str, widgets.Widget], values: dict[str
         return
     for key, value in values.items():
         if key in widget_map and hasattr(widget_map[key], "value"):
-            widget_map[key].value = value
+            widget = widget_map[key]
+            if isinstance(widget, widgets.Text):
+                widget.value = "" if value is None else str(value)
+            else:
+                widget.value = value
 
 
 def _make_if_variant(
@@ -1138,11 +1507,19 @@ def _build_variant_manager(
     def add_variant(source_values: dict[str, Any] | None = None) -> None:
         new_index = len(state["variants"]) + 1
         initial_values = dict(source_values or {})
-        initial_values["variant_name"] = _default_variant_name(new_index)
+        initial_values.setdefault("variant_name", _default_variant_name(new_index))
         entry = factory(_default_variant_name(new_index), initial_values, register_widget)
         entry["controls"]["variant_name"].observe(sync_titles, names="value")
         state["variants"].append(entry)
         sync_titles()
+
+    def replace_variants(variant_values: list[dict[str, Any]]) -> None:
+        state["variants"].clear()
+        for values in variant_values or [{}]:
+            add_variant(values)
+        if state["variants"]:
+            variant_tabs.selected_index = 0
+        render_preview()
 
     def on_add(_button: widgets.Button) -> None:
         add_variant(snapshot_current_variant())
@@ -1169,6 +1546,7 @@ def _build_variant_manager(
         ],
         layout=widgets.Layout(width="100%"),
     )
+    state["replace_variants"] = replace_variants
     return state
 
 
@@ -1388,6 +1766,55 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     )
 
     return {"controls": controls, "panel": panel}
+
+
+def list_paper_presets() -> pd.DataFrame:
+    rows = []
+    for preset_name, preset in PAPER_PRESET_DEFINITIONS.items():
+        rows.append(
+            {
+                "preset_name": preset_name,
+                "label": preset["label"],
+                "enabled_algorithms": ", ".join(DISPLAY_NAME_MAP[key] for key in preset["enabled_algorithms"]),
+                "variant_count": sum(len(preset["variants"].get(key, [])) for key in preset["enabled_algorithms"]),
+                "description": preset["description"],
+            }
+        )
+    return pd.DataFrame(rows).sort_values("preset_name").reset_index(drop=True)
+
+
+def build_preset_reference_table(preset_name: str) -> pd.DataFrame:
+    preset = PAPER_PRESET_DEFINITIONS[preset_name]
+    rows = []
+    for algorithm_key in preset["enabled_algorithms"]:
+        for index, variant in enumerate(preset["variants"].get(algorithm_key, []), start=1):
+            params = {key: value for key, value in variant.items() if key not in {"variant_name", "focus"}}
+            rows.append(
+                {
+                    "preset_name": preset_name,
+                    "algorithm": DISPLAY_NAME_MAP[algorithm_key],
+                    "variant_index": index,
+                    "variant_name": variant["variant_name"],
+                    "focus": variant["focus"],
+                    "params_json": json.dumps(params, sort_keys=True),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def apply_paper_experiment_preset(controls: dict[str, Any], preset_name: str = "paper_high_roi") -> None:
+    if preset_name not in PAPER_PRESET_DEFINITIONS:
+        available = ", ".join(sorted(PAPER_PRESET_DEFINITIONS))
+        raise ValueError(f"Unknown preset '{preset_name}'. Available presets: {available}")
+
+    preset = PAPER_PRESET_DEFINITIONS[preset_name]
+    enabled = set(preset["enabled_algorithms"])
+
+    for algorithm_key in ALGORITHM_ORDER:
+        enabled_key = ALGORITHM_ENABLE_CONTROL[algorithm_key]
+        controls[enabled_key].value = algorithm_key in enabled
+        variant_manager = controls["algorithm_variants"][algorithm_key]
+        variant_manager["replace_variants"](preset["variants"].get(algorithm_key, [{}]))
 
 
 def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
@@ -1844,6 +2271,58 @@ def build_dataset_catalog(results_frame: pd.DataFrame) -> pd.DataFrame:
     ].reset_index(drop=True)
 
 
+def add_analysis_regime_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    enriched = frame.copy()
+    if enriched.empty:
+        return enriched
+    enriched["anomaly_ratio"] = enriched["anomaly_count"] / enriched["series_length"]
+    enriched["length_bucket"] = pd.cut(
+        enriched["series_length"],
+        bins=[-np.inf, 5_000, 20_000, np.inf],
+        labels=LENGTH_BUCKET_ORDER,
+    )
+    enriched["anomaly_ratio_bucket"] = pd.cut(
+        enriched["anomaly_ratio"],
+        bins=[-np.inf, 0.01, 0.05, np.inf],
+        labels=ANOMALY_RATIO_BUCKET_ORDER,
+    )
+    return enriched
+
+
+def build_overall_regime_summary(results_frame: pd.DataFrame) -> pd.DataFrame:
+    enriched = add_analysis_regime_columns(results_frame)
+    rows = []
+    for regime_column in ("variant", "length_bucket", "anomaly_ratio_bucket"):
+        summary = (
+            enriched.groupby(["algorithm_display", regime_column], as_index=False)
+            .agg(
+                dataset_count=("dataset_name", "nunique"),
+                mean_roc_auc=("roc_auc", "mean"),
+                mean_f1=("f1", "mean"),
+                mean_range_f1=("range_f1", "mean"),
+                mean_runtime_seconds=("runtime_seconds", "mean"),
+            )
+            .rename(columns={regime_column: "regime_value"})
+        )
+        summary["regime_dimension"] = regime_column
+        rows.append(summary)
+    return pd.concat(rows, ignore_index=True)[
+        [
+            "regime_dimension",
+            "regime_value",
+            "algorithm_display",
+            "dataset_count",
+            "mean_roc_auc",
+            "mean_f1",
+            "mean_range_f1",
+            "mean_runtime_seconds",
+        ]
+    ].sort_values(
+        ["regime_dimension", "regime_value", "mean_range_f1", "mean_f1"],
+        ascending=[True, True, False, False],
+    ).reset_index(drop=True)
+
+
 def summarize_algorithms(results_frame: pd.DataFrame) -> pd.DataFrame:
     summary = (
         results_frame.groupby(
@@ -1993,6 +2472,65 @@ def build_variant_config_table(config: dict[str, Any], algorithm_key: str) -> pd
     return pd.DataFrame(rows)
 
 
+def build_algorithm_parameter_effect_table(results_frame: pd.DataFrame, algorithm_key: str) -> pd.DataFrame:
+    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    if subset.empty:
+        return pd.DataFrame()
+    param_columns = [column for column in subset.columns if column.startswith("param__") and not subset[column].isna().all()]
+    group_columns = ["algorithm_display", "algorithm_variant", *param_columns]
+    summary = (
+        subset.groupby(group_columns, as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            mean_roc_auc=("roc_auc", "mean"),
+            mean_f1=("f1", "mean"),
+            mean_range_f1=("range_f1", "mean"),
+            median_range_f1=("range_f1", "median"),
+            mean_runtime_seconds=("runtime_seconds", "mean"),
+        )
+        .sort_values(["mean_range_f1", "mean_f1", "mean_roc_auc"], ascending=False)
+        .reset_index(drop=True)
+    )
+    return summary
+
+
+def build_algorithm_regime_table(results_frame: pd.DataFrame, algorithm_key: str, regime_column: str) -> pd.DataFrame:
+    subset = add_analysis_regime_columns(results_frame.loc[results_frame["algorithm"] == algorithm_key].copy())
+    if subset.empty:
+        return pd.DataFrame()
+    return (
+        subset.groupby(["algorithm_display", "algorithm_variant", regime_column], as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            mean_roc_auc=("roc_auc", "mean"),
+            mean_f1=("f1", "mean"),
+            mean_range_f1=("range_f1", "mean"),
+            mean_runtime_seconds=("runtime_seconds", "mean"),
+        )
+        .sort_values([regime_column, "mean_range_f1", "mean_f1"], ascending=[True, False, False])
+        .reset_index(drop=True)
+    )
+
+
+def _ordered_regime_pivot(
+    results_frame: pd.DataFrame,
+    algorithm_key: str,
+    regime_column: str,
+    order: list[str],
+    metric: str = "range_f1",
+) -> pd.DataFrame:
+    subset = add_analysis_regime_columns(results_frame.loc[results_frame["algorithm"] == algorithm_key].copy())
+    if subset.empty:
+        return pd.DataFrame()
+    grouped = (
+        subset.groupby(["algorithm_display", regime_column], as_index=False)[metric]
+        .mean()
+        .pivot(index="algorithm_display", columns=regime_column, values=metric)
+    )
+    present_columns = [column for column in order if column in grouped.columns]
+    return grouped.reindex(columns=present_columns).fillna(0.0)
+
+
 def select_deep_dive_variant(
     results_frame: pd.DataFrame,
     deep_dive_payload: dict[str, Any] | None,
@@ -2078,6 +2616,69 @@ def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: s
     return fig
 
 
+def _draw_metric_heatmap(ax: Any, frame: pd.DataFrame, title: str, cmap: str) -> Any:
+    if frame.empty:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=11)
+        ax.set_axis_off()
+        ax.set_title(title)
+        return None
+    image = ax.imshow(frame.to_numpy(), cmap=cmap, aspect="auto", vmin=0.0, vmax=1.0)
+    ax.set_title(title)
+    ax.set_xticks(range(len(frame.columns)))
+    ax.set_xticklabels(frame.columns, rotation=20, ha="right")
+    ax.set_yticks(range(len(frame.index)))
+    ax.set_yticklabels(frame.index)
+    for row_index in range(frame.shape[0]):
+        for col_index in range(frame.shape[1]):
+            ax.text(col_index, row_index, f"{frame.iloc[row_index, col_index]:.2f}", ha="center", va="center", fontsize=9)
+    return image
+
+
+def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
+    subset = results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    if subset.empty:
+        return None
+
+    plt = _load_plotting_module()
+    variant_pivot = _ordered_regime_pivot(results_frame, algorithm_key, "variant", DATASET_VARIANT_ORDER)
+    length_pivot = _ordered_regime_pivot(results_frame, algorithm_key, "length_bucket", LENGTH_BUCKET_ORDER)
+    anomaly_pivot = _ordered_regime_pivot(results_frame, algorithm_key, "anomaly_ratio_bucket", ANOMALY_RATIO_BUCKET_ORDER)
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
+    image = _draw_metric_heatmap(
+        axes[0, 0],
+        variant_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Mean Range F1 by dataset variant",
+        "YlGnBu",
+    )
+    _draw_metric_heatmap(
+        axes[0, 1],
+        length_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Mean Range F1 by series length",
+        "YlOrBr",
+    )
+    _draw_metric_heatmap(
+        axes[1, 0],
+        anomaly_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Mean Range F1 by anomaly ratio",
+        "PuBuGn",
+    )
+
+    for display_name, frame in subset.groupby("algorithm_display"):
+        axes[1, 1].scatter(frame["runtime_seconds"], frame["range_f1"], alpha=0.7, label=display_name)
+    axes[1, 1].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs Range F1")
+    axes[1, 1].set_xlabel("Runtime (seconds)")
+    axes[1, 1].set_ylabel("Range F1")
+    axes[1, 1].legend()
+
+    if image is not None:
+        fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02)
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
 def plot_algorithm_deep_dive(
     raw_values: np.ndarray,
     normalized_values: np.ndarray,
@@ -2121,6 +2722,68 @@ def plot_algorithm_deep_dive(
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, dpi=160)
     return fig
+
+
+def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, context_points: int = 1200) -> None:
+    ns = notebook_state["ns"]
+    config = notebook_state["config"]
+    benchmark = notebook_state["benchmark"]
+
+    if algorithm_key not in config["selected_algorithms"]:
+        print(f"{DISPLAY_NAME_MAP[algorithm_key]} is disabled in the control panel.")
+        return
+
+    results = benchmark["results"]
+    deep_dive_payload = benchmark["deep_dive_payload"]
+
+    variant_config = ns.build_variant_config_table(config, algorithm_key)
+    parameter_effects = ns.build_algorithm_parameter_effect_table(results, algorithm_key)
+    dataset_variant_summary = ns.build_algorithm_regime_table(results, algorithm_key, "variant")
+    length_summary = ns.build_algorithm_regime_table(results, algorithm_key, "length_bucket")
+    anomaly_ratio_summary = ns.build_algorithm_regime_table(results, algorithm_key, "anomaly_ratio_bucket")
+    section_summary, section_top = ns.build_algorithm_section_tables(results, algorithm_key)
+
+    display(variant_config)
+    display(parameter_effects)
+    display(dataset_variant_summary)
+    display(length_summary)
+    display(anomaly_ratio_summary)
+    display(section_summary)
+    display(section_top)
+
+    parameter_effects.to_csv(ns.result_table_path(f"{algorithm_key}_parameter_effects.csv"), index=False)
+    dataset_variant_summary.to_csv(ns.result_table_path(f"{algorithm_key}_dataset_variant_summary.csv"), index=False)
+    length_summary.to_csv(ns.result_table_path(f"{algorithm_key}_length_summary.csv"), index=False)
+    anomaly_ratio_summary.to_csv(ns.result_table_path(f"{algorithm_key}_anomaly_ratio_summary.csv"), index=False)
+
+    fig = ns.plot_algorithm_benchmark_panel(results, algorithm_key, ns.result_algorithm_panel_path(algorithm_key))
+    if fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+    paper_fig = ns.plot_algorithm_paper_panel(results, algorithm_key, ns.result_algorithm_paper_panel_path(algorithm_key))
+    if paper_fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+    metric_row, score_values = ns.select_deep_dive_variant(results, deep_dive_payload, algorithm_key)
+    if metric_row is None or score_values is None:
+        return
+
+    raw_values = ns.load_raw_values_from_file(ns.RAW_DATASET_DIR / f"{deep_dive_payload['dataset']['dataset_name']}.txt")
+    print(f"Deep dive variant: {metric_row['algorithm_display']}")
+    fig = ns.plot_algorithm_deep_dive(
+        raw_values,
+        deep_dive_payload["dataset"]["values"],
+        deep_dive_payload["dataset"],
+        score_values,
+        metric_row,
+        algorithm_key,
+        context_points=context_points,
+        save_path=ns.result_deep_dive_path(metric_row["algorithm_run_id"], deep_dive_payload["dataset"]["dataset_name"]),
+    )
+    plt = ns._load_plotting_module()
+    plt.show()
 
 
 def run_algorithm(algorithm_key: str, values: np.ndarray, window_size: int, params: dict[str, Any]) -> np.ndarray:
@@ -2365,7 +3028,9 @@ def run_benchmark(
                     "runtime_seconds": runtime_seconds,
                     "score_mean": float(scores.mean()) if scores.size else float("nan"),
                     "score_std": float(scores.std()) if scores.size else float("nan"),
+                    "params_json": json.dumps(run_config["params"], sort_keys=True),
                     "error": error_message,
+                    **{f"param__{key}": value for key, value in run_config["params"].items()},
                     **metrics,
                 }
             )
@@ -2405,6 +3070,7 @@ def run_benchmark(
     dataset_catalog = build_dataset_catalog(results)
     algorithm_summary = summarize_algorithms(results)
     family_summary = summarize_families(results)
+    overall_regime_summary = build_overall_regime_summary(results)
     best_by_f1 = build_best_algorithm_table(results, "f1")
     best_by_auc = build_best_algorithm_table(results, "roc_auc")
     errors = results.loc[results["error"] != ""].copy()
@@ -2413,6 +3079,7 @@ def run_benchmark(
     dataset_catalog.to_csv(result_table_path("dataset_catalog.csv"), index=False)
     algorithm_summary.to_csv(result_table_path("algorithm_summary.csv"), index=False)
     family_summary.to_csv(result_table_path("family_summary.csv"), index=False)
+    overall_regime_summary.to_csv(result_table_path("overall_regime_summary.csv"), index=False)
     best_by_f1.to_csv(result_table_path("best_algorithm_by_dataset_f1.csv"), index=False)
     best_by_auc.to_csv(result_table_path("best_algorithm_by_dataset_auc.csv"), index=False)
     errors.to_csv(result_table_path("error_report.csv"), index=False)
@@ -2458,6 +3125,7 @@ def run_benchmark(
         "dataset_catalog": dataset_catalog,
         "algorithm_summary": algorithm_summary,
         "family_summary": family_summary,
+        "overall_regime_summary": overall_regime_summary,
         "best_by_f1": best_by_f1,
         "best_by_auc": best_by_auc,
         "errors": errors,
