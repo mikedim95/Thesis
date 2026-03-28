@@ -35,6 +35,8 @@ RESULT_FIGURES_DIR = RESULTS_DIR / "figures"
 RESULT_ALGORITHM_PANEL_DIR = RESULT_FIGURES_DIR / "algorithm_panels"
 RESULT_DEEP_DIVE_DIR = RESULT_FIGURES_DIR / "deep_dives"
 RESULT_SCORES_DIR = RESULTS_DIR / "scores"
+HIGH_ROI_NOTES_SOURCE_PATH = PROJECT_ROOT / "high_roi_algorithm_notes.md"
+HIGH_ROI_NOTES_RESULT_PATH = RESULT_TABLES_DIR / "high_roi_algorithm_notes.md"
 
 RAW_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 NORMALIZED_DATASET_ROOT.mkdir(parents=True, exist_ok=True)
@@ -516,6 +518,12 @@ PAPER_PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 }
 
+VARIANT_MODE_LABELS = {
+    "manual": "Manual subtabs",
+    "paper_high_roi": "Auto: paper_high_roi",
+    "paper_full_suite": "Auto: paper_full_suite",
+}
+
 ensure_results_layout()
 
 ALGORITHM_REGISTRY = {
@@ -531,6 +539,7 @@ ALGORITHM_REGISTRY = {
 
 TOOLTIP_TEXT = {
     "variant_label": "Name shown on the subtab for this argument set. Use it to label different experiments of the same algorithm, such as Baseline, Fast, or High Recall.",
+    "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into the preset combinations from paper_high_roi or paper_full_suite so parameter impact is measured automatically.",
     "dataset_limit": "How many prepared datasets to benchmark in this run. Use 0 to process every available dataset. Lower values are useful for smoke tests and fast iteration.",
     "normalization_method": "How raw dataset values are transformed before any algorithm runs. This controls the files created in datasets/normalized and changes the numeric scale each algorithm sees.",
     "clip_quantile": "Optional outlier clipping before normalization. Example: 0.01 clips the bottom 1% and top 1% of raw values. This can reduce extreme spikes, but it can also weaken anomaly contrast.",
@@ -583,6 +592,323 @@ TOOLTIP_TEXT = {
     "pca_whiten": "Whether PCA should whiten the retained components. Whitening removes scale differences between components and can change how strongly residual directions contribute to the score.",
     "pca_weighted": "Whether the PCA score should weight component distances by explained variance, giving lower-variance directions more influence as in the TSB-UAD-style formulation.",
     "pca_standardization": "Whether windows are standardized before PCA. This usually helps when window features have different scales, but it can also remove some amplitude information.",
+}
+
+SHARED_PIPELINE_STEPS = [
+    "The raw time series is optionally clipped by `Clip q`, then normalized by `Normalize` before any detector sees it.",
+    "Each detector receives the normalized 1D series together with a base `window_size` and `window_stride` from the general controls.",
+    "Every detector returns a continuous anomaly score trace, and the notebook compares detectors on that score trace first.",
+    "Each algorithm module rescales its own score trace to `[0, 1]` before returning it to the notebook.",
+    "`Threshold method` and `Threshold value` are applied after scoring to turn the continuous trace into binary detections.",
+    "`Evaluation mode` changes only the metric calculation, not the detector score itself.",
+]
+
+GENERAL_CONTROL_REFERENCE = [
+    {
+        "label": "Argument mode",
+        "effect": "Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi` or `paper_full_suite` at run time.",
+    },
+    {
+        "label": "Dataset limit",
+        "effect": "Filters how many prepared datasets are benchmarked. It does not change anomaly scores on any individual dataset.",
+    },
+    {
+        "label": "Normalize",
+        "effect": "Changes the numeric scale seen by every detector before windowing. This can materially change distance-based, density-based, and boundary-based scores.",
+    },
+    {
+        "label": "Clip q",
+        "effect": "Clamps extreme tails before normalization. This can suppress large spikes, which may reduce false positives or weaken genuine anomaly contrast.",
+    },
+    {
+        "label": "Window size",
+        "effect": "Sets the base temporal context used for sliding-window embedding. Matrix Profile, DAMP, and SAND also derive their subsequence lengths or warm-up positions from this base length.",
+    },
+    {
+        "label": "Window stride",
+        "effect": "Controls how densely windows or subsequences are sampled. Larger strides reduce overlap and runtime; most detectors then interpolate the lower-frequency window scores back onto the original time axis.",
+    },
+    {
+        "label": "Threshold method",
+        "effect": "Chooses the post-scoring rule that converts the normalized score trace into binary anomalies. It does not alter the detector's raw scoring process.",
+    },
+    {
+        "label": "Threshold value",
+        "effect": "Provides the numeric cutoff for the selected threshold rule. It changes which high-score regions are finally marked anomalous, not how the score trace is produced.",
+    },
+    {
+        "label": "Evaluation mode",
+        "effect": "Chooses whether metrics are computed as interval overlap (`range`) or exact point hits (`point`). It affects reported scores only.",
+    },
+    {
+        "label": "Rebuild normalized datasets",
+        "effect": "Forces regeneration of cached normalized CSV files. This is a data-preparation control and does not change detector math by itself.",
+    },
+    {
+        "label": "Save per-dataset scores",
+        "effect": "Writes the returned score traces to `results/scores/`. It does not change scoring or thresholding.",
+    },
+    {
+        "label": "Algorithm checkboxes",
+        "effect": "Choose which detectors are included in the benchmark. In auto modes they also act as a filter over the preset sweeps.",
+    },
+]
+
+ALGORITHM_REFERENCE = {
+    "isolation_forest": {
+        "summary": "Fits an Isolation Forest on sliding windows and uses the negated `score_samples` output as the anomaly score.",
+        "process_steps": [
+            "Build overlapping rolling windows from the normalized series with length `window_size` and step `window_stride`.",
+            "Fit `sklearn.ensemble.IsolationForest` on those windows.",
+            "Compute `window_scores = -model.score_samples(windows)`, so windows isolated more easily by the trees receive higher anomaly scores.",
+            "Min-max normalize the window scores to `[0, 1]`.",
+            "Align the window scores back to the original time axis by center padding when stride is `1`, otherwise by interpolation across window centers.",
+        ],
+        "controls": [
+            {
+                "label": "Trees",
+                "param": "n_estimators",
+                "effect": "Adds more trees to the forest. More trees usually stabilize the average isolation score, but increase runtime and memory.",
+            },
+            {
+                "label": "Max samples",
+                "param": "max_samples",
+                "effect": "Controls how many windows each tree is fit on. Smaller samples make each tree more local and cheaper; larger samples expose more global structure. `'auto'` delegates the sample count to sklearn's default rule.",
+            },
+            {
+                "label": "Max feat.",
+                "param": "max_features",
+                "effect": "Controls what fraction of the window positions each tree can split on. Lower values add stronger feature subsampling; higher values let each tree use more of the full temporal context.",
+            },
+            {
+                "label": "Bootstrap",
+                "param": "bootstrap",
+                "effect": "Switches tree training from sampling without replacement to sampling with replacement, which changes how much repeated windows can influence each tree.",
+            },
+            {
+                "label": "Seed",
+                "param": "random_state",
+                "effect": "Fixes the random draws used by the forest so score traces are reproducible across runs.",
+            },
+        ],
+    },
+    "local_outlier_factor": {
+        "summary": "Computes LOF on sliding windows and uses the negated `negative_outlier_factor_` as the anomaly score.",
+        "process_steps": [
+            "Build rolling windows from the normalized series.",
+            "Clamp `n_neighbors` into the valid range with `effective_neighbors = max(2, min(n_neighbors, len(windows) - 1))`.",
+            "Fit `sklearn.neighbors.LocalOutlierFactor` on the windows and call `fit_predict` to populate the local density ratios.",
+            "Compute `window_scores = -model.negative_outlier_factor_`, so windows with much lower local density than their neighbors score higher.",
+            "Min-max normalize and align the window scores back onto the original time axis.",
+        ],
+        "controls": [
+            {
+                "label": "Neighbors",
+                "param": "n_neighbors",
+                "effect": "Changes the size of the neighborhood used to estimate local density. Smaller values make the score more local and sensitive; larger values make it smoother and more global.",
+            },
+            {
+                "label": "Search",
+                "param": "algorithm",
+                "effect": "Changes only the sklearn nearest-neighbor backend (`auto`, `ball_tree`, `kd_tree`, `brute`). It mainly affects runtime, not the density formula itself.",
+            },
+            {
+                "label": "Leaf size",
+                "param": "leaf_size",
+                "effect": "Tunes the search-tree backend used by LOF. This is a performance knob rather than a scoring-logic knob.",
+            },
+            {
+                "label": "Metric",
+                "param": "metric",
+                "effect": "Changes the distance function used between windows, which directly changes who counts as a neighbor and therefore the local density ratio.",
+            },
+            {
+                "label": "p",
+                "param": "p",
+                "effect": "Changes the exponent of the Minkowski distance. It only has scoring impact when `Metric = minkowski`; `p=1` is Manhattan and `p=2` is Euclidean.",
+            },
+        ],
+    },
+    "sand": {
+        "summary": "Runs the legacy SAND online detector on a subsequence representation derived from the base window size and uses `decision_scores_` as the anomaly trace.",
+        "process_steps": [
+            "Set `pattern_length = window_size` and compute `subsequence_length = max(subsequence_multiplier * window_size, window_size + 1)`, capped by the series length.",
+            "Resolve the subsequence step size from `Overlap`; when the UI leaves `Overlap = 0`, the code uses `window_size` when stride is `1` and uses `window_stride` otherwise.",
+            "Clamp `Init length` and `Batch size` so both are at least long enough for one subsequence.",
+            "Clamp `k` to the smallest number of subsequences available across the initialization block and all online batches. When the UI leaves `k = 0`, the call omits `k` and the implementation falls back to SAND's default of `6`, then clamps it.",
+            "Fit `SAND(...).fit(..., online=True, alpha=..., init_length=..., batch_size=..., overlaping_rate=overlap)` on the normalized series.",
+            "Use `model.decision_scores_`, min-max normalize them, and resize the result back to the original series length.",
+        ],
+        "controls": [
+            {
+                "label": "Alpha",
+                "param": "alpha",
+                "effect": "Controls how strongly new batches influence the online update. Higher values adapt faster to recent behavior; lower values keep more inertia from earlier batches.",
+            },
+            {
+                "label": "Init length",
+                "param": "init_length",
+                "effect": "Controls how much initial history is used before the online updates continue. Larger values give SAND a longer starting reference set.",
+            },
+            {
+                "label": "Batch size",
+                "param": "batch_size",
+                "effect": "Controls how much data SAND ingests per online update. Larger batches reduce update frequency but make each update coarser and heavier.",
+            },
+            {
+                "label": "k",
+                "param": "k",
+                "effect": "Sets how many neighboring subsequences SAND compares. Smaller values keep the score local; larger values smooth it. `0` means use the implementation default and then clamp it to what the data can support.",
+            },
+            {
+                "label": "Subseq x",
+                "param": "subsequence_multiplier",
+                "effect": "Scales the subsequence length relative to `window_size`. Larger values make SAND compare longer contexts.",
+            },
+            {
+                "label": "Overlap",
+                "param": "overlap",
+                "effect": "Sets the subsequence step used by SAND's online fit. Smaller steps create denser comparisons; larger steps reduce overlap and runtime. `0` means infer the step from the shared window settings.",
+            },
+        ],
+    },
+    "matrix_profile": {
+        "summary": "Uses the first column of `stumpy.stump` as a discord score, so windows whose nearest neighbor is far away score highly.",
+        "process_steps": [
+            "Compute `subsequence_length = max(4, window_size * subsequence_multiplier)`, capped below the series length.",
+            "Run `stumpy.stump(values, m=subsequence_length)` and keep the first column of the returned matrix profile.",
+            "Subsample the profile by `window_stride` when stride is greater than `1`.",
+            "Normalize the profile to `[0, 1]`, replacing non-finite values before scaling.",
+            "Align the subsequence scores back to the original time axis around each subsequence center.",
+        ],
+        "controls": [
+            {
+                "label": "Subseq x",
+                "param": "subsequence_multiplier",
+                "effect": "Scales the discord subsequence length relative to `window_size`. Larger values look for broader anomalous contexts; smaller values focus on shorter local discords.",
+            },
+        ],
+    },
+    "damp": {
+        "summary": "Runs the DAMP streaming-discord search and uses backward nearest-neighbor distances as the anomaly score.",
+        "process_steps": [
+            "Set the DAMP start position `sp_index = max(window_size + 1, round(window_size * start_index_multiplier) + 1)`.",
+            "Resolve `x_lag`; when the UI leaves it at `0`, DAMP falls back to its internal heuristic `2^ceil(log2(8 * window_size))`.",
+            "From `sp_index` onward, compare each current window against historical reference windows using repeated MASS nearest-neighbor searches. The returned nearest-neighbor distance is the discord score.",
+            "Use DAMP's forward-pruning pass to skip future windows that already have a close enough match.",
+            "Subsample by `window_stride`, normalize the resulting profile, and align it back onto the original time axis.",
+        ],
+        "controls": [
+            {
+                "label": "Start x",
+                "param": "start_index_multiplier",
+                "effect": "Moves the first scored window later in time by a multiple of `window_size`. Larger values delay scoring and give the method more history before the backward search starts.",
+            },
+            {
+                "label": "x_lag x",
+                "param": "x_lag_multiplier",
+                "effect": "Sets how far back the backward search can look, as a multiple of `window_size`. Larger values widen the historical search horizon; `0` means use DAMP's internal heuristic instead.",
+            },
+        ],
+    },
+    "hbos": {
+        "summary": "Builds one histogram per window position and scores each window by the negative sum of log histogram densities.",
+        "process_steps": [
+            "Build rolling windows from the normalized series.",
+            "For each feature position inside the window, build a histogram with `n_bins` bins over that column across all windows.",
+            "For each window value, look up the corresponding histogram-bin density and compute `log2(hist + alpha)`.",
+            "If a value falls outside the learned histogram range, use `Tol` to decide whether to borrow the nearest edge-bin density or assign the minimum-density penalty.",
+            "Sum the negative log densities across all window positions to get the window anomaly score, then normalize and align it back to the time axis.",
+        ],
+        "controls": [
+            {
+                "label": "Bins",
+                "param": "n_bins",
+                "effect": "Changes the histogram resolution at each window position. More bins capture finer structure; fewer bins smooth the density estimate.",
+            },
+            {
+                "label": "Alpha",
+                "param": "alpha",
+                "effect": "Adds smoothing inside `log2(hist + alpha)`, preventing empty bins from producing undefined scores and softening sparse-bin penalties.",
+            },
+            {
+                "label": "Tol",
+                "param": "tol",
+                "effect": "Controls how far outside a histogram edge a value can land before it receives the harsh minimum-density penalty instead of the nearest edge-bin density.",
+            },
+        ],
+    },
+    "ocsvm": {
+        "summary": "Fits One-Class SVM on the earliest normalized windows and scores all windows with the negated `decision_function`.",
+        "process_steps": [
+            "Build rolling windows from the normalized series.",
+            "Apply row-wise min-max scaling so every window is independently mapped into `[0, 1]` before model fitting.",
+            "Choose the training prefix from the earliest windows using `train_fraction`, clamped so at least `8` windows are used when available.",
+            "Fit `sklearn.svm.OneClassSVM` on that prefix only.",
+            "Compute `window_scores = -model.decision_function(all_windows)` so windows farther outside the learned boundary score higher.",
+            "Normalize and align the score trace back to the original time axis.",
+        ],
+        "controls": [
+            {
+                "label": "Kernel",
+                "param": "kernel",
+                "effect": "Changes the geometry of the decision boundary in window space. `linear` uses a flat boundary, while `rbf`, `poly`, and `sigmoid` introduce nonlinear boundaries.",
+            },
+            {
+                "label": "Nu",
+                "param": "nu",
+                "effect": "Sets the One-Class SVM regularization level that bounds training errors and support-vector fraction. Larger values usually make the model more willing to score windows as abnormal.",
+            },
+            {
+                "label": "Gamma",
+                "param": "gamma",
+                "effect": "Controls the locality of nonlinear kernels. Higher values make the boundary respond to finer local variation; lower values make it smoother. `linear` largely ignores this setting.",
+            },
+            {
+                "label": "Train frac",
+                "param": "train_fraction",
+                "effect": "Sets how much of the earliest series prefix is assumed to be mostly normal and therefore used for fitting before scoring the full series.",
+            },
+        ],
+    },
+    "pca": {
+        "summary": "Fits PCA on sliding windows and scores each window by its distance to the selected principal-component vectors used by the current implementation.",
+        "process_steps": [
+            "Build rolling windows from the normalized series.",
+            "If `Standardize` is enabled, standardize each window position across the full window matrix with `StandardScaler` before PCA.",
+            "Fit `sklearn.decomposition.PCA` with the requested `Components` and `Whiten` settings.",
+            "Select the trailing principal-component vectors with `model.components_[-effective_selected:, :]`, where `effective_selected` comes from `Score comps` and defaults to all retained components when `0` is entered.",
+            "Score each window with `sum(cdist(transformed_windows, selected_components) / selected_weights, axis=1)`. When `Weighted` is enabled, `selected_weights` comes from `explained_variance_ratio_`, so lower-variance components contribute more strongly because they divide by smaller values.",
+            "Normalize and align the resulting score trace back to the original time axis.",
+        ],
+        "controls": [
+            {
+                "label": "Components",
+                "param": "n_components",
+                "effect": "Sets how many principal components PCA retains. Blank means sklearn's default behavior; a float such as `0.95` uses explained variance; an integer keeps an exact count.",
+            },
+            {
+                "label": "Score comps",
+                "param": "n_selected_components",
+                "effect": "Chooses how many trailing principal-component vectors are used in the score. Smaller values focus the score on the lowest-variance directions; `0` means score against all retained components.",
+            },
+            {
+                "label": "Whiten",
+                "param": "whiten",
+                "effect": "Requests PCA whitening, which rescales the retained components before the distance calculation.",
+            },
+            {
+                "label": "Weighted",
+                "param": "weighted",
+                "effect": "Divides each component distance by its explained-variance ratio. This gives low-variance components more leverage in the final anomaly score.",
+            },
+            {
+                "label": "Standardize",
+                "param": "standardization",
+                "effect": "Applies featurewise standardization before PCA so each position inside the window contributes on a comparable scale.",
+            },
+        ],
+    },
 }
 
 pd.set_option("display.max_columns", 60)
@@ -674,6 +1000,7 @@ def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
         params = dict(run_config["params"])
         row = {
             "dataset_limit": dataset_limit,
+            "variant_mode": config["variant_mode"],
             "normalization_method": config["normalization_method"],
             "clip_quantile": config["clip_quantile"],
             "window_size": config["window_size"],
@@ -687,6 +1014,9 @@ def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
             "algorithm_variant": run_config["algorithm_variant"],
             "algorithm_run_id": run_config["algorithm_run_id"],
             "variant_index": run_config["variant_index"],
+            "variant_origin": run_config["variant_origin"],
+            "variant_source": run_config["variant_source"],
+            "variant_focus": run_config["variant_focus"],
             "params_json": json.dumps(params, sort_keys=True),
         }
         for key, value in params.items():
@@ -697,6 +1027,8 @@ def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
 
 def build_results_layout_frame() -> pd.DataFrame:
     rows = [
+        ("notes/source", HIGH_ROI_NOTES_SOURCE_PATH),
+        ("notes/results_copy", HIGH_ROI_NOTES_RESULT_PATH),
         ("results_root", RESULTS_DIR),
         ("tables", RESULT_TABLES_DIR),
         ("tables/per_algorithm", RESULT_PER_ALGORITHM_TABLES_DIR),
@@ -847,6 +1179,439 @@ def _explanation_block(summary: str, tooltip_keys: list[str]) -> widgets.Widget:
     accordion = widgets.Accordion(children=[body], selected_index=None)
     accordion.set_title(0, summary)
     return accordion
+
+
+def _format_inline_value(value: Any) -> str:
+    if value is None:
+        return "auto"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    return str(value)
+
+
+def _format_params_inline(params: dict[str, Any]) -> str:
+    return ", ".join(
+        f"{key}={_format_inline_value(value)}" for key, value in params.items()
+    )
+
+
+def _algorithm_implementation_path(algorithm_key: str) -> str:
+    module_name, _function_name = ALGORITHM_REGISTRY[algorithm_key]
+    return f"algorithms/{module_name}.py"
+
+
+def _algorithm_auto_variant_rows(algorithm_key: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for preset_name, preset in PAPER_PRESET_DEFINITIONS.items():
+        for variant in preset["variants"].get(algorithm_key, []):
+            params = {
+                key: value
+                for key, value in variant.items()
+                if key not in {"variant_name", "focus"}
+            }
+            rows.append(
+                {
+                    "preset_name": preset_name,
+                    "variant_name": variant["variant_name"],
+                    "focus": variant.get("focus", ""),
+                    "params": params,
+                }
+            )
+    return rows
+
+
+def _shared_pipeline_html() -> str:
+    steps = "".join(
+        f"<li style='margin:0 0 6px 0;'>{html.escape(step)}</li>"
+        for step in SHARED_PIPELINE_STEPS
+    )
+    controls = "".join(
+        (
+            f"<li style='margin:0 0 6px 0;'><b>{html.escape(item['label'])}</b>: "
+            f"{html.escape(item['effect'])}</li>"
+        )
+        for item in GENERAL_CONTROL_REFERENCE
+    )
+    return (
+        "<div>"
+        "<p style='margin:0 0 8px 0;'><b>Shared scoring pipeline</b></p>"
+        f"<ol style='margin:0 0 10px 18px; padding:0;'>{steps}</ol>"
+        "<p style='margin:0 0 8px 0;'><b>General controls in the screenshot</b></p>"
+        f"<ul style='margin:0 0 0 18px; padding:0;'>{controls}</ul>"
+        "</div>"
+    )
+
+
+def _algorithm_reference_html(algorithm_key: str) -> str:
+    reference = ALGORITHM_REFERENCE[algorithm_key]
+    process = "".join(
+        f"<li style='margin:0 0 6px 0;'>{html.escape(step)}</li>"
+        for step in reference["process_steps"]
+    )
+    controls = "".join(
+        (
+            f"<li style='margin:0 0 6px 0;'><b>{html.escape(item['label'])}</b> "
+            f"(<code>{html.escape(item['param'])}</code>): {html.escape(item['effect'])}</li>"
+        )
+        for item in reference["controls"]
+    )
+    variants = _algorithm_auto_variant_rows(algorithm_key)
+    variant_items = "".join(
+        (
+            f"<li style='margin:0 0 6px 0;'><b>{html.escape(row['preset_name'])}</b> -> "
+            f"<b>{html.escape(row['variant_name'])}</b>: "
+            f"{html.escape(row['focus'])} "
+            f"(<code>{html.escape(_format_params_inline(row['params']))}</code>)</li>"
+        )
+        for row in variants
+    )
+    auto_html = (
+        "<p style='margin:10px 0 8px 0;'><b>Auto sweep variants</b></p>"
+        f"<ul style='margin:0 0 0 18px; padding:0;'>{variant_items}</ul>"
+        if variant_items
+        else "<p style='margin:10px 0 0 0;'><b>Auto sweep variants</b>: none configured.</p>"
+    )
+    return (
+        "<div>"
+        f"<p style='margin:0 0 8px 0;'><b>Implementation</b>: "
+        f"<code>{html.escape(_algorithm_implementation_path(algorithm_key))}</code></p>"
+        f"<p style='margin:0 0 8px 0;'>{html.escape(reference['summary'])}</p>"
+        "<p style='margin:0 0 8px 0;'><b>How the score is produced</b></p>"
+        f"<ol style='margin:0 0 10px 18px; padding:0;'>{process}</ol>"
+        "<p style='margin:0 0 8px 0;'><b>Visible controls in this tab</b></p>"
+        f"<ul style='margin:0 0 0 18px; padding:0;'>{controls}</ul>"
+        f"{auto_html}"
+        "</div>"
+    )
+
+
+def _rich_reference_block(summary: str, html_value: str) -> widgets.Widget:
+    body = widgets.HTML(value=html_value)
+    accordion = widgets.Accordion(children=[body], selected_index=None)
+    accordion.set_title(0, summary)
+    return accordion
+
+
+def _general_process_block() -> widgets.Widget:
+    return _rich_reference_block(
+        "Show shared pipeline and general-control impact",
+        _shared_pipeline_html(),
+    )
+
+
+def _algorithm_process_block(algorithm_key: str) -> widgets.Widget:
+    return _rich_reference_block(
+        f"Show how {DISPLAY_NAME_MAP[algorithm_key]} scores anomalies and how each knob changes it",
+        _algorithm_reference_html(algorithm_key),
+    )
+
+
+def build_algorithm_reference_overview() -> pd.DataFrame:
+    rows = []
+    for algorithm_key in ALGORITHM_ORDER:
+        auto_variants = _algorithm_auto_variant_rows(algorithm_key)
+        preset_counts = {
+            preset_name: sum(1 for row in auto_variants if row["preset_name"] == preset_name)
+            for preset_name in PAPER_PRESET_DEFINITIONS
+        }
+        rows.append(
+            {
+                "algorithm": DISPLAY_NAME_MAP[algorithm_key],
+                "implementation": _algorithm_implementation_path(algorithm_key),
+                "summary": ALGORITHM_REFERENCE[algorithm_key]["summary"],
+                "visible_controls": ", ".join(
+                    item["label"] for item in ALGORITHM_REFERENCE[algorithm_key]["controls"]
+                ),
+                "paper_high_roi_variants": preset_counts.get("paper_high_roi", 0),
+                "paper_full_suite_variants": preset_counts.get("paper_full_suite", 0),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_high_roi_algorithm_notes_markdown() -> str:
+    lines = [
+        "# High-ROI Algorithm Notes",
+        "",
+        "This file is generated from `notebook_support.py` and the detector implementations in `python/simple_anomaly_detection/algorithms/`.",
+        "",
+        "## Where the algorithm logic is stated",
+        "",
+        "- Shared run orchestration, thresholding, and benchmark aggregation live in `python/simple_anomaly_detection/notebook_support.py`.",
+        "- The detector scoring logic itself lives in the per-algorithm modules listed below.",
+        "- The notebook UI now mirrors the same explanation in each algorithm tab under the new process/knob accordion.",
+        "",
+        "## Shared scoring pipeline",
+        "",
+    ]
+    lines.extend(f"1. {step}" for step in SHARED_PIPELINE_STEPS)
+    lines.extend(
+        [
+            "",
+            "## General controls visible in the notebook",
+            "",
+        ]
+    )
+    for item in GENERAL_CONTROL_REFERENCE:
+        lines.append(f"- `{item['label']}`: {item['effect']}")
+    lines.extend(
+        [
+            "",
+            "## Automatic sweep mode",
+            "",
+            "- `manual`: use the visible subtabs exactly as edited.",
+            "- `paper_high_roi`: automatically benchmark the curated high-return variants from `PAPER_PRESET_DEFINITIONS` for the enabled high-ROI algorithms.",
+            "- `paper_full_suite`: automatically benchmark the broader appendix-style variants from `PAPER_PRESET_DEFINITIONS` for every enabled algorithm that has a configured sweep.",
+            "- In auto modes, the algorithm checkboxes still filter what runs, but the current subtab values are ignored at run time.",
+            "",
+            "## Algorithm-by-algorithm reference",
+            "",
+        ]
+    )
+
+    for algorithm_key in ALGORITHM_ORDER:
+        reference = ALGORITHM_REFERENCE[algorithm_key]
+        lines.extend(
+            [
+                f"### {DISPLAY_NAME_MAP[algorithm_key]}",
+                "",
+                f"- Implementation: `{_algorithm_implementation_path(algorithm_key)}`",
+                f"- Summary: {reference['summary']}",
+                "",
+                "How the score is produced:",
+            ]
+        )
+        lines.extend(
+            f"{index}. {step}"
+            for index, step in enumerate(reference["process_steps"], start=1)
+        )
+        lines.extend(
+            [
+                "",
+                "Visible controls and exact effect:",
+            ]
+        )
+        for item in reference["controls"]:
+            lines.append(
+                f"- `{item['label']}` (`{item['param']}`): {item['effect']}"
+            )
+        lines.extend(
+            [
+                "",
+                "Auto sweep variants:",
+            ]
+        )
+        auto_variants = _algorithm_auto_variant_rows(algorithm_key)
+        if auto_variants:
+            for row in auto_variants:
+                lines.append(
+                    f"- `{row['preset_name']}` -> `{row['variant_name']}`: {row['focus']} "
+                    f"(`{_format_params_inline(row['params'])}`)"
+                )
+        else:
+            lines.append("- None configured.")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_high_roi_algorithm_notes() -> dict[str, str]:
+    notes_markdown = build_high_roi_algorithm_notes_markdown()
+    HIGH_ROI_NOTES_SOURCE_PATH.write_text(notes_markdown, encoding="utf-8")
+    HIGH_ROI_NOTES_RESULT_PATH.write_text(notes_markdown, encoding="utf-8")
+    return {
+        "source_path": portable_path_str(HIGH_ROI_NOTES_SOURCE_PATH),
+        "results_path": portable_path_str(HIGH_ROI_NOTES_RESULT_PATH),
+    }
+
+
+def _build_variant_config(
+    algorithm_key: str,
+    variant_index: int,
+    variant_name: str,
+    params: dict[str, Any],
+    *,
+    variant_origin: str,
+    variant_source: str,
+    variant_focus: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "algorithm": algorithm_key,
+        "algorithm_base_display": DISPLAY_NAME_MAP[algorithm_key],
+        "algorithm_superfamily": ALGORITHM_METADATA[algorithm_key]["superfamily"],
+        "algorithm_category": ALGORITHM_METADATA[algorithm_key]["category"],
+        "algorithm_display": f"{DISPLAY_NAME_MAP[algorithm_key]} | {variant_name}",
+        "algorithm_variant": variant_name,
+        "algorithm_run_id": f"{algorithm_key}__tab_{variant_index:02d}",
+        "variant_index": variant_index,
+        "variant_origin": variant_origin,
+        "variant_source": variant_source,
+        "variant_focus": variant_focus or "",
+        "params": params,
+    }
+
+
+def _normalize_variant_params(algorithm_key: str, raw_params: dict[str, Any]) -> dict[str, Any]:
+    if algorithm_key == "isolation_forest":
+        return {
+            "n_estimators": int(raw_params["n_estimators"]),
+            "max_samples": parse_freeform_value(raw_params["max_samples"]),
+            "max_features": float(raw_params["max_features"]),
+            "bootstrap": bool(raw_params["bootstrap"]),
+            "random_state": int(raw_params["random_state"]),
+        }
+    if algorithm_key == "local_outlier_factor":
+        return {
+            "n_neighbors": int(raw_params["n_neighbors"]),
+            "algorithm": str(raw_params["algorithm"]),
+            "leaf_size": int(raw_params["leaf_size"]),
+            "metric": str(raw_params["metric"]),
+            "p": int(raw_params["p"]),
+        }
+    if algorithm_key == "sand":
+        return {
+            "alpha": float(raw_params["alpha"]),
+            "init_length": int(raw_params["init_length"]),
+            "batch_size": int(raw_params["batch_size"]),
+            "k": None if raw_params.get("k") is None or int(raw_params["k"]) <= 0 else int(raw_params["k"]),
+            "subsequence_multiplier": int(raw_params["subsequence_multiplier"]),
+            "overlap": None if raw_params.get("overlap") is None or int(raw_params["overlap"]) <= 0 else int(raw_params["overlap"]),
+        }
+    if algorithm_key == "matrix_profile":
+        return {
+            "subsequence_multiplier": int(raw_params["subsequence_multiplier"]),
+        }
+    if algorithm_key == "damp":
+        x_lag_multiplier = raw_params.get("x_lag_multiplier")
+        return {
+            "start_index_multiplier": float(raw_params["start_index_multiplier"]),
+            "x_lag_multiplier": None if x_lag_multiplier is None or float(x_lag_multiplier) <= 0 else float(x_lag_multiplier),
+        }
+    if algorithm_key == "hbos":
+        return {
+            "n_bins": int(raw_params["n_bins"]),
+            "alpha": float(raw_params["alpha"]),
+            "tol": float(raw_params["tol"]),
+        }
+    if algorithm_key == "ocsvm":
+        return {
+            "kernel": str(raw_params["kernel"]),
+            "nu": float(raw_params["nu"]),
+            "gamma": parse_freeform_value(raw_params["gamma"]),
+            "train_fraction": float(raw_params["train_fraction"]),
+        }
+
+    n_components_value = raw_params.get("n_components")
+    n_components_text = "" if n_components_value is None else str(n_components_value).strip()
+    return {
+        "n_components": None if n_components_text == "" else parse_freeform_value(n_components_text),
+        "n_selected_components": None if raw_params.get("n_selected_components") is None or int(raw_params["n_selected_components"]) <= 0 else int(raw_params["n_selected_components"]),
+        "whiten": bool(raw_params["whiten"]),
+        "weighted": bool(raw_params["weighted"]),
+        "standardization": bool(raw_params["standardization"]),
+    }
+
+
+def _manual_variant_configs_for_algorithm(controls: dict[str, Any], algorithm_key: str) -> list[dict[str, Any]]:
+    variant_entries = controls["algorithm_variants"][algorithm_key]["variants"]
+    algorithm_variant_configs: list[dict[str, Any]] = []
+    for variant_index, variant_entry in enumerate(variant_entries, start=1):
+        variant_controls = variant_entry["controls"]
+        variant_name = variant_controls["variant_name"].value.strip() or _default_variant_name(variant_index)
+        raw_params = {
+            key: widget.value for key, widget in variant_controls.items() if key != "variant_name"
+        }
+        params = _normalize_variant_params(algorithm_key, raw_params)
+        algorithm_variant_configs.append(
+            _build_variant_config(
+                algorithm_key,
+                variant_index,
+                variant_name,
+                params,
+                variant_origin="manual",
+                variant_source="manual",
+            )
+        )
+    return algorithm_variant_configs
+
+
+def _auto_variant_configs_for_algorithm(algorithm_key: str, preset_name: str) -> list[dict[str, Any]]:
+    preset = PAPER_PRESET_DEFINITIONS[preset_name]
+    rows: list[dict[str, Any]] = []
+    for variant_index, variant in enumerate(preset["variants"].get(algorithm_key, []), start=1):
+        raw_params = {
+            key: value
+            for key, value in variant.items()
+            if key not in {"variant_name", "focus"}
+        }
+        rows.append(
+            _build_variant_config(
+                algorithm_key,
+                variant_index,
+                variant["variant_name"],
+                _normalize_variant_params(algorithm_key, raw_params),
+                variant_origin="auto",
+                variant_source=preset_name,
+                variant_focus=variant.get("focus"),
+            )
+        )
+    return rows
+
+
+def _resolve_effective_variants_from_controls(controls: dict[str, Any]) -> dict[str, Any]:
+    variant_mode = str(controls.get("variant_mode").value) if controls.get("variant_mode") is not None else "manual"
+    enabled_algorithms = [
+        algorithm_key
+        for algorithm_key in ALGORITHM_ORDER
+        if controls[ALGORITHM_ENABLE_CONTROL[algorithm_key]].value
+    ]
+
+    algorithm_variants: dict[str, list[dict[str, Any]]] = {}
+    selected_algorithms: list[str] = []
+    selected_runs: list[dict[str, Any]] = []
+
+    if variant_mode == "manual":
+        for algorithm_key in enabled_algorithms:
+            configs = _manual_variant_configs_for_algorithm(controls, algorithm_key)
+            if configs:
+                algorithm_variants[algorithm_key] = configs
+                selected_algorithms.append(algorithm_key)
+                selected_runs.extend(configs)
+        return {
+            "variant_mode": variant_mode,
+            "selected_algorithms": selected_algorithms,
+            "algorithm_variants": algorithm_variants,
+            "selected_runs": selected_runs,
+            "auto_preset_name": None,
+            "auto_filtered_out": [],
+        }
+
+    preset = PAPER_PRESET_DEFINITIONS[variant_mode]
+    preset_enabled = set(preset["enabled_algorithms"])
+    auto_filtered_out = [
+        algorithm_key
+        for algorithm_key in enabled_algorithms
+        if algorithm_key not in preset_enabled
+    ]
+    for algorithm_key in enabled_algorithms:
+        if algorithm_key not in preset_enabled:
+            continue
+        configs = _auto_variant_configs_for_algorithm(algorithm_key, variant_mode)
+        if configs:
+            algorithm_variants[algorithm_key] = configs
+            selected_algorithms.append(algorithm_key)
+            selected_runs.extend(configs)
+
+    return {
+        "variant_mode": variant_mode,
+        "selected_algorithms": selected_algorithms,
+        "algorithm_variants": algorithm_variants,
+        "selected_runs": selected_runs,
+        "auto_preset_name": variant_mode,
+        "auto_filtered_out": auto_filtered_out,
+    }
 
 
 def _legacy_build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
@@ -1237,6 +2002,7 @@ def _make_if_variant(
                     "if_random_state",
                 ],
             ),
+            _algorithm_process_block("isolation_forest"),
         ],
         "#1d4ed8",
     )
@@ -1296,6 +2062,7 @@ def _make_lof_variant(
                     "lof_p",
                 ],
             ),
+            _algorithm_process_block("local_outlier_factor"),
         ],
         "#ea580c",
     )
@@ -1357,6 +2124,7 @@ def _make_sand_variant(
                     "sand_overlap",
                 ],
             ),
+            _algorithm_process_block("sand"),
         ],
         "#15803d",
     )
@@ -1400,6 +2168,7 @@ def _make_matrix_profile_variant(
                     "mp_subsequence_multiplier",
                 ],
             ),
+            _algorithm_process_block("matrix_profile"),
         ],
         ALGORITHM_METADATA["matrix_profile"]["border_color"],
     )
@@ -1445,6 +2214,7 @@ def _make_hbos_variant(
                     "hbos_tol",
                 ],
             ),
+            _algorithm_process_block("hbos"),
         ],
         ALGORITHM_METADATA["hbos"]["border_color"],
     )
@@ -1485,6 +2255,7 @@ def _make_damp_variant(
                     "damp_x_lag_multiplier",
                 ],
             ),
+            _algorithm_process_block("damp"),
         ],
         ALGORITHM_METADATA["damp"]["border_color"],
     )
@@ -1534,6 +2305,7 @@ def _make_ocsvm_variant(
                     "ocsvm_train_fraction",
                 ],
             ),
+            _algorithm_process_block("ocsvm"),
         ],
         ALGORITHM_METADATA["ocsvm"]["border_color"],
     )
@@ -1589,6 +2361,7 @@ def _make_pca_variant(
                     "pca_standardization",
                 ],
             ),
+            _algorithm_process_block("pca"),
         ],
         ALGORITHM_METADATA["pca"]["border_color"],
     )
@@ -1692,34 +2465,29 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     threshold_value_slot = widgets.VBox()
 
     def render_preview(*_args: Any) -> None:
-        selected = []
-        selected_configuration_count = 0
-        variant_summary = []
+        if "algorithm_variants" not in controls or "variant_mode" not in controls:
+            return
 
-        for algorithm_key, enabled_key in (
-            ("isolation_forest", "run_iforest"),
-            ("local_outlier_factor", "run_lof"),
-            ("sand", "run_sand"),
-            ("matrix_profile", "run_matrix_profile"),
-            ("damp", "run_damp"),
-            ("hbos", "run_hbos"),
-            ("ocsvm", "run_ocsvm"),
-            ("pca", "run_pca"),
-        ):
-            if enabled_key in controls and controls[enabled_key].value and algorithm_key in algorithm_variants:
-                variant_entries = algorithm_variants[algorithm_key]["variants"]
-                variant_count = len(variant_entries)
-                selected_configuration_count += variant_count
-                selected.append(
-                    f"{DISPLAY_NAME_MAP[algorithm_key]} x{variant_count}")
-                variant_labels = [entry["controls"]["variant_name"].value.strip(
-                ) or f"Variant {index + 1}" for index, entry in enumerate(variant_entries)]
-                variant_summary.append(
-                    f"{DISPLAY_NAME_MAP[algorithm_key]}: {', '.join(variant_labels)}")
+        effective = _resolve_effective_variants_from_controls(controls)
+        selected_configuration_count = len(effective["selected_runs"])
+        selected = [
+            f"{DISPLAY_NAME_MAP[algorithm_key]} x{len(rows)}"
+            for algorithm_key, rows in effective["algorithm_variants"].items()
+            if rows
+        ]
+        variant_summary = [
+            f"{DISPLAY_NAME_MAP[algorithm_key]}: {', '.join(row['algorithm_variant'] for row in rows)}"
+            for algorithm_key, rows in effective["algorithm_variants"].items()
+            if rows
+        ]
+        auto_filtered_out = ", ".join(
+            DISPLAY_NAME_MAP[key] for key in effective["auto_filtered_out"]
+        )
 
         preview_frame = pd.DataFrame(
             [
                 {
+                    "argument_mode": VARIANT_MODE_LABELS.get(effective["variant_mode"], effective["variant_mode"]),
                     "datasets to run": "all available" if controls["dataset_limit"].value <= 0 else controls["dataset_limit"].value,
                     "normalization": controls["normalization_method"].value,
                     "clip_quantile": None if controls["clip_quantile"].value <= 0 else controls["clip_quantile"].value,
@@ -1731,6 +2499,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                     "selected_algorithms": ", ".join(selected) if selected else "none",
                     "selected_configurations": selected_configuration_count,
                     "variant_tabs": " | ".join(variant_summary) if variant_summary else "none",
+                    "auto_filtered_out": auto_filtered_out or None,
                     "save_scores": controls["save_scores"].value,
                 }
             ]
@@ -1772,6 +2541,16 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
     controls["dataset_limit"] = widgets.IntText(
         value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
+    controls["variant_mode"] = widgets.Dropdown(
+        options=[
+            (VARIANT_MODE_LABELS["manual"], "manual"),
+            (VARIANT_MODE_LABELS["paper_high_roi"], "paper_high_roi"),
+            (VARIANT_MODE_LABELS["paper_full_suite"], "paper_full_suite"),
+        ],
+        value="manual",
+        description="Argument mode",
+        layout=widgets.Layout(width="280px"),
+    )
     controls["normalization_method"] = widgets.Dropdown(
         options=["none", "zscore", "minmax", "robust"],
         value="zscore",
@@ -1814,6 +2593,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
     for key in [
         "dataset_limit",
+        "variant_mode",
         "normalization_method",
         "clip_quantile",
         "overwrite_normalized",
@@ -1860,6 +2640,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _control_row(
                 [
                     _with_tooltip(controls["dataset_limit"], "dataset_limit"),
+                    _with_tooltip(controls["variant_mode"], "variant_mode"),
                     _with_tooltip(
                         controls["normalization_method"], "normalization_method"),
                     _with_tooltip(controls["clip_quantile"], "clip_quantile"),
@@ -1903,12 +2684,14 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _explanation_block(
                 "Show general control explanations",
                 [
+                    "variant_mode",
                     "dataset_limit",
                     "normalization_method",
                     "clip_quantile",
                     "overwrite_normalized",
                     "window_size",
                     "window_stride",
+                    "threshold_method",
                     "threshold_value",
                     "evaluation_mode",
                     "save_scores",
@@ -1922,6 +2705,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                     "run_pca",
                 ],
             ),
+            _general_process_block(),
         ],
         "#334155",
     )
@@ -1957,7 +2741,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                 "<h2 style='margin-top:0;'>Control Panel</h2>"
                 "<p>Change the knobs here, then rerun the configuration and benchmark cells below.</p>"
                 "<p><b>General controls</b> stay visible, and each algorithm has its own tab so the parameter boundaries are obvious.</p>"
-                "<p>Inside every algorithm tab, use the subtab bar like a browser: <b>+</b> duplicates the current argument set so you can benchmark multiple variants of the same algorithm in one run.</p>"
+                "<p>Set <b>Argument mode</b> to an auto sweep if you want the notebook to benchmark multiple parameter combinations for you. In <b>manual</b> mode, the subtab bar behaves like a browser: <b>+</b> duplicates the current argument set so you can compare variants yourself.</p>"
             ),
             general_box,
             algorithm_tabs,
@@ -2020,6 +2804,8 @@ def apply_paper_experiment_preset(controls: dict[str, Any], preset_name: str = "
         variant_manager = controls["algorithm_variants"][algorithm_key]
         variant_manager["replace_variants"](
             preset["variants"].get(algorithm_key, [{}]))
+    if "variant_mode" in controls:
+        controls["variant_mode"].value = preset_name
 
 
 def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
@@ -2036,105 +2822,11 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
         if threshold_method == "top_k"
         else float(controls["threshold_value"].value)
     )
-    selected_algorithms: list[str] = []
-    algorithm_variants: dict[str, list[dict[str, Any]]] = {}
-    selected_runs: list[dict[str, Any]] = []
-
-    for algorithm_key, enabled_key in (
-        ("isolation_forest", "run_iforest"),
-        ("local_outlier_factor", "run_lof"),
-        ("sand", "run_sand"),
-        ("matrix_profile", "run_matrix_profile"),
-        ("damp", "run_damp"),
-        ("hbos", "run_hbos"),
-        ("ocsvm", "run_ocsvm"),
-        ("pca", "run_pca"),
-    ):
-        variant_entries = controls["algorithm_variants"][algorithm_key]["variants"]
-        algorithm_variant_configs = []
-
-        for variant_index, variant_entry in enumerate(variant_entries, start=1):
-            variant_controls = variant_entry["controls"]
-            variant_name = variant_controls["variant_name"].value.strip(
-            ) or _default_variant_name(variant_index)
-            if algorithm_key == "isolation_forest":
-                params = {
-                    "n_estimators": int(variant_controls["n_estimators"].value),
-                    "max_samples": parse_freeform_value(variant_controls["max_samples"].value),
-                    "max_features": float(variant_controls["max_features"].value),
-                    "bootstrap": bool(variant_controls["bootstrap"].value),
-                    "random_state": int(variant_controls["random_state"].value),
-                }
-            elif algorithm_key == "local_outlier_factor":
-                params = {
-                    "n_neighbors": int(variant_controls["n_neighbors"].value),
-                    "algorithm": variant_controls["algorithm"].value,
-                    "leaf_size": int(variant_controls["leaf_size"].value),
-                    "metric": variant_controls["metric"].value,
-                    "p": int(variant_controls["p"].value),
-                }
-            elif algorithm_key == "sand":
-                params = {
-                    "alpha": float(variant_controls["alpha"].value),
-                    "init_length": int(variant_controls["init_length"].value),
-                    "batch_size": int(variant_controls["batch_size"].value),
-                    "k": None if variant_controls["k"].value <= 0 else int(variant_controls["k"].value),
-                    "subsequence_multiplier": int(variant_controls["subsequence_multiplier"].value),
-                    "overlap": None if variant_controls["overlap"].value <= 0 else int(variant_controls["overlap"].value),
-                }
-            elif algorithm_key == "matrix_profile":
-                params = {
-                    "subsequence_multiplier": int(variant_controls["subsequence_multiplier"].value),
-                }
-            elif algorithm_key == "damp":
-                params = {
-                    "start_index_multiplier": float(variant_controls["start_index_multiplier"].value),
-                    "x_lag_multiplier": None if float(variant_controls["x_lag_multiplier"].value) <= 0 else float(variant_controls["x_lag_multiplier"].value),
-                }
-            elif algorithm_key == "hbos":
-                params = {
-                    "n_bins": int(variant_controls["n_bins"].value),
-                    "alpha": float(variant_controls["alpha"].value),
-                    "tol": float(variant_controls["tol"].value),
-                }
-            elif algorithm_key == "ocsvm":
-                params = {
-                    "kernel": variant_controls["kernel"].value,
-                    "nu": float(variant_controls["nu"].value),
-                    "gamma": parse_freeform_value(variant_controls["gamma"].value),
-                    "train_fraction": float(variant_controls["train_fraction"].value),
-                }
-            else:
-                n_components_text = variant_controls["n_components"].value.strip(
-                )
-                params = {
-                    "n_components": None if n_components_text == "" else parse_freeform_value(n_components_text),
-                    "n_selected_components": None if int(variant_controls["n_selected_components"].value) <= 0 else int(variant_controls["n_selected_components"].value),
-                    "whiten": bool(variant_controls["whiten"].value),
-                    "weighted": bool(variant_controls["weighted"].value),
-                    "standardization": bool(variant_controls["standardization"].value),
-                }
-
-            variant_config = {
-                "algorithm": algorithm_key,
-                "algorithm_base_display": DISPLAY_NAME_MAP[algorithm_key],
-                "algorithm_superfamily": ALGORITHM_METADATA[algorithm_key]["superfamily"],
-                "algorithm_category": ALGORITHM_METADATA[algorithm_key]["category"],
-                "algorithm_display": f"{DISPLAY_NAME_MAP[algorithm_key]} | {variant_name}",
-                "algorithm_variant": variant_name,
-                "algorithm_run_id": f"{algorithm_key}__tab_{variant_index:02d}",
-                "variant_index": variant_index,
-                "params": params,
-            }
-            algorithm_variant_configs.append(variant_config)
-
-        algorithm_variants[algorithm_key] = algorithm_variant_configs
-        if controls[enabled_key].value and algorithm_variant_configs:
-            selected_algorithms.append(algorithm_key)
-            selected_runs.extend(algorithm_variant_configs)
+    effective_variants = _resolve_effective_variants_from_controls(controls)
 
     return {
         "dataset_limit": dataset_limit,
+        "variant_mode": effective_variants["variant_mode"],
         "normalization_method": controls["normalization_method"].value,
         "clip_quantile": clip_value,
         "overwrite_normalized_datasets": bool(controls["overwrite_normalized"].value),
@@ -2146,9 +2838,11 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
         "threshold_std_multiplier": threshold_value if threshold_method == "sigma" else None,
         "evaluation_mode": str(controls["evaluation_mode"].value),
         "save_per_dataset_scores": bool(controls["save_scores"].value),
-        "selected_algorithms": selected_algorithms,
-        "selected_runs": selected_runs,
-        "algorithm_variants": algorithm_variants,
+        "selected_algorithms": effective_variants["selected_algorithms"],
+        "selected_runs": effective_variants["selected_runs"],
+        "algorithm_variants": effective_variants["algorithm_variants"],
+        "auto_preset_name": effective_variants["auto_preset_name"],
+        "auto_filtered_out": effective_variants["auto_filtered_out"],
     }
 
 
@@ -2871,6 +3565,9 @@ def build_variant_config_table(config: dict[str, Any], algorithm_key: str) -> pd
             {
                 "algorithm_display": row["algorithm_display"],
                 "algorithm_variant": row["algorithm_variant"],
+                "variant_origin": row["variant_origin"],
+                "variant_source": row["variant_source"],
+                "variant_focus": row["variant_focus"],
                 **row["params"],
             }
         )
@@ -3672,9 +4369,20 @@ def _progress_html(inner_html: str) -> widgets.HTML:
 
 def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
     if not config["selected_runs"]:
+        if config["variant_mode"] != "manual":
+            preset = config["variant_mode"]
+            supported = ", ".join(
+                DISPLAY_NAME_MAP[key]
+                for key in PAPER_PRESET_DEFINITIONS[preset]["enabled_algorithms"]
+            )
+            raise ValueError(
+                f"No enabled algorithms have auto variants under '{preset}'. "
+                f"Enable one of: {supported}, or switch Argument mode back to manual."
+            )
         raise ValueError(
             "Select at least one algorithm in the control panel before running the notebook.")
 
+    notes_info = write_high_roi_algorithm_notes()
     raw_dataset_paths = ensure_raw_datasets_available()
     prepared_dataset_dir, prepared_dataset_paths = ensure_normalized_datasets(
         config["normalization_method"],
@@ -3690,6 +4398,8 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         [
             {
                 "dataset_limit": "all" if config["dataset_limit"] is None else config["dataset_limit"],
+                "variant_mode": config["variant_mode"],
+                "auto_preset_name": config["auto_preset_name"],
                 "normalization_method": config["normalization_method"],
                 "clip_quantile": config["clip_quantile"],
                 "window_size": config["window_size"],
@@ -3704,7 +4414,10 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                     for algorithm_key, variant_rows in config["algorithm_variants"].items()
                     if variant_rows
                 ),
+                "auto_filtered_out": ", ".join(DISPLAY_NAME_MAP[key] for key in config["auto_filtered_out"]) or None,
                 "prepared_dataset_dir": portable_path_str(prepared_dataset_dir),
+                "notes_source_path": notes_info["source_path"],
+                "notes_results_path": notes_info["results_path"],
             }
         ]
     )
@@ -3716,6 +4429,8 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "workspace_raw_count": len(raw_dataset_paths),
                 "workspace_normalized_count": len(prepared_dataset_paths),
                 "benchmark_count": len(benchmark_dataset_paths),
+                "variant_mode": config["variant_mode"],
+                "auto_preset_name": config["auto_preset_name"],
                 "normalization_method": config["normalization_method"],
                 "clip_quantile": config["clip_quantile"],
                 "window_size": config["window_size"],
@@ -3724,6 +4439,8 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "threshold_value": config["threshold_value"],
                 "evaluation_mode": config["evaluation_mode"],
                 "normalized_dataset_dir": portable_path_str(prepared_dataset_dir),
+                "notes_source_path": notes_info["source_path"],
+                "notes_results_path": notes_info["results_path"],
             }
         ]
     )
@@ -3744,6 +4461,7 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         "run_config_frame": run_config_frame,
         "selected_run_parameters": selected_run_parameters,
         "preparation_summary": preparation_summary,
+        "notes_info": notes_info,
     }
 
 

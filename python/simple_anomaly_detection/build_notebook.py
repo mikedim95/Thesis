@@ -60,6 +60,7 @@ def build_notebook() -> dict:
 
             - All cross-cell state stays inside `NOTEBOOK_STATE`.
             - The paper presets create multiple named variants per algorithm so the notebook can show parameter effects instead of a single baseline.
+            - `Argument mode` can now switch between manual subtabs and automatic preset sweeps.
             - Paper-facing sweeps vary only score-driving parameters; backend-only or threshold-only knobs stay fixed inside the presets.
             - Benchmark outputs are saved into `results/tables/`, `results/figures/`, and `results/scores/`.
 
@@ -77,6 +78,7 @@ def build_notebook() -> dict:
             ## Control Reference
 
             **General**
+            - `Argument mode`: `manual` uses the current subtabs, while the auto modes expand enabled algorithms into preset parameter combinations.
             - `Dataset limit`: how many prepared datasets to benchmark. `0` means all datasets.
             - `Normalize`: preprocessing applied before any algorithm runs.
             - `Clip q`: optional quantile clipping before normalization.
@@ -90,6 +92,7 @@ def build_notebook() -> dict:
             **Paper sweep rules**
             - `paper_high_roi`: short, paper-friendly sweep on the highest-return methods plus Isolation Forest for calibration discussion.
             - `paper_full_suite`: broader appendix-ready sweep across every implemented method.
+            - In auto modes, the notebook ignores the live subtab values at run time and uses the preset variants instead.
             - Presets keep runtime-only knobs fixed and vary only parameters that materially change each algorithm's scoring behavior in this framework.
 
             **Algorithm sweep highlights**
@@ -137,7 +140,7 @@ def build_notebook() -> dict:
             """
             ## On Run: Locate The Project, Reload Notebook Support, And Render The Interactive Control Panel
 
-            This next cell finds the `simple_anomaly_detection` folder, reloads the support module, loads dataset names, renders the control panel, and initializes `NOTEBOOK_STATE`.
+            This next cell finds the `simple_anomaly_detection` folder, reloads the support module, loads dataset names, renders the control panel, writes the algorithm-mechanics notes, and initializes `NOTEBOOK_STATE`.
             """
         ),
         code(
@@ -183,22 +186,26 @@ def build_notebook() -> dict:
                 "benchmark": None,
             }
 
+            notes_info = ns.write_high_roi_algorithm_notes()
             display(panel_bundle["panel"])
             display(ns.build_results_layout_frame())
             display(ns.list_paper_presets())
+            display(ns.build_algorithm_reference_overview())
             print(f"Project root: {ns.PROJECT_ROOT}")
             print(f"Legacy virgin source: {ns.LEGACY_VIRGIN_DIR}")
             print(f"Results root: {ns.RESULTS_DIR}")
             print(f"Results tables: {ns.RESULT_TABLES_DIR}")
             print(f"Results figures: {ns.RESULT_FIGURES_DIR}")
             print(f"Score traces: {ns.RESULT_SCORES_DIR}")
+            print(f"Algorithm notes: {notes_info['source_path']}")
+            print(f"Notes results copy: {notes_info['results_path']}")
             """
         ),
         markdown(
             """
             ## Optional: Apply A Reproducible Paper Preset
 
-            Edit `preset_name` below if you want a different paper experiment layout, then rerun the preparation and benchmark cells.
+            Edit `preset_name` below if you want a different paper experiment layout. This also switches `Argument mode` to the selected auto sweep, then rerun the preparation and benchmark cells.
             """
         ),
         code(
