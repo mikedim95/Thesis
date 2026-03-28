@@ -518,10 +518,355 @@ PAPER_PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 }
 
+VARIANT_METADATA_KEYS = {
+    "variant_name",
+    "focus",
+    "variant_family",
+    "ablation_parameter",
+    "ablation_label",
+    "ablation_role",
+}
+
+
+AUTO_ABLATION_BLUEPRINTS: dict[str, dict[str, Any]] = {
+    "isolation_forest": {
+        "ablations": [
+            {
+                "parameter": "n_estimators",
+                "variant_name": "Trees 400",
+                "focus": "Measures whether a larger forest improves score stability enough to justify the runtime.",
+                "role": "score_driver",
+                "changes": {"n_estimators": 400},
+            },
+            {
+                "parameter": "max_samples",
+                "variant_name": "Max samples auto",
+                "focus": "Measures how a broader training sample per tree changes the global isolation pattern.",
+                "role": "score_driver",
+                "changes": {"max_samples": "auto"},
+            },
+            {
+                "parameter": "max_features",
+                "variant_name": "Max feat 0.6",
+                "focus": "Measures the effect of stronger random feature subsampling inside the forest.",
+                "role": "score_driver",
+                "changes": {"max_features": 0.6},
+            },
+            {
+                "parameter": "bootstrap",
+                "variant_name": "Bootstrap on",
+                "focus": "Measures whether sampling windows with replacement changes the tree ensemble enough to alter detections.",
+                "role": "score_driver",
+                "changes": {"bootstrap": True},
+            },
+            {
+                "parameter": "random_state",
+                "variant_name": "Seed 7",
+                "focus": "Measures sensitivity to stochastic initialization rather than score geometry.",
+                "role": "stability",
+                "changes": {"random_state": 7},
+            },
+        ],
+    },
+    "local_outlier_factor": {
+        "ablations": [
+            {
+                "parameter": "n_neighbors",
+                "variant_name": "Neighbors 10",
+                "focus": "Makes LOF more local so short or sharp anomalies have more leverage.",
+                "role": "score_driver",
+                "changes": {"n_neighbors": 10},
+            },
+            {
+                "parameter": "algorithm",
+                "variant_name": "Search brute",
+                "focus": "Measures the neighbor-search backend while leaving the density formula unchanged.",
+                "role": "backend",
+                "changes": {"algorithm": "brute"},
+            },
+            {
+                "parameter": "leaf_size",
+                "variant_name": "Leaf size 60",
+                "focus": "Measures the tree-search backend tuning rather than a scoring-theory change.",
+                "role": "backend",
+                "changes": {"leaf_size": 60},
+            },
+            {
+                "parameter": "metric",
+                "variant_name": "Metric manhattan",
+                "focus": "Measures how redefining window similarity changes local density estimates.",
+                "role": "score_driver",
+                "changes": {"metric": "manhattan"},
+            },
+            {
+                "parameter": "p",
+                "variant_name": "p = 1",
+                "focus": "Measures the Minkowski exponent directly while keeping the metric family the same.",
+                "role": "score_driver",
+                "changes": {"p": 1},
+            },
+        ],
+    },
+    "sand": {
+        "ablations": [
+            {
+                "parameter": "alpha",
+                "variant_name": "Alpha 0.7",
+                "focus": "Measures faster adaptation to recent behavior in the online updates.",
+                "role": "score_driver",
+                "changes": {"alpha": 0.7},
+            },
+            {
+                "parameter": "init_length",
+                "variant_name": "Init 3000",
+                "focus": "Measures a shorter initialization phase before online updates take over.",
+                "role": "score_driver",
+                "changes": {"init_length": 3000},
+            },
+            {
+                "parameter": "batch_size",
+                "variant_name": "Batch 1000",
+                "focus": "Measures finer-grained online updates at the cost of more update steps.",
+                "role": "score_driver",
+                "changes": {"batch_size": 1000},
+            },
+            {
+                "parameter": "k",
+                "variant_name": "k = 3",
+                "focus": "Measures a more local nearest-subsequence comparison.",
+                "role": "score_driver",
+                "changes": {"k": 3},
+            },
+            {
+                "parameter": "subsequence_multiplier",
+                "variant_name": "Subseq x2",
+                "focus": "Measures a shorter subsequence context while keeping the rest of SAND fixed.",
+                "role": "score_driver",
+                "changes": {"subsequence_multiplier": 2},
+            },
+            {
+                "parameter": "overlap",
+                "variant_name": "Overlap 64",
+                "focus": "Measures a coarser explicit subsequence step rather than the auto overlap heuristic.",
+                "role": "score_driver",
+                "changes": {"overlap": 64},
+            },
+        ],
+    },
+    "matrix_profile": {
+        "baseline": {
+            "variant_name": "Baseline",
+            "focus": "Balanced discord context for one-factor ablation.",
+            "subsequence_multiplier": 2,
+        },
+        "ablations": [
+            {
+                "parameter": "subsequence_multiplier",
+                "variant_name": "Subseq x1",
+                "focus": "Measures a shorter discord context focused on local deviations.",
+                "role": "score_driver",
+                "changes": {"subsequence_multiplier": 1},
+            },
+            {
+                "parameter": "subsequence_multiplier",
+                "variant_name": "Subseq x4",
+                "focus": "Measures a broader discord context for long anomalous structure.",
+                "role": "score_driver",
+                "changes": {"subsequence_multiplier": 4},
+            },
+        ],
+    },
+    "damp": {
+        "ablations": [
+            {
+                "parameter": "start_index_multiplier",
+                "variant_name": "Start x2",
+                "focus": "Measures the effect of waiting longer before the backward search begins.",
+                "role": "score_driver",
+                "changes": {"start_index_multiplier": 2.0},
+            },
+            {
+                "parameter": "x_lag_multiplier",
+                "variant_name": "x_lag x8",
+                "focus": "Measures a much deeper historical search horizon during backward matching.",
+                "role": "score_driver",
+                "changes": {"x_lag_multiplier": 8.0},
+            },
+        ],
+    },
+    "hbos": {
+        "ablations": [
+            {
+                "parameter": "n_bins",
+                "variant_name": "Bins 20",
+                "focus": "Measures finer histogram resolution at every window position.",
+                "role": "score_driver",
+                "changes": {"n_bins": 20},
+            },
+            {
+                "parameter": "alpha",
+                "variant_name": "Alpha 0.05",
+                "focus": "Measures milder smoothing inside the log-density score.",
+                "role": "score_driver",
+                "changes": {"alpha": 0.05},
+            },
+            {
+                "parameter": "tol",
+                "variant_name": "Tol 0.2",
+                "focus": "Measures stricter out-of-range penalties near histogram edges.",
+                "role": "score_driver",
+                "changes": {"tol": 0.2},
+            },
+        ],
+    },
+    "ocsvm": {
+        "ablations": [
+            {
+                "parameter": "kernel",
+                "variant_name": "Kernel linear",
+                "focus": "Measures whether a linear novelty boundary is sufficient in the embedded window space.",
+                "role": "score_driver",
+                "changes": {"kernel": "linear"},
+            },
+            {
+                "parameter": "nu",
+                "variant_name": "Nu 0.10",
+                "focus": "Measures a more permissive novelty boundary.",
+                "role": "score_driver",
+                "changes": {"nu": 0.10},
+            },
+            {
+                "parameter": "gamma",
+                "variant_name": "Gamma 0.1",
+                "focus": "Measures a more local nonlinear boundary than the default `scale` heuristic.",
+                "role": "score_driver",
+                "changes": {"gamma": 0.1},
+            },
+            {
+                "parameter": "train_fraction",
+                "variant_name": "Train frac 0.20",
+                "focus": "Measures a longer mostly-normal warmup segment for fitting the boundary.",
+                "role": "score_driver",
+                "changes": {"train_fraction": 0.20},
+            },
+        ],
+    },
+    "pca": {
+        "ablations": [
+            {
+                "parameter": "n_components",
+                "variant_name": "Components 0.95",
+                "focus": "Measures explained-variance truncation rather than retaining the default PCA basis.",
+                "role": "score_driver",
+                "changes": {"n_components": 0.95},
+            },
+            {
+                "parameter": "n_selected_components",
+                "variant_name": "Score comps 2",
+                "focus": "Measures scoring on a narrow set of trailing low-variance components.",
+                "role": "score_driver",
+                "changes": {"n_selected_components": 2},
+            },
+            {
+                "parameter": "whiten",
+                "variant_name": "Whiten on",
+                "focus": "Measures whitening of retained components before the PCA score is computed.",
+                "role": "score_driver",
+                "changes": {"whiten": True},
+            },
+            {
+                "parameter": "weighted",
+                "variant_name": "Weighted off",
+                "focus": "Measures the score without explained-variance weighting.",
+                "role": "score_driver",
+                "changes": {"weighted": False},
+            },
+            {
+                "parameter": "standardization",
+                "variant_name": "Standardize off",
+                "focus": "Measures PCA on raw normalized windows without per-feature standardization.",
+                "role": "score_driver",
+                "changes": {"standardization": False},
+            },
+        ],
+    },
+}
+
+
+def _variant_param_payload(variant: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in variant.items()
+        if key not in VARIANT_METADATA_KEYS
+    }
+
+
+def _default_baseline_variant(algorithm_key: str) -> dict[str, Any]:
+    for preset_name in ("paper_full_suite", "paper_high_roi"):
+        preset = PAPER_PRESET_DEFINITIONS.get(preset_name, {})
+        for variant in preset.get("variants", {}).get(algorithm_key, []):
+            if str(variant.get("variant_name", "")).strip().lower() == "baseline":
+                return dict(variant)
+    raise KeyError(f"No baseline variant found for {algorithm_key}.")
+
+
+def _build_auto_ablation_variants() -> dict[str, list[dict[str, Any]]]:
+    variants: dict[str, list[dict[str, Any]]] = {}
+    for algorithm_key in ALGORITHM_ORDER:
+        blueprint = AUTO_ABLATION_BLUEPRINTS[algorithm_key]
+        baseline_variant = dict(blueprint.get("baseline") or _default_baseline_variant(algorithm_key))
+        baseline_params = _variant_param_payload(baseline_variant)
+        baseline_variant.update(
+            {
+                "variant_name": baseline_variant.get("variant_name", "Baseline"),
+                "focus": baseline_variant.get("focus", "Reference baseline used for one-knob-at-a-time ablation."),
+                "variant_family": "baseline",
+                "ablation_parameter": "baseline",
+                "ablation_label": "Baseline",
+                "ablation_role": "baseline",
+            }
+        )
+        algorithm_variants = [baseline_variant]
+
+        for ablation in blueprint.get("ablations", []):
+            variant = {
+                **baseline_params,
+                **ablation["changes"],
+                "variant_name": ablation["variant_name"],
+                "focus": ablation["focus"],
+                "variant_family": "ablation",
+                "ablation_parameter": ablation["parameter"],
+                "ablation_label": ablation["variant_name"],
+                "ablation_role": ablation["role"],
+            }
+            algorithm_variants.append(variant)
+        variants[algorithm_key] = algorithm_variants
+    return variants
+
+
+PAPER_PRESET_DEFINITIONS["auto_ablation"] = {
+    "label": "Auto Ablation Sweep",
+    "description": (
+        "True one-factor-at-a-time ablation. Each enabled algorithm gets one baseline plus single-knob changes, "
+        "so you can defend which arguments materially change the score and which mainly affect runtime or stability."
+    ),
+    "enabled_algorithms": ALGORITHM_ORDER,
+    "variants": _build_auto_ablation_variants(),
+}
+
 VARIANT_MODE_LABELS = {
     "manual": "Manual subtabs",
     "paper_high_roi": "Auto: paper_high_roi",
     "paper_full_suite": "Auto: paper_full_suite",
+    "auto_ablation": "Auto: auto_ablation",
+}
+
+ABLATION_ROLE_STYLES = {
+    "score_driver": {"label": "Score-driving", "color": "#1d4ed8"},
+    "backend": {"label": "Backend/runtime", "color": "#64748b"},
+    "stability": {"label": "Stability", "color": "#7c3aed"},
+    "baseline": {"label": "Baseline", "color": "#0f766e"},
+    "": {"label": "Variant", "color": "#334155"},
 }
 
 ensure_results_layout()
@@ -539,7 +884,7 @@ ALGORITHM_REGISTRY = {
 
 TOOLTIP_TEXT = {
     "variant_label": "Name shown on the subtab for this argument set. Use it to label different experiments of the same algorithm, such as Baseline, Fast, or High Recall.",
-    "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into the preset combinations from paper_high_roi or paper_full_suite so parameter impact is measured automatically.",
+    "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into preset combinations from paper_high_roi, paper_full_suite, or auto_ablation so parameter impact is measured automatically.",
     "dataset_limit": "How many prepared datasets to benchmark in this run. Use 0 to process every available dataset. Lower values are useful for smoke tests and fast iteration.",
     "normalization_method": "How raw dataset values are transformed before any algorithm runs. This controls the files created in datasets/normalized and changes the numeric scale each algorithm sees.",
     "clip_quantile": "Optional outlier clipping before normalization. Example: 0.01 clips the bottom 1% and top 1% of raw values. This can reduce extreme spikes, but it can also weaken anomaly contrast.",
@@ -606,7 +951,7 @@ SHARED_PIPELINE_STEPS = [
 GENERAL_CONTROL_REFERENCE = [
     {
         "label": "Argument mode",
-        "effect": "Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi` or `paper_full_suite` at run time.",
+        "effect": "Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi`, `paper_full_suite`, or `auto_ablation` at run time.",
     },
     {
         "label": "Dataset limit",
@@ -985,6 +1330,10 @@ def result_algorithm_variant_comparison_path(algorithm_key: str) -> Path:
     return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_variant_comparison.png"
 
 
+def result_algorithm_ablation_panel_path(algorithm_key: str) -> Path:
+    return RESULT_ALGORITHM_PANEL_DIR / f"{algorithm_key}_ablation_panel.png"
+
+
 def result_deep_dive_path(run_id: str, dataset_name: str) -> Path:
     return RESULT_DEEP_DIVE_DIR / f"{run_id}__deep_dive__{dataset_name}.png"
 
@@ -1017,6 +1366,10 @@ def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
             "variant_origin": run_config["variant_origin"],
             "variant_source": run_config["variant_source"],
             "variant_focus": run_config["variant_focus"],
+            "variant_family": run_config["variant_family"],
+            "ablation_parameter": run_config["ablation_parameter"],
+            "ablation_label": run_config["ablation_label"],
+            "ablation_role": run_config["ablation_role"],
             "params_json": json.dumps(params, sort_keys=True),
         }
         for key, value in params.items():
@@ -1209,7 +1562,7 @@ def _algorithm_auto_variant_rows(algorithm_key: str) -> list[dict[str, Any]]:
             params = {
                 key: value
                 for key, value in variant.items()
-                if key not in {"variant_name", "focus"}
+                if key not in VARIANT_METADATA_KEYS
             }
             rows.append(
                 {
@@ -1364,6 +1717,7 @@ def build_high_roi_algorithm_notes_markdown() -> str:
             "- `manual`: use the visible subtabs exactly as edited.",
             "- `paper_high_roi`: automatically benchmark the curated high-return variants from `PAPER_PRESET_DEFINITIONS` for the enabled high-ROI algorithms.",
             "- `paper_full_suite`: automatically benchmark the broader appendix-style variants from `PAPER_PRESET_DEFINITIONS` for every enabled algorithm that has a configured sweep.",
+            "- `auto_ablation`: automatically benchmark one baseline plus one-knob-at-a-time ablations so parameter claims are paired against a fixed reference.",
             "- In auto modes, the algorithm checkboxes still filter what runs, but the current subtab values are ignored at run time.",
             "",
             "## Algorithm-by-algorithm reference",
@@ -1436,6 +1790,10 @@ def _build_variant_config(
     variant_origin: str,
     variant_source: str,
     variant_focus: str | None = None,
+    variant_family: str = "variant",
+    ablation_parameter: str | None = None,
+    ablation_label: str | None = None,
+    ablation_role: str | None = None,
 ) -> dict[str, Any]:
     return {
         "algorithm": algorithm_key,
@@ -1449,6 +1807,10 @@ def _build_variant_config(
         "variant_origin": variant_origin,
         "variant_source": variant_source,
         "variant_focus": variant_focus or "",
+        "variant_family": variant_family,
+        "ablation_parameter": ablation_parameter or "",
+        "ablation_label": ablation_label or "",
+        "ablation_role": ablation_role or "",
         "params": params,
     }
 
@@ -1532,6 +1894,7 @@ def _manual_variant_configs_for_algorithm(controls: dict[str, Any], algorithm_ke
                 params,
                 variant_origin="manual",
                 variant_source="manual",
+                variant_family="manual",
             )
         )
     return algorithm_variant_configs
@@ -1544,7 +1907,7 @@ def _auto_variant_configs_for_algorithm(algorithm_key: str, preset_name: str) ->
         raw_params = {
             key: value
             for key, value in variant.items()
-            if key not in {"variant_name", "focus"}
+            if key not in VARIANT_METADATA_KEYS
         }
         rows.append(
             _build_variant_config(
@@ -1555,6 +1918,10 @@ def _auto_variant_configs_for_algorithm(algorithm_key: str, preset_name: str) ->
                 variant_origin="auto",
                 variant_source=preset_name,
                 variant_focus=variant.get("focus"),
+                variant_family=str(variant.get("variant_family", "variant")),
+                ablation_parameter=variant.get("ablation_parameter"),
+                ablation_label=variant.get("ablation_label"),
+                ablation_role=variant.get("ablation_role"),
             )
         )
     return rows
@@ -2546,6 +2913,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             (VARIANT_MODE_LABELS["manual"], "manual"),
             (VARIANT_MODE_LABELS["paper_high_roi"], "paper_high_roi"),
             (VARIANT_MODE_LABELS["paper_full_suite"], "paper_full_suite"),
+            (VARIANT_MODE_LABELS["auto_ablation"], "auto_ablation"),
         ],
         value="manual",
         description="Argument mode",
@@ -2741,7 +3109,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                 "<h2 style='margin-top:0;'>Control Panel</h2>"
                 "<p>Change the knobs here, then rerun the configuration and benchmark cells below.</p>"
                 "<p><b>General controls</b> stay visible, and each algorithm has its own tab so the parameter boundaries are obvious.</p>"
-                "<p>Set <b>Argument mode</b> to an auto sweep if you want the notebook to benchmark multiple parameter combinations for you. In <b>manual</b> mode, the subtab bar behaves like a browser: <b>+</b> duplicates the current argument set so you can compare variants yourself.</p>"
+                "<p>Set <b>Argument mode</b> to an auto sweep if you want the notebook to benchmark multiple parameter combinations for you. Use <b>auto_ablation</b> when you need one-knob-at-a-time evidence for a defense. In <b>manual</b> mode, the subtab bar behaves like a browser: <b>+</b> duplicates the current argument set so you can compare variants yourself.</p>"
             ),
             general_box,
             algorithm_tabs,
@@ -3568,6 +3936,10 @@ def build_variant_config_table(config: dict[str, Any], algorithm_key: str) -> pd
                 "variant_origin": row["variant_origin"],
                 "variant_source": row["variant_source"],
                 "variant_focus": row["variant_focus"],
+                "variant_family": row["variant_family"],
+                "ablation_parameter": row["ablation_parameter"],
+                "ablation_label": row["ablation_label"],
+                "ablation_role": row["ablation_role"],
                 **row["params"],
             }
         )
@@ -3609,6 +3981,276 @@ def build_algorithm_parameter_effect_table(results_frame: pd.DataFrame, algorith
         .reset_index(drop=True)
     )
     return summary
+
+
+def build_algorithm_report_narrative(results_frame: pd.DataFrame, algorithm_key: str) -> str:
+    subset = add_analysis_regime_columns(
+        results_frame.loc[results_frame["algorithm"] == algorithm_key].copy()
+    )
+    if subset.empty:
+        return ""
+
+    variant_summary = (
+        subset.groupby("algorithm_variant", as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            mean_evaluation_f1=("evaluation_f1", "mean"),
+            mean_roc_auc=("roc_auc", "mean"),
+            mean_runtime_seconds=("runtime_seconds", "mean"),
+        )
+        .sort_values(["mean_evaluation_f1", "mean_roc_auc", "mean_runtime_seconds"], ascending=[False, False, True])
+        .reset_index(drop=True)
+    )
+    best_variant = variant_summary.iloc[0]
+    fastest_variant = variant_summary.sort_values("mean_runtime_seconds", ascending=True).iloc[0]
+
+    family_summary = (
+        subset.groupby("variant", as_index=False)["evaluation_f1"]
+        .mean()
+        .rename(columns={"evaluation_f1": "mean_evaluation_f1"})
+        .sort_values("mean_evaluation_f1", ascending=False)
+        .reset_index(drop=True)
+    )
+    strongest_family = family_summary.iloc[0]
+    weakest_family = family_summary.iloc[-1]
+
+    length_summary = (
+        subset.groupby("length_bucket", as_index=False)["evaluation_f1"]
+        .mean()
+        .rename(columns={"evaluation_f1": "mean_evaluation_f1"})
+        .sort_values("mean_evaluation_f1", ascending=False)
+        .reset_index(drop=True)
+    )
+    strongest_length = length_summary.iloc[0]
+
+    if (subset["variant_source"].astype(str) == "auto_ablation").any():
+        ablation_sentence = (
+            "Use the ablation section to defend knob-level claims: those rows are paired against the same baseline on the same dataset, "
+            "so they are the controlled sensitivity evidence. The parameter-effects table is still useful, but it is only a ranking across the currently run variants."
+        )
+    else:
+        ablation_sentence = (
+            "This run does not include paired one-knob ablations. If you need defensible knob-level claims, rerun this algorithm with "
+            "`Argument mode = auto_ablation` so every control is measured against a fixed baseline."
+        )
+
+    return (
+        "<div style='margin:8px 0 12px 0; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#f8fafc; line-height:1.45;'>"
+        f"<p style='margin:0 0 8px 0;'><b>{html.escape(DISPLAY_NAME_MAP[algorithm_key])} report guide</b>: "
+        "start with the variant table to verify exactly which settings were run, then cite the parameter-effects and regime tables for aggregate performance, "
+        "and use the figures to show runtime tradeoffs and concrete score behavior on shared series.</p>"
+        "<ul style='margin:0 0 0 18px; padding:0;'>"
+        f"<li><b>Best average variant in this run</b>: {html.escape(str(best_variant['algorithm_variant']))} "
+        f"with mean evaluation F1 {best_variant['mean_evaluation_f1']:.3f}, ROC AUC {best_variant['mean_roc_auc']:.3f}, "
+        f"across {int(best_variant['dataset_count'])} datasets.</li>"
+        f"<li><b>Fastest average variant</b>: {html.escape(str(fastest_variant['algorithm_variant']))} "
+        f"at {fastest_variant['mean_runtime_seconds']:.3f}s mean runtime.</li>"
+        f"<li><b>Strongest dataset family for this algorithm in the current run</b>: {html.escape(str(strongest_family['variant']))} "
+        f"(mean evaluation F1 {strongest_family['mean_evaluation_f1']:.3f}); weakest family: {html.escape(str(weakest_family['variant']))} "
+        f"(mean evaluation F1 {weakest_family['mean_evaluation_f1']:.3f}).</li>"
+        f"<li><b>Best length regime</b>: {html.escape(str(strongest_length['length_bucket']))} "
+        f"(mean evaluation F1 {strongest_length['mean_evaluation_f1']:.3f}).</li>"
+        f"<li>{html.escape(ablation_sentence)}</li>"
+        "</ul>"
+        "</div>"
+    )
+
+
+def _bootstrap_mean_ci(values: np.ndarray, n_boot: int = 400, seed: int = 42) -> tuple[float, float]:
+    clean = np.asarray(values, dtype=float)
+    clean = clean[np.isfinite(clean)]
+    if clean.size == 0:
+        return float("nan"), float("nan")
+    if clean.size == 1:
+        return float(clean[0]), float(clean[0])
+    rng = np.random.default_rng(seed)
+    indices = rng.integers(0, clean.size, size=(n_boot, clean.size))
+    boot_means = clean[indices].mean(axis=1)
+    return float(np.quantile(boot_means, 0.025)), float(np.quantile(boot_means, 0.975))
+
+
+def build_algorithm_ablation_delta_frame(results_frame: pd.DataFrame, algorithm_key: str) -> pd.DataFrame:
+    subset = results_frame.loc[
+        (results_frame["algorithm"] == algorithm_key)
+        & (results_frame["variant_source"] == "auto_ablation")
+    ].copy()
+    if subset.empty:
+        return pd.DataFrame()
+
+    baseline = subset.loc[subset["variant_family"] == "baseline"].copy()
+    ablations = subset.loc[subset["variant_family"] == "ablation"].copy()
+    if baseline.empty or ablations.empty:
+        return pd.DataFrame()
+
+    baseline = baseline[
+        [
+            "dataset_name",
+            "algorithm_display",
+            "algorithm_variant",
+            "evaluation_f1",
+            "roc_auc",
+            "runtime_seconds",
+            "evaluation_precision",
+            "evaluation_recall",
+            "range_f1",
+        ]
+    ].rename(
+        columns={
+            "algorithm_display": "baseline_algorithm_display",
+            "algorithm_variant": "baseline_algorithm_variant",
+            "evaluation_f1": "baseline_evaluation_f1",
+            "roc_auc": "baseline_roc_auc",
+            "runtime_seconds": "baseline_runtime_seconds",
+            "evaluation_precision": "baseline_evaluation_precision",
+            "evaluation_recall": "baseline_evaluation_recall",
+            "range_f1": "baseline_range_f1",
+        }
+    )
+
+    merged = ablations.merge(baseline, on="dataset_name", how="inner")
+    if merged.empty:
+        return pd.DataFrame()
+
+    merged["delta_evaluation_f1"] = merged["evaluation_f1"] - merged["baseline_evaluation_f1"]
+    merged["delta_roc_auc"] = merged["roc_auc"] - merged["baseline_roc_auc"]
+    merged["delta_runtime_seconds"] = merged["runtime_seconds"] - merged["baseline_runtime_seconds"]
+    merged["runtime_ratio"] = np.where(
+        np.isfinite(merged["baseline_runtime_seconds"]) & (merged["baseline_runtime_seconds"] > 0),
+        merged["runtime_seconds"] / merged["baseline_runtime_seconds"],
+        np.nan,
+    )
+    merged["delta_evaluation_precision"] = merged["evaluation_precision"] - merged["baseline_evaluation_precision"]
+    merged["delta_evaluation_recall"] = merged["evaluation_recall"] - merged["baseline_evaluation_recall"]
+    merged["delta_range_f1"] = merged["range_f1"] - merged["baseline_range_f1"]
+    return add_analysis_regime_columns(merged)
+
+
+def build_algorithm_ablation_impact_table(results_frame: pd.DataFrame, algorithm_key: str) -> pd.DataFrame:
+    deltas = build_algorithm_ablation_delta_frame(results_frame, algorithm_key)
+    if deltas.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    group_columns = [
+        "algorithm_display",
+        "algorithm_variant",
+        "ablation_parameter",
+        "ablation_label",
+        "ablation_role",
+    ]
+    for keys, frame in deltas.groupby(group_columns, dropna=False):
+        (
+            algorithm_display,
+            algorithm_variant,
+            ablation_parameter,
+            ablation_label,
+            ablation_role,
+        ) = keys
+        eval_ci_low, eval_ci_high = _bootstrap_mean_ci(frame["delta_evaluation_f1"].to_numpy(dtype=float))
+        auc_ci_low, auc_ci_high = _bootstrap_mean_ci(frame["delta_roc_auc"].to_numpy(dtype=float))
+        rows.append(
+            {
+                "algorithm_display": algorithm_display,
+                "algorithm_variant": algorithm_variant,
+                "ablation_parameter": ablation_parameter,
+                "ablation_label": ablation_label,
+                "ablation_role": ablation_role,
+                "dataset_count": frame["dataset_name"].nunique(),
+                "mean_baseline_evaluation_f1": frame["baseline_evaluation_f1"].mean(),
+                "mean_variant_evaluation_f1": frame["evaluation_f1"].mean(),
+                "mean_delta_evaluation_f1": frame["delta_evaluation_f1"].mean(),
+                "delta_evaluation_f1_ci_low": eval_ci_low,
+                "delta_evaluation_f1_ci_high": eval_ci_high,
+                "mean_delta_roc_auc": frame["delta_roc_auc"].mean(),
+                "delta_roc_auc_ci_low": auc_ci_low,
+                "delta_roc_auc_ci_high": auc_ci_high,
+                "mean_delta_runtime_seconds": frame["delta_runtime_seconds"].mean(),
+                "median_runtime_ratio": frame["runtime_ratio"].median(),
+                "mean_runtime_ratio": frame["runtime_ratio"].mean(),
+                "win_rate_evaluation_f1": float((frame["delta_evaluation_f1"] > 0).mean()),
+                "loss_rate_evaluation_f1": float((frame["delta_evaluation_f1"] < 0).mean()),
+                "mean_delta_evaluation_precision": frame["delta_evaluation_precision"].mean(),
+                "mean_delta_evaluation_recall": frame["delta_evaluation_recall"].mean(),
+                "mean_delta_range_f1": frame["delta_range_f1"].mean(),
+            }
+        )
+    return pd.DataFrame(rows).sort_values(
+        ["mean_delta_evaluation_f1", "win_rate_evaluation_f1", "mean_delta_roc_auc"],
+        ascending=[False, False, False],
+    ).reset_index(drop=True)
+
+
+def build_algorithm_ablation_regime_table(results_frame: pd.DataFrame, algorithm_key: str, regime_column: str) -> pd.DataFrame:
+    deltas = build_algorithm_ablation_delta_frame(results_frame, algorithm_key)
+    if deltas.empty:
+        return pd.DataFrame()
+    return (
+        deltas.groupby(["algorithm_display", "ablation_parameter", "ablation_role", regime_column], as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            mean_delta_evaluation_f1=("delta_evaluation_f1", "mean"),
+            mean_delta_roc_auc=("delta_roc_auc", "mean"),
+            mean_runtime_ratio=("runtime_ratio", "mean"),
+        )
+        .sort_values([regime_column, "mean_delta_evaluation_f1"], ascending=[True, False])
+        .reset_index(drop=True)
+    )
+
+
+def build_algorithm_ablation_narrative(results_frame: pd.DataFrame, algorithm_key: str) -> str:
+    impact = build_algorithm_ablation_impact_table(results_frame, algorithm_key)
+    if impact.empty:
+        return ""
+
+    strongest_gain = impact.sort_values(
+        ["mean_delta_evaluation_f1", "win_rate_evaluation_f1", "mean_delta_roc_auc"],
+        ascending=[False, False, False],
+    ).iloc[0]
+    strongest_loss = impact.sort_values(
+        ["mean_delta_evaluation_f1", "mean_delta_roc_auc"],
+        ascending=[True, True],
+    ).iloc[0]
+    cheapest = impact.sort_values(
+        ["mean_runtime_ratio", "mean_delta_evaluation_f1"],
+        ascending=[True, False],
+    ).iloc[0]
+    most_expensive = impact.sort_values(
+        ["mean_runtime_ratio", "mean_delta_evaluation_f1"],
+        ascending=[False, False],
+    ).iloc[0]
+
+    backend_subset = impact.loc[impact["ablation_role"] == "backend"].copy()
+    backend_sentence = ""
+    if not backend_subset.empty:
+        backend_best = backend_subset.loc[
+            (backend_subset["mean_delta_evaluation_f1"].abs() + (backend_subset["mean_runtime_ratio"] - 1.0).abs()).idxmin()
+        ]
+        backend_sentence = (
+            f"<li><b>Backend-only evidence</b>: {html.escape(str(backend_best['algorithm_variant']))} "
+            f"moved mean evaluation F1 by {backend_best['mean_delta_evaluation_f1']:+.3f} "
+            f"with runtime ratio {backend_best['mean_runtime_ratio']:.2f}.</li>"
+        )
+
+    return (
+        "<div style='margin:6px 0 10px 0; line-height:1.45;'>"
+        "<p style='margin:0 0 8px 0;'><b>How to read this ablation section</b>: "
+        "every non-baseline row changes one visible algorithm argument while keeping preprocessing, thresholding, and evaluation fixed. "
+        "All deltas are paired against the same baseline on the same dataset.</p>"
+        "<ul style='margin:0 0 0 18px; padding:0;'>"
+        f"<li><b>Strongest positive shift</b>: {html.escape(str(strongest_gain['algorithm_variant']))} "
+        f"changed mean evaluation F1 by {strongest_gain['mean_delta_evaluation_f1']:+.3f} "
+        f"(95% CI {strongest_gain['delta_evaluation_f1_ci_low']:+.3f} to {strongest_gain['delta_evaluation_f1_ci_high']:+.3f}) "
+        f"with win rate {strongest_gain['win_rate_evaluation_f1']:.1%}.</li>"
+        f"<li><b>Strongest negative shift</b>: {html.escape(str(strongest_loss['algorithm_variant']))} "
+        f"changed mean evaluation F1 by {strongest_loss['mean_delta_evaluation_f1']:+.3f}.</li>"
+        f"<li><b>Cheapest change</b>: {html.escape(str(cheapest['algorithm_variant']))} ran at "
+        f"{cheapest['mean_runtime_ratio']:.2f}x baseline runtime.</li>"
+        f"<li><b>Most expensive change</b>: {html.escape(str(most_expensive['algorithm_variant']))} ran at "
+        f"{most_expensive['mean_runtime_ratio']:.2f}x baseline runtime.</li>"
+        f"{backend_sentence}"
+        "</ul>"
+        "</div>"
+    )
 
 
 def build_algorithm_regime_table(results_frame: pd.DataFrame, algorithm_key: str, regime_column: str) -> pd.DataFrame:
@@ -3979,6 +4621,26 @@ def _draw_metric_heatmap(ax: Any, frame: pd.DataFrame, title: str, cmap: str) ->
     return image
 
 
+def _draw_signed_heatmap(ax: Any, frame: pd.DataFrame, title: str, cmap: str = "RdBu_r") -> Any:
+    if frame.empty:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=11)
+        ax.set_axis_off()
+        ax.set_title(title)
+        return None
+    max_abs = float(np.nanmax(np.abs(frame.to_numpy(dtype=float))))
+    max_abs = max(max_abs, 1e-6)
+    image = ax.imshow(frame.to_numpy(), cmap=cmap, aspect="auto", vmin=-max_abs, vmax=max_abs)
+    ax.set_title(title)
+    ax.set_xticks(range(len(frame.columns)))
+    ax.set_xticklabels(frame.columns, rotation=20, ha="right")
+    ax.set_yticks(range(len(frame.index)))
+    ax.set_yticklabels(frame.index)
+    for row_index in range(frame.shape[0]):
+        for col_index in range(frame.shape[1]):
+            ax.text(col_index, row_index, f"{frame.iloc[row_index, col_index]:+.2f}", ha="center", va="center", fontsize=9)
+    return image
+
+
 def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
     subset = results_frame.loc[results_frame["algorithm"]
                                == algorithm_key].copy()
@@ -4025,6 +4687,274 @@ def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, 
 
     if image is not None:
         fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02)
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def build_ablation_overview_table(results_frame: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for algorithm_key in ALGORITHM_ORDER:
+        impact = build_algorithm_ablation_impact_table(results_frame, algorithm_key)
+        if impact.empty:
+            continue
+        impact = impact.copy()
+        impact.insert(0, "algorithm", DISPLAY_NAME_MAP[algorithm_key])
+        impact.insert(1, "algorithm_key", algorithm_key)
+        rows.append(impact)
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True).sort_values(
+        ["mean_delta_evaluation_f1", "win_rate_evaluation_f1", "mean_runtime_ratio"],
+        ascending=[False, False, True],
+    ).reset_index(drop=True)
+
+
+def build_ablation_overview_narrative(results_frame: pd.DataFrame) -> str:
+    overview = build_ablation_overview_table(results_frame)
+    if overview.empty:
+        return ""
+
+    strongest_gain = overview.loc[overview["mean_delta_evaluation_f1"].idxmax()]
+    strongest_loss = overview.loc[overview["mean_delta_evaluation_f1"].idxmin()]
+    efficient_positive = overview.loc[
+        (overview["mean_delta_evaluation_f1"] > 0)
+        & (overview["mean_runtime_ratio"] <= 1.05)
+    ].copy()
+    if efficient_positive.empty:
+        efficiency_sentence = "No positive ablation in this run improved evaluation F1 without a noticeable runtime increase."
+    else:
+        best_tradeoff = efficient_positive.sort_values(
+            ["mean_delta_evaluation_f1", "mean_runtime_ratio"],
+            ascending=[False, True],
+        ).iloc[0]
+        efficiency_sentence = (
+            f"Best low-cost positive ablation: {best_tradeoff['algorithm']} | {best_tradeoff['algorithm_variant']} "
+            f"shifted mean evaluation F1 by {best_tradeoff['mean_delta_evaluation_f1']:+.3f} at {best_tradeoff['mean_runtime_ratio']:.2f}x baseline runtime."
+        )
+
+    return (
+        "<div style='margin:8px 0 12px 0; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#f8fafc; line-height:1.45;'>"
+        "<p style='margin:0 0 8px 0;'><b>Global ablation reading guide</b>: "
+        "every non-baseline variant changes one knob at a time, so these plots are the best evidence for which controls materially help, hurt, or mostly change runtime.</p>"
+        "<ul style='margin:0 0 0 18px; padding:0;'>"
+        f"<li><b>Strongest global gain</b>: {html.escape(str(strongest_gain['algorithm']))} | {html.escape(str(strongest_gain['algorithm_variant']))} "
+        f"with mean evaluation F1 delta {strongest_gain['mean_delta_evaluation_f1']:+.3f} "
+        f"(95% CI {strongest_gain['delta_evaluation_f1_ci_low']:+.3f} to {strongest_gain['delta_evaluation_f1_ci_high']:+.3f}).</li>"
+        f"<li><b>Strongest global loss</b>: {html.escape(str(strongest_loss['algorithm']))} | {html.escape(str(strongest_loss['algorithm_variant']))} "
+        f"with mean evaluation F1 delta {strongest_loss['mean_delta_evaluation_f1']:+.3f}.</li>"
+        f"<li>{html.escape(efficiency_sentence)}</li>"
+        "<li>Use the confidence intervals on the bar charts to separate stable shifts from noisy ones, then use the runtime scatter to show whether the gain is worth the cost.</li>"
+        "</ul>"
+        "</div>"
+    )
+
+
+def _ci_error_arrays(frame: pd.DataFrame, mean_col: str, low_col: str, high_col: str) -> np.ndarray:
+    lower = (frame[mean_col] - frame[low_col]).clip(lower=0).fillna(0.0).to_numpy(dtype=float)
+    upper = (frame[high_col] - frame[mean_col]).clip(lower=0).fillna(0.0).to_numpy(dtype=float)
+    return np.vstack([lower, upper])
+
+
+def plot_ablation_overview_panel(results_frame: pd.DataFrame, save_path: Path | None = None) -> plt.Figure | None:
+    overview = build_ablation_overview_table(results_frame)
+    if overview.empty:
+        return None
+
+    plt = _load_plotting_module()
+    positive = overview.head(12).sort_values("mean_delta_evaluation_f1", ascending=True)
+    negative = overview.sort_values("mean_delta_evaluation_f1", ascending=True).head(12)
+    best_by_algorithm = overview.sort_values("mean_delta_evaluation_f1", ascending=False).groupby("algorithm", as_index=False).head(1)
+
+    fig, axes = plt.subplots(2, 2, figsize=(18, 12), constrained_layout=True)
+
+    for ax, frame, title in (
+        (axes[0, 0], positive, "Top positive ablations by mean evaluation F1 delta"),
+        (axes[0, 1], negative, "Top negative ablations by mean evaluation F1 delta"),
+    ):
+        labels = [f"{row.algorithm} | {row.algorithm_variant}" for row in frame.itertuples()]
+        colors = [ABLATION_ROLE_STYLES.get(str(row.ablation_role), ABLATION_ROLE_STYLES[""])["color"] for row in frame.itertuples()]
+        ax.barh(
+            labels,
+            frame["mean_delta_evaluation_f1"],
+            color=colors,
+            edgecolor="white",
+        )
+        ax.errorbar(
+            frame["mean_delta_evaluation_f1"],
+            labels,
+            xerr=_ci_error_arrays(
+                frame,
+                "mean_delta_evaluation_f1",
+                "delta_evaluation_f1_ci_low",
+                "delta_evaluation_f1_ci_high",
+            ),
+            fmt="none",
+            ecolor="#0f172a",
+            elinewidth=1.0,
+            capsize=3,
+        )
+        ax.axvline(0.0, color="#0f172a", linewidth=1.0)
+        ax.set_title(title)
+        ax.set_xlabel("Mean paired delta in evaluation F1 (95% CI)")
+
+    scatter_colors = [
+        ABLATION_ROLE_STYLES.get(str(role), ABLATION_ROLE_STYLES[""])["color"]
+        for role in overview["ablation_role"]
+    ]
+    axes[1, 0].scatter(
+        overview["mean_runtime_ratio"],
+        overview["mean_delta_evaluation_f1"],
+        s=90,
+        alpha=0.85,
+        color=scatter_colors,
+    )
+    for row in overview.itertuples():
+        axes[1, 0].annotate(
+            f"{row.algorithm} | {row.algorithm_variant}",
+            (row.mean_runtime_ratio, row.mean_delta_evaluation_f1),
+            textcoords="offset points",
+            xytext=(6, 6),
+            fontsize=8,
+        )
+    axes[1, 0].axhline(0.0, color="#0f172a", linewidth=1.0)
+    axes[1, 0].axvline(1.0, color="#475569", linestyle="--", linewidth=1.0)
+    axes[1, 0].set_title("Runtime tradeoff vs paired evaluation F1 delta")
+    axes[1, 0].set_xlabel("Mean runtime ratio vs baseline")
+    axes[1, 0].set_ylabel("Mean paired delta in evaluation F1")
+
+    best_labels = [f"{row.algorithm} | {row.algorithm_variant}" for row in best_by_algorithm.itertuples()]
+    best_colors = [ABLATION_ROLE_STYLES.get(str(row.ablation_role), ABLATION_ROLE_STYLES[""])["color"] for row in best_by_algorithm.itertuples()]
+    axes[1, 1].barh(
+        best_labels,
+        best_by_algorithm["mean_delta_evaluation_f1"],
+        color=best_colors,
+        edgecolor="white",
+    )
+    axes[1, 1].errorbar(
+        best_by_algorithm["mean_delta_evaluation_f1"],
+        best_labels,
+        xerr=_ci_error_arrays(
+            best_by_algorithm,
+            "mean_delta_evaluation_f1",
+            "delta_evaluation_f1_ci_low",
+            "delta_evaluation_f1_ci_high",
+        ),
+        fmt="none",
+        ecolor="#0f172a",
+        elinewidth=1.0,
+        capsize=3,
+    )
+    axes[1, 1].axvline(0.0, color="#0f172a", linewidth=1.0)
+    axes[1, 1].set_title("Best ablation per algorithm")
+    axes[1, 1].set_xlabel("Mean paired delta in evaluation F1 (95% CI)")
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def plot_algorithm_ablation_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
+    impact = build_algorithm_ablation_impact_table(results_frame, algorithm_key)
+    if impact.empty:
+        return None
+
+    regime = build_algorithm_ablation_regime_table(results_frame, algorithm_key, "variant")
+    plt = _load_plotting_module()
+    ordered = impact.sort_values("mean_delta_evaluation_f1", ascending=True).reset_index(drop=True)
+    labels = ordered["algorithm_variant"].tolist()
+    positions = np.arange(len(labels))
+    colors = [
+        ABLATION_ROLE_STYLES.get(str(role), ABLATION_ROLE_STYLES[""])["color"]
+        for role in ordered["ablation_role"]
+    ]
+
+    fig, axes = plt.subplots(2, 2, figsize=(18, 12), constrained_layout=True)
+
+    eval_err_low = ordered["mean_delta_evaluation_f1"] - ordered["delta_evaluation_f1_ci_low"]
+    eval_err_high = ordered["delta_evaluation_f1_ci_high"] - ordered["mean_delta_evaluation_f1"]
+    axes[0, 0].barh(positions, ordered["mean_delta_evaluation_f1"], color=colors, edgecolor="white")
+    axes[0, 0].errorbar(
+        ordered["mean_delta_evaluation_f1"],
+        positions,
+        xerr=np.vstack([eval_err_low.to_numpy(dtype=float), eval_err_high.to_numpy(dtype=float)]),
+        fmt="none",
+        ecolor="#0f172a",
+        elinewidth=1.0,
+        capsize=3,
+    )
+    axes[0, 0].axvline(0.0, color="#0f172a", linewidth=1.0)
+    axes[0, 0].set_yticks(positions)
+    axes[0, 0].set_yticklabels(labels)
+    axes[0, 0].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Mean paired delta in evaluation F1")
+    axes[0, 0].set_xlabel("Delta vs baseline")
+
+    auc_err_low = ordered["mean_delta_roc_auc"] - ordered["delta_roc_auc_ci_low"]
+    auc_err_high = ordered["delta_roc_auc_ci_high"] - ordered["mean_delta_roc_auc"]
+    axes[0, 1].barh(positions, ordered["mean_delta_roc_auc"], color=colors, edgecolor="white")
+    axes[0, 1].errorbar(
+        ordered["mean_delta_roc_auc"],
+        positions,
+        xerr=np.vstack([auc_err_low.to_numpy(dtype=float), auc_err_high.to_numpy(dtype=float)]),
+        fmt="none",
+        ecolor="#0f172a",
+        elinewidth=1.0,
+        capsize=3,
+    )
+    axes[0, 1].axvline(0.0, color="#0f172a", linewidth=1.0)
+    axes[0, 1].set_yticks(positions)
+    axes[0, 1].set_yticklabels(labels)
+    axes[0, 1].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Mean paired delta in ROC AUC")
+    axes[0, 1].set_xlabel("Delta vs baseline")
+
+    axes[1, 0].scatter(
+        ordered["mean_runtime_ratio"],
+        ordered["mean_delta_evaluation_f1"],
+        s=100,
+        alpha=0.9,
+        color=colors,
+    )
+    for row in ordered.itertuples():
+        axes[1, 0].annotate(
+            row.algorithm_variant,
+            (row.mean_runtime_ratio, row.mean_delta_evaluation_f1),
+            textcoords="offset points",
+            xytext=(6, 6),
+            fontsize=9,
+        )
+    axes[1, 0].axhline(0.0, color="#0f172a", linewidth=1.0)
+    axes[1, 0].axvline(1.0, color="#475569", linestyle="--", linewidth=1.0)
+    axes[1, 0].set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime tradeoff against mean delta in evaluation F1")
+    axes[1, 0].set_xlabel("Mean runtime ratio vs baseline")
+    axes[1, 0].set_ylabel("Mean delta in evaluation F1")
+
+    regime_pivot = (
+        regime.pivot(index="algorithm_display", columns="variant", values="mean_delta_evaluation_f1")
+        if not regime.empty
+        else pd.DataFrame()
+    )
+    regime_pivot = regime_pivot.reindex(
+        [f"{DISPLAY_NAME_MAP[algorithm_key]} | {label}" for label in labels]
+    )
+    image = _draw_signed_heatmap(
+        axes[1, 1],
+        regime_pivot,
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Mean paired delta in evaluation F1 by dataset variant",
+    )
+    if image is not None:
+        fig.colorbar(image, ax=axes[1, 1], fraction=0.046, pad=0.04)
+
+    legend_handles = []
+    legend_labels = []
+    for role in ordered["ablation_role"].drop_duplicates():
+        style = ABLATION_ROLE_STYLES.get(str(role), ABLATION_ROLE_STYLES[""])
+        legend_handles.append(plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=style["color"], markersize=10))
+        legend_labels.append(style["label"])
+    if legend_handles:
+        axes[1, 0].legend(legend_handles, legend_labels, loc="best")
+
     if save_path is not None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, dpi=160)
@@ -4222,6 +5152,45 @@ def plot_algorithm_deep_dive(
     return fig
 
 
+def render_ablation_overview(notebook_state: dict[str, Any]) -> None:
+    ns = notebook_state["ns"]
+    config = notebook_state["config"]
+    benchmark = notebook_state["benchmark"]
+    results = benchmark["results"]
+
+    if config["variant_mode"] != "auto_ablation":
+        print("Ablation overview is most meaningful when Argument mode is set to auto_ablation.")
+        return
+
+    overview = ns.build_ablation_overview_table(results)
+    if overview.empty:
+        print("No ablation deltas are available in the current run.")
+        return
+
+    display(HTML(ns.build_ablation_overview_narrative(results)))
+    interpretation = HTML(
+        "<div style='margin:6px 0 10px 0; line-height:1.45;'>"
+        "<p style='margin:0 0 8px 0;'><b>Ablation interpretation guide</b></p>"
+        "<ul style='margin:0 0 0 18px; padding:0;'>"
+        "<li>Every non-baseline row changes one visible algorithm argument while holding preprocessing, thresholding, and evaluation fixed.</li>"
+        "<li>All deltas are paired against the matching baseline on the same dataset, so positive values mean the single knob change helped on average.</li>"
+        "<li><b>Mean runtime ratio</b> above 1.0 means the ablation is slower than baseline; below 1.0 means it is faster.</li>"
+        "<li>Backend/runtime ablations are especially useful when you need to show that a control changes cost more than accuracy.</li>"
+        "</ul>"
+        "</div>"
+    )
+    display(interpretation)
+    display(overview)
+
+    fig = ns.plot_ablation_overview_panel(
+        results,
+        save_path=ns.result_figure_path("ablation_overview.png"),
+    )
+    if fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+
 def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, context_points: int = 1200) -> None:
     ns = notebook_state["ns"]
     config = notebook_state["config"]
@@ -4246,7 +5215,18 @@ def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, 
         results, algorithm_key, "anomaly_ratio_bucket")
     section_summary, section_top = ns.build_algorithm_section_tables(
         results, algorithm_key)
+    ablation_impact = ns.build_algorithm_ablation_impact_table(
+        results, algorithm_key)
+    ablation_dataset_variant = ns.build_algorithm_ablation_regime_table(
+        results, algorithm_key, "variant")
+    ablation_length = ns.build_algorithm_ablation_regime_table(
+        results, algorithm_key, "length_bucket")
+    ablation_narrative = ns.build_algorithm_ablation_narrative(
+        results, algorithm_key)
+    report_narrative = ns.build_algorithm_report_narrative(
+        results, algorithm_key)
 
+    display(HTML(report_narrative))
     display(variant_config)
     display(parameter_effects)
     display(dataset_variant_summary)
@@ -4254,6 +5234,11 @@ def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, 
     display(anomaly_ratio_summary)
     display(section_summary)
     display(section_top)
+    if not ablation_impact.empty:
+        display(HTML(ablation_narrative))
+        display(ablation_impact)
+        display(ablation_dataset_variant)
+        display(ablation_length)
 
     parameter_effects.to_csv(ns.result_table_path(
         f"{algorithm_key}_parameter_effects.csv"), index=False)
@@ -4263,6 +5248,13 @@ def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, 
         f"{algorithm_key}_length_summary.csv"), index=False)
     anomaly_ratio_summary.to_csv(ns.result_table_path(
         f"{algorithm_key}_anomaly_ratio_summary.csv"), index=False)
+    if not ablation_impact.empty:
+        ablation_impact.to_csv(ns.result_table_path(
+            f"{algorithm_key}_ablation_impacts.csv"), index=False)
+        ablation_dataset_variant.to_csv(ns.result_table_path(
+            f"{algorithm_key}_ablation_dataset_variant_summary.csv"), index=False)
+        ablation_length.to_csv(ns.result_table_path(
+            f"{algorithm_key}_ablation_length_summary.csv"), index=False)
 
     fig = ns.plot_algorithm_benchmark_panel(
         results, algorithm_key, ns.result_algorithm_panel_path(algorithm_key))
@@ -4273,6 +5265,12 @@ def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, 
     paper_fig = ns.plot_algorithm_paper_panel(
         results, algorithm_key, ns.result_algorithm_paper_panel_path(algorithm_key))
     if paper_fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+    ablation_fig = ns.plot_algorithm_ablation_panel(
+        results, algorithm_key, ns.result_algorithm_ablation_panel_path(algorithm_key))
+    if ablation_fig is not None:
         plt = ns._load_plotting_module()
         plt.show()
 
@@ -4618,6 +5616,13 @@ def run_benchmark(
                     "algorithm_variant": run_config["algorithm_variant"],
                     "algorithm_run_id": run_config["algorithm_run_id"],
                     "variant_index": run_config["variant_index"],
+                    "variant_origin": run_config["variant_origin"],
+                    "variant_source": run_config["variant_source"],
+                    "variant_focus": run_config["variant_focus"],
+                    "variant_family": run_config["variant_family"],
+                    "ablation_parameter": run_config["ablation_parameter"],
+                    "ablation_label": run_config["ablation_label"],
+                    "ablation_role": run_config["ablation_role"],
                     "window_size": window_size,
                     "window_stride": window_stride,
                     "series_length": len(values),

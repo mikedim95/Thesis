@@ -36,7 +36,7 @@ def _algorithm_cells(algorithm_key: str, display_name: str) -> list[dict]:
             f"""
             ## On Run: Show {display_name} Paper Report
 
-            This next cell renders the paper-facing report for {display_name}: configured variants, parameter-effect tables, regime-aware summaries by dataset type, the benchmark panel, the paper panel, a fixed-layout side-by-side variant comparison graph on one shared dataset, and the best showcase plot.
+            This next cell renders the paper-facing report for {display_name}: a plain-language interpretation block, the configured variants, parameter-effect tables, regime-aware summaries by dataset type, the benchmark panel, the paper panel, and, when `Argument mode = auto_ablation`, paired baseline-vs-knob delta tables plus an ablation panel that shows effect size, confidence intervals, runtime tradeoff, and regime sensitivity. It also renders a fixed-layout side-by-side variant comparison graph on one shared dataset and the best showcase plot.
             """
         ),
         code(
@@ -61,13 +61,14 @@ def build_notebook() -> dict:
             - All cross-cell state stays inside `NOTEBOOK_STATE`.
             - The paper presets create multiple named variants per algorithm so the notebook can show parameter effects instead of a single baseline.
             - `Argument mode` can now switch between manual subtabs and automatic preset sweeps.
+            - `auto_ablation` creates one baseline plus one-knob-at-a-time variants so each parameter claim is paired against a fixed reference.
             - Paper-facing sweeps vary only score-driving parameters; backend-only or threshold-only knobs stay fixed inside the presets.
             - Benchmark outputs are saved into `results/tables/`, `results/figures/`, and `results/scores/`.
 
             Default workflow:
 
             1. Run the dependency and setup cells.
-            2. Optionally apply `paper_high_roi` or `paper_full_suite`.
+            2. Optionally apply `paper_high_roi`, `paper_full_suite`, or `auto_ablation`.
             3. Run the preparation and benchmark cells.
             4. Inspect the regime summary and winner tables.
             5. Open the per-algorithm report cells for the paper figures.
@@ -92,6 +93,7 @@ def build_notebook() -> dict:
             **Paper sweep rules**
             - `paper_high_roi`: short, paper-friendly sweep on the highest-return methods plus Isolation Forest for calibration discussion.
             - `paper_full_suite`: broader appendix-ready sweep across every implemented method.
+            - `auto_ablation`: one baseline plus one-knob-at-a-time variants, intended for defensible sensitivity claims and presentation-ready parameter analysis.
             - In auto modes, the notebook ignores the live subtab values at run time and uses the preset variants instead.
             - Presets keep runtime-only knobs fixed and vary only parameters that materially change each algorithm's scoring behavior in this framework.
 
@@ -203,14 +205,14 @@ def build_notebook() -> dict:
         ),
         markdown(
             """
-            ## Optional: Apply A Reproducible Paper Preset
+            ## Optional: Apply A Reproducible Automatic Experiment Layout
 
-            Edit `preset_name` below if you want a different paper experiment layout. This also switches `Argument mode` to the selected auto sweep, then rerun the preparation and benchmark cells.
+            Edit `preset_name` below if you want a different automatic experiment layout. This also switches `Argument mode` to the selected auto sweep, then rerun the preparation and benchmark cells.
             """
         ),
         code(
             """
-            preset_name = "paper_high_roi"
+            preset_name = "auto_ablation"
             state = NOTEBOOK_STATE
             state["ns"].apply_paper_experiment_preset(state["controls"], preset_name)
             display(state["ns"].build_preset_reference_table(preset_name))
@@ -263,6 +265,19 @@ def build_notebook() -> dict:
                 display(state["benchmark"]["errors"][["dataset_name", "algorithm_display", "error"]])
 
             print(f"Saved benchmark outputs to: {state['ns'].RESULT_TABLES_DIR}")
+            """
+        ),
+        markdown(
+            """
+            ## On Run: Explain How To Read The Ablation Outputs
+
+            This next cell is most useful when `Argument mode = auto_ablation`. It explains that each non-baseline variant changes one knob at a time, shows paired delta tables against the baseline on the same dataset, adds a short written summary of the strongest global gain/loss, and renders a high-level ablation overview figure with confidence intervals so you can defend which controls materially help, hurt, or mainly affect runtime.
+            """
+        ),
+        code(
+            """
+            state = NOTEBOOK_STATE
+            state["ns"].render_ablation_overview(state)
             """
         ),
         markdown(

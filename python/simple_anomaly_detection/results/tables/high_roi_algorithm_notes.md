@@ -19,7 +19,7 @@ This file is generated from `notebook_support.py` and the detector implementatio
 
 ## General controls visible in the notebook
 
-- `Argument mode`: Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi` or `paper_full_suite` at run time.
+- `Argument mode`: Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi`, `paper_full_suite`, or `auto_ablation` at run time.
 - `Dataset limit`: Filters how many prepared datasets are benchmarked. It does not change anomaly scores on any individual dataset.
 - `Normalize`: Changes the numeric scale seen by every detector before windowing. This can materially change distance-based, density-based, and boundary-based scores.
 - `Clip q`: Clamps extreme tails before normalization. This can suppress large spikes, which may reduce false positives or weaken genuine anomaly contrast.
@@ -37,6 +37,7 @@ This file is generated from `notebook_support.py` and the detector implementatio
 - `manual`: use the visible subtabs exactly as edited.
 - `paper_high_roi`: automatically benchmark the curated high-return variants from `PAPER_PRESET_DEFINITIONS` for the enabled high-ROI algorithms.
 - `paper_full_suite`: automatically benchmark the broader appendix-style variants from `PAPER_PRESET_DEFINITIONS` for every enabled algorithm that has a configured sweep.
+- `auto_ablation`: automatically benchmark one baseline plus one-knob-at-a-time ablations so parameter claims are paired against a fixed reference.
 - In auto modes, the algorithm checkboxes still filter what runs, but the current subtab values are ignored at run time.
 
 ## Algorithm-by-algorithm reference
@@ -67,6 +68,12 @@ Auto sweep variants:
 - `paper_full_suite` -> `Baseline`: Stable tree baseline for comparison. (`n_estimators=200, max_samples=256, max_features=1, bootstrap=false, random_state=42`)
 - `paper_full_suite` -> `Wide Sample`: More trees and larger sampling for a smoother global isolation score. (`n_estimators=400, max_samples=auto, max_features=1, bootstrap=false, random_state=42`)
 - `paper_full_suite` -> `Feat 0.6`: Tests stronger random feature subsampling inside the forest. (`n_estimators=400, max_samples=256, max_features=0.6, bootstrap=false, random_state=42`)
+- `auto_ablation` -> `Baseline`: Stable tree baseline for comparison. (`n_estimators=200, max_samples=256, max_features=1, bootstrap=false, random_state=42`)
+- `auto_ablation` -> `Trees 400`: Measures whether a larger forest improves score stability enough to justify the runtime. (`n_estimators=400, max_samples=256, max_features=1, bootstrap=false, random_state=42`)
+- `auto_ablation` -> `Max samples auto`: Measures how a broader training sample per tree changes the global isolation pattern. (`n_estimators=200, max_samples=auto, max_features=1, bootstrap=false, random_state=42`)
+- `auto_ablation` -> `Max feat 0.6`: Measures the effect of stronger random feature subsampling inside the forest. (`n_estimators=200, max_samples=256, max_features=0.6, bootstrap=false, random_state=42`)
+- `auto_ablation` -> `Bootstrap on`: Measures whether sampling windows with replacement changes the tree ensemble enough to alter detections. (`n_estimators=200, max_samples=256, max_features=1, bootstrap=true, random_state=42`)
+- `auto_ablation` -> `Seed 7`: Measures sensitivity to stochastic initialization rather than score geometry. (`n_estimators=200, max_samples=256, max_features=1, bootstrap=false, random_state=7`)
 
 ### Local Outlier Factor
 
@@ -94,6 +101,12 @@ Auto sweep variants:
 - `paper_full_suite` -> `Baseline`: Balanced neighborhood baseline. (`n_neighbors=20, algorithm=auto, leaf_size=30, metric=minkowski, p=2`)
 - `paper_full_suite` -> `Local k10`: More sensitive to local shape changes and short anomalies. (`n_neighbors=10, algorithm=auto, leaf_size=30, metric=minkowski, p=2`)
 - `paper_full_suite` -> `Global L1`: Broader neighborhood with Manhattan distance for more global structure. (`n_neighbors=50, algorithm=auto, leaf_size=30, metric=manhattan, p=1`)
+- `auto_ablation` -> `Baseline`: Balanced neighborhood baseline. (`n_neighbors=20, algorithm=auto, leaf_size=30, metric=minkowski, p=2`)
+- `auto_ablation` -> `Neighbors 10`: Makes LOF more local so short or sharp anomalies have more leverage. (`n_neighbors=10, algorithm=auto, leaf_size=30, metric=minkowski, p=2`)
+- `auto_ablation` -> `Search brute`: Measures the neighbor-search backend while leaving the density formula unchanged. (`n_neighbors=20, algorithm=brute, leaf_size=30, metric=minkowski, p=2`)
+- `auto_ablation` -> `Leaf size 60`: Measures the tree-search backend tuning rather than a scoring-theory change. (`n_neighbors=20, algorithm=auto, leaf_size=60, metric=minkowski, p=2`)
+- `auto_ablation` -> `Metric manhattan`: Measures how redefining window similarity changes local density estimates. (`n_neighbors=20, algorithm=auto, leaf_size=30, metric=manhattan, p=2`)
+- `auto_ablation` -> `p = 1`: Measures the Minkowski exponent directly while keeping the metric family the same. (`n_neighbors=20, algorithm=auto, leaf_size=30, metric=minkowski, p=1`)
 
 ### SAND
 
@@ -119,6 +132,13 @@ Visible controls and exact effect:
 Auto sweep variants:
 - `paper_full_suite` -> `Baseline`: Reference online clustering configuration. (`alpha=0.5, init_length=5000, batch_size=2000, k=0, subsequence_multiplier=4, overlap=0`)
 - `paper_full_suite` -> `Adaptive`: Faster adaptation with shorter context and smaller batches. (`alpha=0.7, init_length=3000, batch_size=1000, k=0, subsequence_multiplier=2, overlap=0`)
+- `auto_ablation` -> `Baseline`: Reference online clustering configuration. (`alpha=0.5, init_length=5000, batch_size=2000, k=0, subsequence_multiplier=4, overlap=0`)
+- `auto_ablation` -> `Alpha 0.7`: Measures faster adaptation to recent behavior in the online updates. (`alpha=0.7, init_length=5000, batch_size=2000, k=0, subsequence_multiplier=4, overlap=0`)
+- `auto_ablation` -> `Init 3000`: Measures a shorter initialization phase before online updates take over. (`alpha=0.5, init_length=3000, batch_size=2000, k=0, subsequence_multiplier=4, overlap=0`)
+- `auto_ablation` -> `Batch 1000`: Measures finer-grained online updates at the cost of more update steps. (`alpha=0.5, init_length=5000, batch_size=1000, k=0, subsequence_multiplier=4, overlap=0`)
+- `auto_ablation` -> `k = 3`: Measures a more local nearest-subsequence comparison. (`alpha=0.5, init_length=5000, batch_size=2000, k=3, subsequence_multiplier=4, overlap=0`)
+- `auto_ablation` -> `Subseq x2`: Measures a shorter subsequence context while keeping the rest of SAND fixed. (`alpha=0.5, init_length=5000, batch_size=2000, k=0, subsequence_multiplier=2, overlap=0`)
+- `auto_ablation` -> `Overlap 64`: Measures a coarser explicit subsequence step rather than the auto overlap heuristic. (`alpha=0.5, init_length=5000, batch_size=2000, k=0, subsequence_multiplier=4, overlap=64`)
 
 ### Matrix Profile
 
@@ -142,6 +162,9 @@ Auto sweep variants:
 - `paper_full_suite` -> `Context x1`: Shortest context, strongest local discord detection. (`subsequence_multiplier=1`)
 - `paper_full_suite` -> `Context x2`: Intermediate subsequence context for medium-length anomalies. (`subsequence_multiplier=2`)
 - `paper_full_suite` -> `Context x4`: Longer context for broad discord patterns. (`subsequence_multiplier=4`)
+- `auto_ablation` -> `Baseline`: Balanced discord context for one-factor ablation. (`subsequence_multiplier=2`)
+- `auto_ablation` -> `Subseq x1`: Measures a shorter discord context focused on local deviations. (`subsequence_multiplier=1`)
+- `auto_ablation` -> `Subseq x4`: Measures a broader discord context for long anomalous structure. (`subsequence_multiplier=4`)
 
 ### DAMP
 
@@ -163,6 +186,9 @@ Auto sweep variants:
 - `paper_full_suite` -> `Baseline`: Reference streaming-discord configuration. (`start_index_multiplier=1, x_lag_multiplier=0`)
 - `paper_full_suite` -> `Delayed Start`: Longer historical reference before streaming detection starts. (`start_index_multiplier=2, x_lag_multiplier=0`)
 - `paper_full_suite` -> `Long Lag`: Searches further back in the stream for similar windows. (`start_index_multiplier=1, x_lag_multiplier=8`)
+- `auto_ablation` -> `Baseline`: Reference streaming-discord configuration. (`start_index_multiplier=1, x_lag_multiplier=0`)
+- `auto_ablation` -> `Start x2`: Measures the effect of waiting longer before the backward search begins. (`start_index_multiplier=2, x_lag_multiplier=0`)
+- `auto_ablation` -> `x_lag x8`: Measures a much deeper historical search horizon during backward matching. (`start_index_multiplier=1, x_lag_multiplier=8`)
 
 ### HBOS
 
@@ -185,6 +211,10 @@ Auto sweep variants:
 - `paper_full_suite` -> `Baseline`: Lightweight histogram baseline. (`n_bins=10, alpha=0.1, tol=0.5`)
 - `paper_full_suite` -> `Fine Bins`: Finer density structure through more bins and milder smoothing. (`n_bins=20, alpha=0.05, tol=0.5`)
 - `paper_full_suite` -> `Strict Tol`: Stricter edge handling for stronger outlier penalties. (`n_bins=10, alpha=0.1, tol=0.2`)
+- `auto_ablation` -> `Baseline`: Lightweight histogram baseline. (`n_bins=10, alpha=0.1, tol=0.5`)
+- `auto_ablation` -> `Bins 20`: Measures finer histogram resolution at every window position. (`n_bins=20, alpha=0.1, tol=0.5`)
+- `auto_ablation` -> `Alpha 0.05`: Measures milder smoothing inside the log-density score. (`n_bins=10, alpha=0.05, tol=0.5`)
+- `auto_ablation` -> `Tol 0.2`: Measures stricter out-of-range penalties near histogram edges. (`n_bins=10, alpha=0.1, tol=0.2`)
 
 ### OCSVM
 
@@ -213,6 +243,11 @@ Auto sweep variants:
 - `paper_full_suite` -> `Nu 0.10`: Tests more permissive abnormal-boundary calibration. (`kernel=rbf, nu=0.1, gamma=scale, train_fraction=0.1`)
 - `paper_full_suite` -> `Warmup 0.20`: Uses a longer mostly-normal prefix for model fitting. (`kernel=rbf, nu=0.05, gamma=scale, train_fraction=0.2`)
 - `paper_full_suite` -> `Linear`: Tests whether a simpler linear novelty boundary is sufficient. (`kernel=linear, nu=0.05, gamma=scale, train_fraction=0.1`)
+- `auto_ablation` -> `Baseline`: Standard RBF novelty boundary with short warm-up. (`kernel=rbf, nu=0.05, gamma=scale, train_fraction=0.1`)
+- `auto_ablation` -> `Kernel linear`: Measures whether a linear novelty boundary is sufficient in the embedded window space. (`kernel=linear, nu=0.05, gamma=scale, train_fraction=0.1`)
+- `auto_ablation` -> `Nu 0.10`: Measures a more permissive novelty boundary. (`kernel=rbf, nu=0.1, gamma=scale, train_fraction=0.1`)
+- `auto_ablation` -> `Gamma 0.1`: Measures a more local nonlinear boundary than the default `scale` heuristic. (`kernel=rbf, nu=0.05, gamma=0.1, train_fraction=0.1`)
+- `auto_ablation` -> `Train frac 0.20`: Measures a longer mostly-normal warmup segment for fitting the boundary. (`kernel=rbf, nu=0.05, gamma=scale, train_fraction=0.2`)
 
 ### PCA
 
@@ -238,3 +273,9 @@ Auto sweep variants:
 - `paper_full_suite` -> `Baseline`: Weighted reconstruction-style baseline. (`n_components=, n_selected_components=0, whiten=false, weighted=true, standardization=true`)
 - `paper_full_suite` -> `Residual 2`: Focuses scoring on a small set of low-variance components. (`n_components=0.95, n_selected_components=2, whiten=false, weighted=true, standardization=true`)
 - `paper_full_suite` -> `Whitened`: Tests a whitened non-weighted PCA score. (`n_components=0.95, n_selected_components=0, whiten=true, weighted=false, standardization=true`)
+- `auto_ablation` -> `Baseline`: Weighted reconstruction-style baseline. (`n_components=, n_selected_components=0, whiten=false, weighted=true, standardization=true`)
+- `auto_ablation` -> `Components 0.95`: Measures explained-variance truncation rather than retaining the default PCA basis. (`n_components=0.95, n_selected_components=0, whiten=false, weighted=true, standardization=true`)
+- `auto_ablation` -> `Score comps 2`: Measures scoring on a narrow set of trailing low-variance components. (`n_components=, n_selected_components=2, whiten=false, weighted=true, standardization=true`)
+- `auto_ablation` -> `Whiten on`: Measures whitening of retained components before the PCA score is computed. (`n_components=, n_selected_components=0, whiten=true, weighted=true, standardization=true`)
+- `auto_ablation` -> `Weighted off`: Measures the score without explained-variance weighting. (`n_components=, n_selected_components=0, whiten=false, weighted=false, standardization=true`)
+- `auto_ablation` -> `Standardize off`: Measures PCA on raw normalized windows without per-feature standardization. (`n_components=, n_selected_components=0, whiten=false, weighted=true, standardization=false`)
