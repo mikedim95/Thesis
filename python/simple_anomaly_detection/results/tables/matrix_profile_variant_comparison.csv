@@ -1,0 +1,4 @@
+comparison_dataset,variant_index,algorithm_display,algorithm_variant,window_size,window_stride,roc_auc,average_precision,evaluation_precision,evaluation_recall,evaluation_f1,range_f1,runtime_seconds
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,1,Matrix Profile | Context x1,Context x1,165,1,0.9936679745636585,0.4867705964336287,0.6190476190476191,0.9563636363636363,0.7515937568696417,0.7515937568696417,0.10213930002646521
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,2,Matrix Profile | Context x2,Context x2,165,1,0.9971033566622797,0.6849220696219247,0.5,0.2872727272727273,0.36489607390300227,0.36489607390300227,0.10208729997975752
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,3,Matrix Profile | Context x4,Context x4,165,1,0.771462835635478,0.031017243925841195,0.0,0.0,0.0,0.0,0.08880099997622892

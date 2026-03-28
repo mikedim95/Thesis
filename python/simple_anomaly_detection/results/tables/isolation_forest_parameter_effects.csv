@@ -1,0 +1,4 @@
+algorithm_display,algorithm_variant,param__n_estimators,param__max_samples,param__max_features,dataset_count,mean_roc_auc,mean_f1,mean_evaluation_f1,median_evaluation_f1,mean_range_f1,success_rate,mean_runtime_seconds
+Isolation Forest | Wide Sample,Wide Sample,400.0,auto,1.0,150,0.6346364483175216,0.1422008506234379,0.10371997038738243,0.0,0.10371997038738243,1.0,1.4838726126627686
+Isolation Forest | Feat 0.6,Feat 0.6,400.0,256,0.6,150,0.6391296381524563,0.1431594981557276,0.10172401818940736,0.0,0.10172401818940736,1.0,9.228930981998953
+Isolation Forest | Baseline,Baseline,200.0,256,1.0,150,0.6286518176416016,0.1407819338691757,0.09573209218292068,0.0,0.09573209218292068,1.0,0.758266211998028
