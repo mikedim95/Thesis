@@ -34,9 +34,12 @@ RESULT_PER_ALGORITHM_TABLES_DIR = RESULT_TABLES_DIR / "per_algorithm"
 RESULT_FIGURES_DIR = RESULTS_DIR / "figures"
 RESULT_ALGORITHM_PANEL_DIR = RESULT_FIGURES_DIR / "algorithm_panels"
 RESULT_DEEP_DIVE_DIR = RESULT_FIGURES_DIR / "deep_dives"
+RESULT_THESIS_FIGURES_DIR = RESULT_FIGURES_DIR / "thesis"
 RESULT_SCORES_DIR = RESULTS_DIR / "scores"
 HIGH_ROI_NOTES_SOURCE_PATH = PROJECT_ROOT / "high_roi_algorithm_notes.md"
 HIGH_ROI_NOTES_RESULT_PATH = RESULT_TABLES_DIR / "high_roi_algorithm_notes.md"
+THESIS_FIGURE_CATALOG_PATH = RESULT_TABLES_DIR / "thesis_figure_catalog.csv"
+THESIS_FIGURE_CAPTIONS_PATH = RESULT_TABLES_DIR / "thesis_figure_captions.md"
 
 RAW_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 NORMALIZED_DATASET_ROOT.mkdir(parents=True, exist_ok=True)
@@ -59,6 +62,7 @@ def ensure_results_layout() -> None:
         RESULT_FIGURES_DIR,
         RESULT_ALGORITHM_PANEL_DIR,
         RESULT_DEEP_DIVE_DIR,
+        RESULT_THESIS_FIGURES_DIR,
         RESULT_SCORES_DIR,
     ):
         directory.mkdir(parents=True, exist_ok=True)
@@ -1260,20 +1264,43 @@ pd.set_option("display.max_columns", 60)
 pd.set_option("display.max_rows", 20)
 pd.set_option("display.precision", 4)
 
+DEFAULT_PLOT_STYLE = {
+    "figure.figsize": (14, 8),
+    "axes.grid": True,
+    "grid.alpha": 0.2,
+    "grid.linestyle": "--",
+    "savefig.bbox": "tight",
+}
+
+THESIS_PLOT_STYLE = {
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "axes.grid": True,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.titleweight": "semibold",
+    "axes.titlesize": 14,
+    "axes.labelsize": 11.5,
+    "axes.edgecolor": "#334155",
+    "axes.linewidth": 0.9,
+    "grid.alpha": 0.28,
+    "grid.color": "#cbd5e1",
+    "grid.linestyle": "--",
+    "font.family": "DejaVu Serif",
+    "font.size": 11,
+    "legend.frameon": False,
+    "legend.fontsize": 10,
+    "savefig.bbox": "tight",
+    "savefig.facecolor": "white",
+    "figure.autolayout": False,
+}
+
 
 @lru_cache(maxsize=1)
 def _load_plotting_module():
     import matplotlib.pyplot as plt
 
-    plt.rcParams.update(
-        {
-            "figure.figsize": (14, 8),
-            "axes.grid": True,
-            "grid.alpha": 0.2,
-            "grid.linestyle": "--",
-            "savefig.bbox": "tight",
-        }
-    )
+    plt.rcParams.update(DEFAULT_PLOT_STYLE)
     return plt
 
 
@@ -1338,6 +1365,10 @@ def result_deep_dive_path(run_id: str, dataset_name: str) -> Path:
     return RESULT_DEEP_DIVE_DIR / f"{run_id}__deep_dive__{dataset_name}.png"
 
 
+def result_thesis_figure_path(filename: str) -> Path:
+    return RESULT_THESIS_FIGURES_DIR / filename
+
+
 def result_score_path(dataset_name: str, run_id: str) -> Path:
     return RESULT_SCORES_DIR / f"{dataset_name}__{run_id}.csv"
 
@@ -1388,7 +1419,10 @@ def build_results_layout_frame() -> pd.DataFrame:
         ("figures", RESULT_FIGURES_DIR),
         ("figures/algorithm_panels", RESULT_ALGORITHM_PANEL_DIR),
         ("figures/deep_dives", RESULT_DEEP_DIVE_DIR),
+        ("figures/thesis", RESULT_THESIS_FIGURES_DIR),
         ("scores", RESULT_SCORES_DIR),
+        ("tables/thesis_figure_catalog.csv", THESIS_FIGURE_CATALOG_PATH),
+        ("tables/thesis_figure_captions.md", THESIS_FIGURE_CAPTIONS_PATH),
     ]
     return pd.DataFrame(
         [{"output_group": label, "path": portable_path_str(
@@ -4641,6 +4675,244 @@ def _draw_signed_heatmap(ax: Any, frame: pd.DataFrame, title: str, cmap: str = "
     return image
 
 
+def _save_figure_bundle(
+    fig: Any,
+    save_path: Path,
+    formats: tuple[str, ...] = ("png", "pdf"),
+    dpi: int = 240,
+) -> dict[str, Path]:
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    saved_paths: dict[str, Path] = {}
+    for fmt in formats:
+        target = save_path.with_suffix(f".{fmt}")
+        kwargs: dict[str, Any] = {"facecolor": "white"}
+        if fmt.lower() in {"png", "jpg", "jpeg", "tif", "tiff"}:
+            kwargs["dpi"] = dpi
+        fig.savefig(target, **kwargs)
+        saved_paths[fmt.lower()] = target
+    return saved_paths
+
+
+def _pareto_frontier_frame(algorithm_summary: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
+    tradeoff_frame = (
+        algorithm_summary[["algorithm_display", "mean_runtime_seconds", "mean_evaluation_f1"]]
+        .dropna()
+        .sort_values("mean_runtime_seconds")
+        .reset_index(drop=True)
+    )
+    frontier: list[tuple[float, float]] = []
+    best_seen = -np.inf
+    for row in tradeoff_frame.itertuples():
+        if row.mean_evaluation_f1 >= best_seen:
+            frontier.append((float(row.mean_runtime_seconds), float(row.mean_evaluation_f1)))
+            best_seen = float(row.mean_evaluation_f1)
+    return tradeoff_frame, np.asarray(frontier, dtype=float) if frontier else np.empty((0, 2), dtype=float)
+
+
+def _winner_count_frame(benchmark: dict[str, Any]) -> pd.DataFrame:
+    algorithm_summary = benchmark["algorithm_summary"]
+    best_by_evaluation = benchmark["best_by_evaluation"]
+    best_by_auc = benchmark["best_by_auc"]
+    labels = algorithm_summary["algorithm_display"]
+    return pd.DataFrame(
+        {
+            "algorithm_display": labels,
+            "evaluation_wins": best_by_evaluation["best_algorithm_display"].value_counts().reindex(labels).fillna(0).astype(int).to_numpy(),
+            "auc_wins": best_by_auc["best_algorithm_display"].value_counts().reindex(labels).fillna(0).astype(int).to_numpy(),
+        }
+    )
+
+
+def plot_benchmark_overview_panel(benchmark: dict[str, Any], save_path: Path | None = None) -> plt.Figure:
+    plt = _load_plotting_module()
+    dataset_catalog = benchmark["dataset_catalog"]
+    algorithm_summary = benchmark["algorithm_summary"]
+    metric_spec = _evaluation_metric_spec(benchmark["results"])
+    tradeoff_frame, pareto_points = _pareto_frontier_frame(algorithm_summary)
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
+
+    axes[0, 0].hist(dataset_catalog["series_length"], bins=24, color="#4c78a8", edgecolor="white")
+    axes[0, 0].set_title("Dataset length distribution")
+    axes[0, 0].set_xlabel("Series length")
+    axes[0, 0].set_ylabel("Dataset count")
+
+    axes[0, 1].hist(dataset_catalog["anomaly_ratio"], bins=24, color="#72b7b2", edgecolor="white")
+    axes[0, 1].set_title("Anomaly ratio distribution")
+    axes[0, 1].set_xlabel("Anomaly ratio")
+    axes[0, 1].set_ylabel("Dataset count")
+
+    for row in tradeoff_frame.itertuples():
+        axes[1, 0].scatter(row.mean_runtime_seconds, row.mean_evaluation_f1, s=90, alpha=0.9, color="#4c78a8")
+        axes[1, 0].annotate(
+            row.algorithm_display,
+            (row.mean_runtime_seconds, row.mean_evaluation_f1),
+            textcoords="offset points",
+            xytext=(6, 6),
+            fontsize=9,
+        )
+    if len(pareto_points) > 0:
+        axes[1, 0].plot(
+            pareto_points[:, 0],
+            pareto_points[:, 1],
+            color="#e45756",
+            linewidth=1.8,
+            label="Pareto frontier",
+        )
+        axes[1, 0].legend()
+    axes[1, 0].set_title(f"Runtime vs {metric_spec['mean_label']}")
+    axes[1, 0].set_xlabel("Mean runtime (seconds)")
+    axes[1, 0].set_ylabel(metric_spec["mean_label"])
+
+    bar_positions = np.arange(len(algorithm_summary))
+    bar_width = 0.38
+    axes[1, 1].bar(
+        bar_positions - bar_width / 2,
+        algorithm_summary["mean_evaluation_f1"],
+        width=bar_width,
+        label=metric_spec["mean_label"],
+        color="#f58518",
+    )
+    axes[1, 1].bar(
+        bar_positions + bar_width / 2,
+        algorithm_summary["mean_roc_auc"],
+        width=bar_width,
+        label="Mean ROC AUC",
+        color="#54a24b",
+    )
+    axes[1, 1].set_xticks(bar_positions)
+    axes[1, 1].set_xticklabels(algorithm_summary["algorithm_display"], rotation=25, ha="right")
+    axes[1, 1].set_ylim(0, 1.05)
+    axes[1, 1].set_title("Average accuracy by configuration")
+    axes[1, 1].set_ylabel("Metric value")
+    axes[1, 1].legend()
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def plot_pareto_frontier_panel(benchmark: dict[str, Any], save_path: Path | None = None) -> plt.Figure | None:
+    plt = _load_plotting_module()
+    tradeoff_frame, pareto_points = _pareto_frontier_frame(benchmark["algorithm_summary"])
+    if tradeoff_frame.empty or len(pareto_points) == 0:
+        return None
+
+    metric_spec = _evaluation_metric_spec(benchmark["results"])
+    fig, ax = plt.subplots(figsize=(9.5, 6.5), constrained_layout=True)
+    for row in tradeoff_frame.itertuples():
+        ax.scatter(row.mean_runtime_seconds, row.mean_evaluation_f1, s=90, alpha=0.9, color="#4c78a8")
+        ax.annotate(
+            row.algorithm_display,
+            (row.mean_runtime_seconds, row.mean_evaluation_f1),
+            textcoords="offset points",
+            xytext=(6, 6),
+            fontsize=9,
+        )
+    ax.plot(pareto_points[:, 0], pareto_points[:, 1], color="#e45756", linewidth=1.8, label="Pareto frontier")
+    ax.set_title(f"Pareto frontier | mean runtime vs {metric_spec['mean_label']}")
+    ax.set_xlabel("Mean runtime (seconds)")
+    ax.set_ylabel(metric_spec["mean_label"])
+    ax.legend(loc="best")
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def plot_metric_heatmap_panel(benchmark: dict[str, Any], save_path: Path | None = None) -> plt.Figure:
+    plt = _load_plotting_module()
+    algorithm_summary = benchmark["algorithm_summary"]
+    metric_spec = _evaluation_metric_spec(benchmark["results"])
+    heatmap_frame = algorithm_summary.set_index("algorithm_display")[
+        [
+            "mean_roc_auc",
+            "mean_average_precision",
+            "mean_f1",
+            "mean_evaluation_f1",
+            "mean_range_precision",
+            "mean_range_recall",
+            "mean_range_f1",
+            "mean_affiliation_precision",
+            "mean_affiliation_recall",
+        ]
+    ]
+    heatmap_labels = [
+        "ROC AUC",
+        "Avg Precision",
+        "F1",
+        metric_spec["mean_label"],
+        "Range Precision",
+        "Range Recall",
+        "Range F1",
+        "Affil. Precision",
+        "Affil. Recall",
+    ]
+
+    fig, ax = plt.subplots(figsize=(14, 5.4), constrained_layout=True)
+    image = ax.imshow(heatmap_frame.to_numpy(), cmap="YlOrBr", aspect="auto", vmin=0.0, vmax=1.0)
+    ax.set_xticks(range(len(heatmap_labels)))
+    ax.set_xticklabels(heatmap_labels, rotation=20, ha="right")
+    ax.set_yticks(range(len(heatmap_frame.index)))
+    ax.set_yticklabels(heatmap_frame.index)
+    ax.set_title("Metric heatmap by configuration")
+    for row_index in range(heatmap_frame.shape[0]):
+        for col_index in range(heatmap_frame.shape[1]):
+            ax.text(col_index, row_index, f"{heatmap_frame.iloc[row_index, col_index]:.2f}", ha="center", va="center", fontsize=9)
+    fig.colorbar(image, ax=ax, fraction=0.035, pad=0.03)
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def plot_family_evaluation_heatmap_panel(benchmark: dict[str, Any], save_path: Path | None = None) -> plt.Figure:
+    plt = _load_plotting_module()
+    family_summary = benchmark["family_summary"]
+    metric_spec = _evaluation_metric_spec(benchmark["results"])
+    family_heatmap = family_summary.pivot(index="family", columns="algorithm_display", values="mean_evaluation_f1").fillna(0.0)
+
+    fig, ax = plt.subplots(figsize=(16, max(6, 0.35 * len(family_heatmap.index))), constrained_layout=True)
+    image = ax.imshow(family_heatmap.to_numpy(), cmap="YlGnBu", aspect="auto", vmin=0.0, vmax=1.0)
+    ax.set_xticks(range(len(family_heatmap.columns)))
+    ax.set_xticklabels(family_heatmap.columns, rotation=30, ha="right")
+    ax.set_yticks(range(len(family_heatmap.index)))
+    ax.set_yticklabels(family_heatmap.index)
+    ax.set_title(f"{metric_spec['mean_label']} by dataset family and configuration")
+    fig.colorbar(image, ax=ax, fraction=0.035, pad=0.03)
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
+def plot_algorithm_wins_panel(benchmark: dict[str, Any], save_path: Path | None = None) -> plt.Figure:
+    plt = _load_plotting_module()
+    metric_spec = _evaluation_metric_spec(benchmark["results"])
+    wins = _winner_count_frame(benchmark)
+    win_metric_label = metric_spec["label"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.2), constrained_layout=True)
+    axes[0].bar(wins["algorithm_display"], wins["evaluation_wins"], color="#4c78a8")
+    axes[0].set_title(f"Configuration wins by {win_metric_label}")
+    axes[0].set_ylabel("Dataset wins")
+    axes[0].tick_params(axis="x", rotation=25)
+
+    axes[1].bar(wins["algorithm_display"], wins["auc_wins"], color="#e45756")
+    axes[1].set_title("Configuration wins by ROC AUC")
+    axes[1].set_ylabel("Dataset wins")
+    axes[1].tick_params(axis="x", rotation=25)
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
 def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
     subset = results_frame.loc[results_frame["algorithm"]
                                == algorithm_key].copy()
@@ -5150,6 +5422,353 @@ def plot_algorithm_deep_dive(
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, dpi=160)
     return fig
+
+
+def _slugify_label(value: str) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "_", str(value).strip().lower()).strip("_")
+    return text or "item"
+
+
+def _append_thesis_figure_row(
+    rows: list[dict[str, Any]],
+    figure_id: str,
+    figure_group: str,
+    title: str,
+    caption: str,
+    saved_paths: dict[str, Path],
+    algorithm: str = "",
+) -> None:
+    png_path = saved_paths.get("png")
+    pdf_path = saved_paths.get("pdf")
+    rows.append(
+        {
+            "figure_id": figure_id,
+            "figure_group": figure_group,
+            "algorithm": algorithm,
+            "title": title,
+            "png_path": portable_path_str(png_path) if png_path else "",
+            "pdf_path": portable_path_str(pdf_path) if pdf_path else "",
+            "caption": caption,
+        }
+    )
+
+
+def build_thesis_figure_caption_markdown(catalog: pd.DataFrame) -> str:
+    lines = [
+        "# Thesis Figure Captions",
+        "",
+        "This file is generated automatically from the current benchmark state.",
+        "",
+    ]
+    for row in catalog.itertuples():
+        lines.extend(
+            [
+                f"## {row.figure_id}",
+                f"- Title: {row.title}",
+                f"- PNG: {row.png_path}",
+                f"- PDF: {row.pdf_path}",
+                "",
+                row.caption,
+                "",
+            ]
+        )
+    return "\n".join(lines).strip() + "\n"
+
+
+def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: int = 1200) -> dict[str, Any]:
+    ns = notebook_state["ns"]
+    config = notebook_state.get("config")
+    context = notebook_state.get("context")
+    benchmark = notebook_state.get("benchmark")
+    if config is None or context is None or benchmark is None:
+        raise ValueError("Run the benchmark cells before exporting the thesis figure pack.")
+
+    ensure_results_layout()
+    RESULT_THESIS_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+
+    plt = _load_plotting_module()
+    results = benchmark["results"]
+    metric_spec = _evaluation_metric_spec(results)
+    algorithm_summary = benchmark["algorithm_summary"]
+    family_summary = benchmark["family_summary"]
+    dataset_catalog = benchmark["dataset_catalog"]
+    best_config = algorithm_summary.iloc[0] if not algorithm_summary.empty else None
+    rows: list[dict[str, Any]] = []
+
+    with plt.rc_context(THESIS_PLOT_STYLE):
+        overview_fig = plot_benchmark_overview_panel(benchmark)
+        overview_paths = _save_figure_bundle(
+            overview_fig,
+            result_thesis_figure_path("benchmark_overview.png"),
+        )
+        _append_thesis_figure_row(
+            rows,
+            figure_id="benchmark_overview",
+            figure_group="overview",
+            title="Benchmark overview",
+            caption=(
+                f"Benchmark overview across {len(dataset_catalog)} benchmarked datasets and {len(config['selected_runs'])} algorithm configurations. "
+                f"The top row summarizes dataset coverage in series length and anomaly ratio. The bottom-left panel shows the runtime versus {metric_spec['mean_label']} tradeoff with the Pareto frontier, "
+                f"and the bottom-right panel compares mean {metric_spec['label']} and mean ROC AUC across configurations. "
+                + (
+                    f"In this run, the strongest average configuration was {best_config['algorithm_display']} "
+                    f"with mean {metric_spec['label']} {best_config['mean_evaluation_f1']:.3f} and mean ROC AUC {best_config['mean_roc_auc']:.3f}."
+                    if best_config is not None
+                    else ""
+                )
+            ),
+            saved_paths=overview_paths,
+        )
+        plt.close(overview_fig)
+
+        pareto_fig = plot_pareto_frontier_panel(benchmark)
+        if pareto_fig is not None:
+            pareto_paths = _save_figure_bundle(
+                pareto_fig,
+                result_thesis_figure_path("pareto_frontier.png"),
+            )
+            _append_thesis_figure_row(
+                rows,
+                figure_id="pareto_frontier",
+                figure_group="overview",
+                title="Pareto frontier",
+                caption=(
+                    f"Pareto frontier for the current benchmark, using mean runtime and mean {metric_spec['label']} as the competing objectives. "
+                    "Points on the frontier are the non-dominated configurations that maximize accuracy without being strictly slower and worse than another option."
+                ),
+                saved_paths=pareto_paths,
+            )
+            plt.close(pareto_fig)
+
+        metric_heatmap_fig = plot_metric_heatmap_panel(benchmark)
+        metric_heatmap_paths = _save_figure_bundle(
+            metric_heatmap_fig,
+            result_thesis_figure_path("metric_heatmap.png"),
+        )
+        _append_thesis_figure_row(
+            rows,
+            figure_id="metric_heatmap",
+            figure_group="overview",
+            title="Metric heatmap by configuration",
+            caption=(
+                f"Metric heatmap across all benchmarked configurations. The figure places mean {metric_spec['label']}, ROC AUC, average precision, classical F1, range metrics, and affiliation metrics on one aligned grid "
+                "so broad winners and methods with metric-specific strengths are visible at a glance."
+            ),
+            saved_paths=metric_heatmap_paths,
+        )
+        plt.close(metric_heatmap_fig)
+
+        family_heatmap_fig = plot_family_evaluation_heatmap_panel(benchmark)
+        family_heatmap_paths = _save_figure_bundle(
+            family_heatmap_fig,
+            result_thesis_figure_path("family_evaluation_heatmap.png"),
+        )
+        best_family = family_summary.sort_values("mean_evaluation_f1", ascending=False).iloc[0] if not family_summary.empty else None
+        _append_thesis_figure_row(
+            rows,
+            figure_id="family_evaluation_heatmap",
+            figure_group="overview",
+            title="Evaluation metric by dataset family",
+            caption=(
+                f"Mean {metric_spec['label']} by dataset family and configuration. This view shows where each method family is strongest instead of averaging away regime structure."
+                + (
+                    f" The strongest family-specific result in this run was {best_family['algorithm_display']} on {best_family['family']} with mean {metric_spec['label']} {best_family['mean_evaluation_f1']:.3f}."
+                    if best_family is not None
+                    else ""
+                )
+            ),
+            saved_paths=family_heatmap_paths,
+        )
+        plt.close(family_heatmap_fig)
+
+        wins_fig = plot_algorithm_wins_panel(benchmark)
+        wins_paths = _save_figure_bundle(
+            wins_fig,
+            result_thesis_figure_path("algorithm_wins.png"),
+        )
+        wins = _winner_count_frame(benchmark)
+        evaluation_winner = wins.sort_values("evaluation_wins", ascending=False).iloc[0] if not wins.empty else None
+        _append_thesis_figure_row(
+            rows,
+            figure_id="algorithm_wins",
+            figure_group="overview",
+            title="Per-dataset win counts",
+            caption=(
+                f"Per-dataset win counts for the two most defensible leaderboard views in this notebook: best {metric_spec['label']} and best ROC AUC. "
+                + (
+                    f"{evaluation_winner['algorithm_display']} won the most datasets by {metric_spec['label']} with {int(evaluation_winner['evaluation_wins'])} wins."
+                    if evaluation_winner is not None
+                    else ""
+                )
+            ),
+            saved_paths=wins_paths,
+        )
+        plt.close(wins_fig)
+
+        if config["variant_mode"] == "auto_ablation":
+            ablation_fig = plot_ablation_overview_panel(results)
+            ablation_overview = build_ablation_overview_table(results)
+            if ablation_fig is not None and not ablation_overview.empty:
+                ablation_paths = _save_figure_bundle(
+                    ablation_fig,
+                    result_thesis_figure_path("ablation_overview.png"),
+                )
+                strongest_gain = ablation_overview.loc[ablation_overview["mean_delta_evaluation_f1"].idxmax()]
+                _append_thesis_figure_row(
+                    rows,
+                    figure_id="ablation_overview",
+                    figure_group="ablation",
+                    title="Global one-factor-at-a-time ablation overview",
+                    caption=(
+                        f"One-factor-at-a-time ablation overview across all enabled algorithms. Each non-baseline variant changes one visible algorithm control while preprocessing, thresholding, and evaluation remain fixed. "
+                        "Bar-chart error bars show bootstrap 95% confidence intervals over paired dataset deltas, and the scatter plot separates runtime cost from accuracy shift. "
+                        f"The strongest positive shift in this run was {strongest_gain['algorithm']} | {strongest_gain['algorithm_variant']} with mean {metric_spec['label']} delta {strongest_gain['mean_delta_evaluation_f1']:+.3f}."
+                    ),
+                    saved_paths=ablation_paths,
+                )
+                plt.close(ablation_fig)
+
+        for algorithm_key in config["selected_algorithms"]:
+            subset = results.loc[results["algorithm"] == algorithm_key].copy()
+            if subset.empty:
+                continue
+
+            display_name = DISPLAY_NAME_MAP[algorithm_key]
+            summary = (
+                subset.groupby("algorithm_display", as_index=False)
+                .agg(
+                    dataset_count=("dataset_name", "nunique"),
+                    mean_evaluation_f1=("evaluation_f1", "mean"),
+                    mean_roc_auc=("roc_auc", "mean"),
+                    mean_runtime_seconds=("runtime_seconds", "mean"),
+                )
+                .sort_values(["mean_evaluation_f1", "mean_roc_auc", "mean_runtime_seconds"], ascending=[False, False, True])
+                .reset_index(drop=True)
+            )
+            best_variant = summary.iloc[0]
+
+            paper_fig = plot_algorithm_paper_panel(results, algorithm_key)
+            if paper_fig is not None:
+                paper_paths = _save_figure_bundle(
+                    paper_fig,
+                    result_thesis_figure_path(f"{algorithm_key}_paper_panel.png"),
+                )
+                _append_thesis_figure_row(
+                    rows,
+                    figure_id=f"{algorithm_key}_paper_panel",
+                    figure_group="algorithm",
+                    algorithm=display_name,
+                    title=f"{display_name} paper panel",
+                    caption=(
+                        f"Paper panel for {display_name}. The three heatmaps summarize mean {metric_spec['label']} by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. "
+                        f"In this run, the strongest {display_name} variant was {best_variant['algorithm_display']} with mean {metric_spec['label']} {best_variant['mean_evaluation_f1']:.3f} and mean ROC AUC {best_variant['mean_roc_auc']:.3f}."
+                    ),
+                    saved_paths=paper_paths,
+                )
+                plt.close(paper_fig)
+
+            ablation_impact = build_algorithm_ablation_impact_table(results, algorithm_key)
+            ablation_fig = plot_algorithm_ablation_panel(results, algorithm_key)
+            if ablation_fig is not None and not ablation_impact.empty:
+                ablation_best = ablation_impact.sort_values("mean_delta_evaluation_f1", ascending=False).iloc[0]
+                ablation_paths = _save_figure_bundle(
+                    ablation_fig,
+                    result_thesis_figure_path(f"{algorithm_key}_ablation_panel.png"),
+                )
+                _append_thesis_figure_row(
+                    rows,
+                    figure_id=f"{algorithm_key}_ablation_panel",
+                    figure_group="ablation",
+                    algorithm=display_name,
+                    title=f"{display_name} ablation panel",
+                    caption=(
+                        f"One-factor-at-a-time ablation panel for {display_name}. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. "
+                        f"The strongest positive ablation for {display_name} in this run was {ablation_best['algorithm_variant']} with mean {metric_spec['label']} delta {ablation_best['mean_delta_evaluation_f1']:+.3f}."
+                    ),
+                    saved_paths=ablation_paths,
+                )
+                plt.close(ablation_fig)
+
+            comparison_payload = build_algorithm_variant_comparison(
+                config,
+                context["prepared_dataset_dir"],
+                results,
+                algorithm_key,
+            )
+            if comparison_payload is not None and len(comparison_payload["variants"]) > 1:
+                comparison_fig = plot_algorithm_variant_comparison(
+                    comparison_payload,
+                    algorithm_key,
+                    context_points=context_points,
+                )
+                if comparison_fig is not None:
+                    dataset_name = comparison_payload["dataset"]["dataset_name"]
+                    comparison_paths = _save_figure_bundle(
+                        comparison_fig,
+                        result_thesis_figure_path(f"{algorithm_key}_variant_comparison_{_slugify_label(dataset_name)}.png"),
+                    )
+                    _append_thesis_figure_row(
+                        rows,
+                        figure_id=f"{algorithm_key}_variant_comparison",
+                        figure_group="algorithm",
+                        algorithm=display_name,
+                        title=f"{display_name} side-by-side variant comparison",
+                        caption=(
+                            f"Side-by-side comparison of {len(comparison_payload['variants'])} {display_name} variants on the shared dataset {dataset_name}. "
+                            "The top two panels show the raw and normalized signal with the ground-truth anomaly, and the lower panels compare per-variant score traces and threshold crossings on exactly the same time range."
+                        ),
+                        saved_paths=comparison_paths,
+                    )
+                    plt.close(comparison_fig)
+
+            showcase = build_algorithm_showcase(
+                config,
+                context["prepared_dataset_dir"],
+                results,
+                algorithm_key,
+            )
+            if showcase is not None:
+                deep_dive_fig = plot_algorithm_deep_dive(
+                    showcase["raw_values"],
+                    showcase["dataset"]["values"],
+                    showcase["dataset"],
+                    showcase["scores"],
+                    showcase["predictions"],
+                    showcase["metric_row"],
+                    algorithm_key,
+                    context_points=context_points,
+                )
+                showcase_name = showcase["dataset"]["dataset_name"]
+                deep_dive_paths = _save_figure_bundle(
+                    deep_dive_fig,
+                    result_thesis_figure_path(f"{algorithm_key}_showcase_{_slugify_label(showcase_name)}.png"),
+                )
+                _append_thesis_figure_row(
+                    rows,
+                    figure_id=f"{algorithm_key}_showcase",
+                    figure_group="deep_dive",
+                    algorithm=display_name,
+                    title=f"{display_name} showcase deep dive",
+                    caption=(
+                        f"Showcase deep dive for {display_name} on {showcase_name}. The panels align the raw signal, normalized signal, and anomaly score for the strongest selected variant on that dataset, making it possible to show exactly where the detector crosses threshold relative to the ground-truth anomaly interval. "
+                        f"The selected showcase variant was {showcase['metric_row']['algorithm_display']} with {metric_spec['label']} {showcase['metric_row']['evaluation_f1']:.3f}, ROC AUC {showcase['metric_row']['roc_auc']:.3f}, and runtime {showcase['metric_row']['runtime_seconds']:.3f}s."
+                    ),
+                    saved_paths=deep_dive_paths,
+                )
+                plt.close(deep_dive_fig)
+
+    catalog = pd.DataFrame(rows)
+    catalog.to_csv(THESIS_FIGURE_CATALOG_PATH, index=False)
+    THESIS_FIGURE_CAPTIONS_PATH.write_text(
+        build_thesis_figure_caption_markdown(catalog),
+        encoding="utf-8",
+    )
+    return {
+        "catalog": catalog,
+        "catalog_path": THESIS_FIGURE_CATALOG_PATH,
+        "captions_path": THESIS_FIGURE_CAPTIONS_PATH,
+        "figure_dir": RESULT_THESIS_FIGURES_DIR,
+    }
 
 
 def render_ablation_overview(notebook_state: dict[str, Any]) -> None:

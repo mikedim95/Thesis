@@ -64,6 +64,7 @@ def build_notebook() -> dict:
             - `auto_ablation` creates one baseline plus one-knob-at-a-time variants so each parameter claim is paired against a fixed reference.
             - Paper-facing sweeps vary only score-driving parameters; backend-only or threshold-only knobs stay fixed inside the presets.
             - Benchmark outputs are saved into `results/tables/`, `results/figures/`, and `results/scores/`.
+            - The notebook can export a fixed-style thesis figure pack with matching caption text in one step.
 
             Default workflow:
 
@@ -72,6 +73,7 @@ def build_notebook() -> dict:
             3. Run the preparation and benchmark cells.
             4. Inspect the regime summary and winner tables.
             5. Open the per-algorithm report cells for the paper figures.
+            6. Run the thesis export cell to write PNG/PDF figures and captions.
             """
         ),
         markdown(
@@ -307,185 +309,51 @@ def build_notebook() -> dict:
                 """
                 ## On Run: Build The Cross-Configuration Comparison Charts And Save The Final Overview Images
 
-                This next cell builds the overall comparison charts across all selected configurations, saves the overview images into `results/figures/`, and displays the winner tables together with the regime-aware benchmark table.
+                This next cell builds the overall comparison charts across all selected configurations by calling the reusable plotting helpers in `notebook_support.py`, saves the overview images into `results/figures/`, and displays the winner tables together with the regime-aware benchmark table.
                 """
             ),
             code(
                 """
-                import matplotlib.pyplot as plt
-                import numpy as np
-
                 state = NOTEBOOK_STATE
                 ns = state["ns"]
                 benchmark = state["benchmark"]
-                results = benchmark["results"]
-                dataset_catalog = benchmark["dataset_catalog"]
-                algorithm_summary = benchmark["algorithm_summary"]
-                family_summary = benchmark["family_summary"]
-                overall_regime_summary = benchmark["overall_regime_summary"]
-                best_by_evaluation = benchmark["best_by_evaluation"]
-                best_by_auc = benchmark["best_by_auc"]
+                plt = ns._load_plotting_module()
 
-                evaluation_mode = str(results["evaluation_mode"].iloc[0]).lower()
-                evaluation_metric_label = "Mean Range F1" if evaluation_mode == "range" else "Mean Point F1"
-                win_metric_label = "Range F1" if evaluation_mode == "range" else "Point F1"
-
-                fig, axes = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
-
-                axes[0, 0].hist(dataset_catalog["series_length"], bins=24, color="#4c78a8", edgecolor="white")
-                axes[0, 0].set_title("Dataset Length Distribution")
-                axes[0, 0].set_xlabel("Series length")
-                axes[0, 0].set_ylabel("Dataset count")
-
-                axes[0, 1].hist(dataset_catalog["anomaly_ratio"], bins=24, color="#72b7b2", edgecolor="white")
-                axes[0, 1].set_title("Anomaly Ratio Distribution")
-                axes[0, 1].set_xlabel("Anomaly ratio")
-                axes[0, 1].set_ylabel("Dataset count")
-
-                tradeoff_frame = algorithm_summary[["algorithm_display", "mean_runtime_seconds", "mean_evaluation_f1"]].dropna().sort_values("mean_runtime_seconds")
-                pareto_points = []
-                best_seen = -np.inf
-                for row in tradeoff_frame.itertuples():
-                    axes[1, 0].scatter(row.mean_runtime_seconds, row.mean_evaluation_f1, s=90, alpha=0.9, color="#4c78a8")
-                    axes[1, 0].annotate(
-                        row.algorithm_display,
-                        (row.mean_runtime_seconds, row.mean_evaluation_f1),
-                        textcoords="offset points",
-                        xytext=(6, 6),
-                        fontsize=9,
-                    )
-                    if row.mean_evaluation_f1 >= best_seen:
-                        pareto_points.append((row.mean_runtime_seconds, row.mean_evaluation_f1))
-                        best_seen = row.mean_evaluation_f1
-                has_pareto_points = len(pareto_points) > 0
-                if pareto_points:
-                    pareto_points = np.asarray(pareto_points)
-                    axes[1, 0].plot(
-                        pareto_points[:, 0],
-                        pareto_points[:, 1],
-                        color="#e45756",
-                        linewidth=1.6,
-                        label="Pareto frontier",
-                    )
-                axes[1, 0].set_title(f"Runtime vs {evaluation_metric_label}")
-                axes[1, 0].set_xlabel("Mean runtime (seconds)")
-                axes[1, 0].set_ylabel(evaluation_metric_label)
-                if has_pareto_points:
-                    axes[1, 0].legend()
-
-                bar_positions = np.arange(len(algorithm_summary))
-                bar_width = 0.38
-                axes[1, 1].bar(bar_positions - bar_width / 2, algorithm_summary["mean_evaluation_f1"], width=bar_width, label=evaluation_metric_label, color="#f58518")
-                axes[1, 1].bar(bar_positions + bar_width / 2, algorithm_summary["mean_roc_auc"], width=bar_width, label="Mean ROC AUC", color="#54a24b")
-                axes[1, 1].set_xticks(bar_positions)
-                axes[1, 1].set_xticklabels(algorithm_summary["algorithm_display"], rotation=25, ha="right")
-                axes[1, 1].set_ylim(0, 1.05)
-                axes[1, 1].set_title("Average Accuracy by Configuration")
-                axes[1, 1].set_ylabel("Metric value")
-                axes[1, 1].legend()
-
-                overview_path = ns.result_figure_path("benchmark_overview.png")
-                fig.savefig(overview_path, dpi=160)
-                plt.show()
-                print(f"Saved: {overview_path}")
-
-                if has_pareto_points:
-                    fig, ax = plt.subplots(figsize=(9, 6), constrained_layout=True)
-                    for row in tradeoff_frame.itertuples():
-                        ax.scatter(row.mean_runtime_seconds, row.mean_evaluation_f1, s=90, alpha=0.9, color="#4c78a8")
-                        ax.annotate(
-                            row.algorithm_display,
-                            (row.mean_runtime_seconds, row.mean_evaluation_f1),
-                            textcoords="offset points",
-                            xytext=(6, 6),
-                            fontsize=9,
-                        )
-                    ax.plot(pareto_points[:, 0], pareto_points[:, 1], color="#e45756", linewidth=1.6)
-                    ax.set_title(f"Pareto Frontier | Mean runtime vs {evaluation_metric_label}")
-                    ax.set_xlabel("Mean runtime (seconds)")
-                    ax.set_ylabel(evaluation_metric_label)
-                    pareto_path = ns.result_figure_path("pareto_frontier.png")
-                    fig.savefig(pareto_path, dpi=160)
-                    plt.show()
-                    print(f"Saved: {pareto_path}")
-
-                heatmap_frame = algorithm_summary.set_index("algorithm_display")[
-                    [
-                        "mean_roc_auc",
-                        "mean_average_precision",
-                        "mean_f1",
-                        "mean_evaluation_f1",
-                        "mean_range_precision",
-                        "mean_range_recall",
-                        "mean_range_f1",
-                        "mean_affiliation_precision",
-                        "mean_affiliation_recall",
-                    ]
-                ]
-                heatmap_labels = [
-                    "ROC AUC",
-                    "Avg Precision",
-                    "F1",
-                    evaluation_metric_label,
-                    "Range Precision",
-                    "Range Recall",
-                    "Range F1",
-                    "Affil. Precision",
-                    "Affil. Recall",
+                figure_jobs = [
+                    ("benchmark_overview.png", lambda: ns.plot_benchmark_overview_panel(benchmark, ns.result_figure_path("benchmark_overview.png"))),
+                    ("pareto_frontier.png", lambda: ns.plot_pareto_frontier_panel(benchmark, ns.result_figure_path("pareto_frontier.png"))),
+                    ("metric_heatmap.png", lambda: ns.plot_metric_heatmap_panel(benchmark, ns.result_figure_path("metric_heatmap.png"))),
+                    ("family_evaluation_heatmap.png", lambda: ns.plot_family_evaluation_heatmap_panel(benchmark, ns.result_figure_path("family_evaluation_heatmap.png"))),
+                    ("algorithm_wins.png", lambda: ns.plot_algorithm_wins_panel(benchmark, ns.result_figure_path("algorithm_wins.png"))),
                 ]
 
-                fig, ax = plt.subplots(figsize=(14, 5.2), constrained_layout=True)
-                image = ax.imshow(heatmap_frame.to_numpy(), cmap="YlOrBr", aspect="auto")
-                ax.set_xticks(range(len(heatmap_labels)))
-                ax.set_xticklabels(heatmap_labels, rotation=20, ha="right")
-                ax.set_yticks(range(len(heatmap_frame.index)))
-                ax.set_yticklabels(heatmap_frame.index)
-                ax.set_title("TSB-UAD-Aligned Metric Heatmap by Configuration")
-                for row_index in range(heatmap_frame.shape[0]):
-                    for col_index in range(heatmap_frame.shape[1]):
-                        ax.text(col_index, row_index, f"{heatmap_frame.iloc[row_index, col_index]:.2f}", ha="center", va="center", fontsize=10)
-                fig.colorbar(image, ax=ax, fraction=0.035, pad=0.03)
-                heatmap_path = ns.result_figure_path("metric_heatmap.png")
-                fig.savefig(heatmap_path, dpi=160)
-                plt.show()
-                print(f"Saved: {heatmap_path}")
+                for filename, builder in figure_jobs:
+                    fig = builder()
+                    if fig is not None:
+                        plt.show()
+                        plt.close(fig)
+                        print(f"Saved: {ns.result_figure_path(filename)}")
 
-                family_heatmap = family_summary.pivot(index="family", columns="algorithm_display", values="mean_evaluation_f1").fillna(0.0)
-                fig, ax = plt.subplots(figsize=(16, max(6, 0.35 * len(family_heatmap.index))), constrained_layout=True)
-                image = ax.imshow(family_heatmap.to_numpy(), cmap="YlGnBu", aspect="auto")
-                ax.set_xticks(range(len(family_heatmap.columns)))
-                ax.set_xticklabels(family_heatmap.columns, rotation=30, ha="right")
-                ax.set_yticks(range(len(family_heatmap.index)))
-                ax.set_yticklabels(family_heatmap.index)
-                ax.set_title(f"{evaluation_metric_label} by Dataset Family and Configuration")
-                fig.colorbar(image, ax=ax, fraction=0.035, pad=0.03)
-                family_heatmap_path = ns.result_figure_path("family_evaluation_heatmap.png")
-                fig.savefig(family_heatmap_path, dpi=160)
-                plt.show()
-                print(f"Saved: {family_heatmap_path}")
+                display(benchmark["best_by_evaluation"].head(15))
+                display(benchmark["best_by_auc"].head(15))
+                display(benchmark["overall_regime_summary"])
+                """
+            ),
+            markdown(
+                """
+                ## Optional: Export A Thesis-Ready Figure Pack
 
-                evaluation_wins = best_by_evaluation["best_algorithm_display"].value_counts().reindex(algorithm_summary["algorithm_display"]).fillna(0)
-                auc_wins = best_by_auc["best_algorithm_display"].value_counts().reindex(algorithm_summary["algorithm_display"]).fillna(0)
-
-                fig, axes = plt.subplots(1, 2, figsize=(14, 5), constrained_layout=True)
-                axes[0].bar(evaluation_wins.index, evaluation_wins.values, color="#4c78a8")
-                axes[0].set_title(f"Configuration Wins by {win_metric_label}")
-                axes[0].set_ylabel("Dataset wins")
-                axes[0].tick_params(axis="x", rotation=25)
-
-                axes[1].bar(auc_wins.index, auc_wins.values, color="#e45756")
-                axes[1].set_title("Configuration Wins by ROC AUC")
-                axes[1].set_ylabel("Dataset wins")
-                axes[1].tick_params(axis="x", rotation=25)
-
-                wins_path = ns.result_figure_path("algorithm_wins.png")
-                fig.savefig(wins_path, dpi=160)
-                plt.show()
-
-                display(best_by_evaluation.head(15))
-                display(best_by_auc.head(15))
-                display(overall_regime_summary)
-                print(f"Saved: {wins_path}")
+                This next cell exports a fixed-style set of thesis-ready figures into `results/figures/thesis/` as both PNG and PDF, then writes a figure catalog plus ready-to-paste caption text into `results/tables/thesis_figure_catalog.csv` and `results/tables/thesis_figure_captions.md`.
+                """
+            ),
+            code(
+                """
+                state = NOTEBOOK_STATE
+                thesis_export = state["ns"].export_thesis_figure_pack(state)
+                display(thesis_export["catalog"])
+                print(f"Saved thesis figures to: {thesis_export['figure_dir']}")
+                print(f"Saved figure catalog to: {thesis_export['catalog_path']}")
+                print(f"Saved captions to: {thesis_export['captions_path']}")
                 """
             ),
         ]
