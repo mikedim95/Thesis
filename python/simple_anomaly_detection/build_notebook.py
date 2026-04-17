@@ -83,6 +83,8 @@ def build_notebook() -> dict:
             **General**
             - `Argument mode`: `manual` uses the current subtabs, while the auto modes expand enabled algorithms into preset parameter combinations.
             - `Dataset limit`: how many prepared datasets to benchmark. `0` means all datasets.
+            - `Batch size`: how many of the selected datasets to process in the current run. `0` means the whole selected scope.
+            - `Resume from existing results`: continue from successful rows already saved in `results/tables/benchmark_results.csv` and automatically take the next incomplete batch.
             - `Normalize`: preprocessing applied before any algorithm runs.
             - `Clip q`: optional quantile clipping before normalization.
             - `Window size`: base temporal context length for subsequence-aware processing. `0` keeps automatic estimation.
@@ -225,7 +227,7 @@ def build_notebook() -> dict:
             """
             ## On Run: Read The Current Widget Values, Prepare Raw Datasets, And Build Normalized Benchmark Inputs
 
-            This next cell reads the current control-panel settings, ensures the raw datasets exist in the workspace, generates normalized labeled datasets if needed, and shows the exact paper run configuration.
+            This next cell reads the current control-panel settings, ensures the raw datasets exist in the workspace, generates normalized labeled datasets if needed, and shows the exact paper run configuration together with the current batch plan.
             """
         ),
         code(
@@ -246,7 +248,7 @@ def build_notebook() -> dict:
             """
             ## On Run: Execute Every Selected Algorithm Configuration Across The Prepared Datasets
 
-            This next cell refreshes the configuration from the widgets, runs every selected algorithm variant, writes the benchmark outputs into `results/tables/`, and stores all benchmark objects inside `NOTEBOOK_STATE["benchmark"]`.
+            This next cell refreshes the configuration from the widgets, runs the current dataset batch for every selected algorithm variant, writes the benchmark outputs into `results/tables/`, and stores the accumulated benchmark objects inside `NOTEBOOK_STATE["benchmark"]`.
             """
         ),
         code(

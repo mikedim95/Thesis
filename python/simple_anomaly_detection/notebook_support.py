@@ -890,6 +890,8 @@ TOOLTIP_TEXT = {
     "variant_label": "Name shown on the subtab for this argument set. Use it to label different experiments of the same algorithm, such as Baseline, Fast, or High Recall.",
     "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into preset combinations from paper_high_roi, paper_full_suite, or auto_ablation so parameter impact is measured automatically.",
     "dataset_limit": "How many prepared datasets to benchmark in this run. Use 0 to process every available dataset. Lower values are useful for smoke tests and fast iteration.",
+    "batch_size": "How many selected datasets to process in this notebook run. Use 0 to process every selected dataset. When resume is enabled, this becomes the size of each resumable batch.",
+    "resume_from_existing": "Continue from successful rows already saved in results/tables/benchmark_results.csv. The notebook skips completed dataset/configuration pairs, retries failed or incomplete ones, and appends the new rows to the same benchmark tables. Keep the benchmark settings unchanged between batches.",
     "normalization_method": "How raw dataset values are transformed before any algorithm runs. This controls the files created in datasets/normalized and changes the numeric scale each algorithm sees.",
     "clip_quantile": "Optional outlier clipping before normalization. Example: 0.01 clips the bottom 1% and top 1% of raw values. This can reduce extreme spikes, but it can also weaken anomaly contrast.",
     "overwrite_normalized": "Rebuild the normalized dataset files even if cached versions already exist. Turn this on after changing normalization settings when you want to force fresh prepared data.",
@@ -960,6 +962,14 @@ GENERAL_CONTROL_REFERENCE = [
     {
         "label": "Dataset limit",
         "effect": "Filters how many prepared datasets are benchmarked. It does not change anomaly scores on any individual dataset.",
+    },
+    {
+        "label": "Batch size",
+        "effect": "Caps how many of the selected datasets are processed in the current notebook run. With resume enabled, it defines the size of each resumable batch.",
+    },
+    {
+        "label": "Resume from existing",
+        "effect": "Reuses successful benchmark rows already saved on disk, skips completed dataset/configuration pairs, and continues from the next incomplete work for the same benchmark setup.",
     },
     {
         "label": "Normalize",
@@ -1428,6 +1438,178 @@ def build_results_layout_frame() -> pd.DataFrame:
         [{"output_group": label, "path": portable_path_str(
             path), "exists": path.exists()} for label, path in rows]
     )
+
+
+RESULT_RUN_KEY_COLUMNS = [
+    "dataset_name",
+    "algorithm_run_id",
+    "normalization_method",
+    "threshold_method",
+    "threshold_value",
+    "evaluation_mode",
+    "window_size",
+    "window_stride",
+    "prepared_dataset_dir",
+]
+
+
+def _read_table_if_exists(path: Path) -> pd.DataFrame | None:
+    if not path.exists():
+        return None
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+
+
+def _normalize_comparison_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        if pd.isna(value):
+            return ""
+    except TypeError:
+        pass
+    if isinstance(value, (bool, np.bool_)):
+        return "true" if bool(value) else "false"
+    if isinstance(value, (int, np.integer)):
+        return str(int(value))
+    if isinstance(value, (float, np.floating)):
+        numeric_value = float(value)
+        if not math.isfinite(numeric_value):
+            return ""
+        return format(numeric_value, ".12g")
+    return str(value)
+
+
+def _normalize_comparison_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    normalized = frame.reindex(columns=columns).copy()
+    for column in columns:
+        normalized[column] = normalized[column].map(_normalize_comparison_value)
+    if columns:
+        normalized = normalized.sort_values(columns).reset_index(drop=True)
+    return normalized
+
+
+def _validate_resume_compatibility(current_selected_run_parameters: pd.DataFrame) -> None:
+    existing_results = _read_table_if_exists(result_table_path("benchmark_results.csv"))
+    if existing_results is None or existing_results.empty:
+        return
+
+    existing_selected_run_parameters = _read_table_if_exists(
+        result_table_path("selected_run_parameters.csv")
+    )
+    if existing_selected_run_parameters is None:
+        raise ValueError(
+            "Cannot resume because benchmark_results.csv already exists but selected_run_parameters.csv is missing. "
+            "Clear results/tables or disable Resume from existing before starting a different benchmark."
+        )
+
+    comparison_columns = sorted(
+        (set(existing_selected_run_parameters.columns) | set(current_selected_run_parameters.columns))
+        - {"dataset_limit"}
+    )
+    existing_normalized = _normalize_comparison_frame(
+        existing_selected_run_parameters, comparison_columns
+    )
+    current_normalized = _normalize_comparison_frame(
+        current_selected_run_parameters, comparison_columns
+    )
+    if existing_normalized.equals(current_normalized):
+        return
+
+    raise ValueError(
+        "Cannot resume because the saved benchmark tables were produced with different settings. "
+        "Keep the same normalization, window, threshold, evaluation, and algorithm variant configuration across batches, "
+        "or clear results/tables before starting a new batch series."
+    )
+
+
+def _successful_results_frame(results_frame: pd.DataFrame) -> pd.DataFrame:
+    if results_frame.empty or "error" not in results_frame.columns:
+        return pd.DataFrame(columns=results_frame.columns)
+    success_mask = results_frame["error"].fillna("").astype(str) == ""
+    return results_frame.loc[success_mask].copy()
+
+
+def _result_run_key_series(results_frame: pd.DataFrame) -> pd.Series:
+    key_frame = results_frame.reindex(columns=RESULT_RUN_KEY_COLUMNS).copy()
+    for column in RESULT_RUN_KEY_COLUMNS:
+        key_frame[column] = key_frame[column].map(_normalize_comparison_value)
+    return key_frame.agg("||".join, axis=1)
+
+
+def _result_run_key(
+    dataset_name: str,
+    algorithm_run_id: str,
+    normalization_method: str,
+    threshold_method: str,
+    threshold_value: float | int,
+    evaluation_mode: str,
+    window_size: int,
+    window_stride: int,
+    prepared_dataset_dir: str,
+) -> str:
+    return "||".join(
+        _normalize_comparison_value(value)
+        for value in (
+            dataset_name,
+            algorithm_run_id,
+            normalization_method,
+            threshold_method,
+            threshold_value,
+            evaluation_mode,
+            window_size,
+            window_stride,
+            prepared_dataset_dir,
+        )
+    )
+
+
+def _completed_dataset_names(results_frame: pd.DataFrame, selected_runs: list[dict[str, Any]]) -> set[str]:
+    if results_frame.empty or not selected_runs:
+        return set()
+    expected_run_ids = {run_config["algorithm_run_id"] for run_config in selected_runs}
+    successful = _successful_results_frame(results_frame)
+    if successful.empty:
+        return set()
+    completion_counts = (
+        successful.loc[successful["algorithm_run_id"].isin(expected_run_ids)]
+        .groupby("dataset_name")["algorithm_run_id"]
+        .nunique()
+    )
+    return {
+        dataset_name
+        for dataset_name, run_count in completion_counts.items()
+        if int(run_count) >= len(expected_run_ids)
+    }
+
+
+def _merge_benchmark_results(existing_results: pd.DataFrame, new_results: pd.DataFrame) -> pd.DataFrame:
+    if existing_results.empty and new_results.empty:
+        return pd.DataFrame()
+    if existing_results.empty:
+        merged = new_results.copy()
+    elif new_results.empty:
+        merged = existing_results.copy()
+    else:
+        merged = pd.concat([existing_results, new_results], ignore_index=True, sort=False)
+
+    merged["__run_key"] = _result_run_key_series(merged)
+    merged = merged.drop_duplicates("__run_key", keep="last").drop(columns="__run_key")
+
+    sort_columns = [
+        column
+        for column in ("dataset_sequence", "dataset_name", "algorithm_display", "variant_index")
+        if column in merged.columns
+    ]
+    if sort_columns:
+        merged = merged.sort_values(sort_columns).reset_index(drop=True)
+    else:
+        merged = merged.reset_index(drop=True)
+    return merged
 
 
 def _select_benchmark_dataset_paths(
@@ -2889,7 +3071,9 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             [
                 {
                     "argument_mode": VARIANT_MODE_LABELS.get(effective["variant_mode"], effective["variant_mode"]),
-                    "datasets to run": "all available" if controls["dataset_limit"].value <= 0 else controls["dataset_limit"].value,
+                    "dataset scope": "all available" if controls["dataset_limit"].value <= 0 else controls["dataset_limit"].value,
+                    "batch_size": "all selected" if controls["batch_size"].value <= 0 else controls["batch_size"].value,
+                    "resume_batches": bool(controls["resume_from_existing"].value),
                     "normalization": controls["normalization_method"].value,
                     "clip_quantile": None if controls["clip_quantile"].value <= 0 else controls["clip_quantile"].value,
                     "window_size": None if controls["window_size"].value <= 0 else controls["window_size"].value,
@@ -2942,6 +3126,10 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
     controls["dataset_limit"] = widgets.IntText(
         value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
+    controls["batch_size"] = widgets.IntText(
+        value=0, description="Batch size", layout=widgets.Layout(width="220px"))
+    controls["resume_from_existing"] = widgets.Checkbox(
+        value=False, description="Resume from existing results")
     controls["variant_mode"] = widgets.Dropdown(
         options=[
             (VARIANT_MODE_LABELS["manual"], "manual"),
@@ -2995,6 +3183,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
     for key in [
         "dataset_limit",
+        "batch_size",
+        "resume_from_existing",
         "variant_mode",
         "normalization_method",
         "clip_quantile",
@@ -3042,6 +3232,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _control_row(
                 [
                     _with_tooltip(controls["dataset_limit"], "dataset_limit"),
+                    _with_tooltip(controls["batch_size"], "batch_size"),
+                    _with_tooltip(controls["resume_from_existing"], "resume_from_existing"),
                     _with_tooltip(controls["variant_mode"], "variant_mode"),
                     _with_tooltip(
                         controls["normalization_method"], "normalization_method"),
@@ -3088,6 +3280,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                 [
                     "variant_mode",
                     "dataset_limit",
+                    "batch_size",
+                    "resume_from_existing",
                     "normalization_method",
                     "clip_quantile",
                     "overwrite_normalized",
@@ -3218,6 +3412,8 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
     window_stride = max(1, int(controls["window_stride"].value))
     dataset_limit = None if controls["dataset_limit"].value <= 0 else int(
         controls["dataset_limit"].value)
+    batch_size = None if controls["batch_size"].value <= 0 else int(
+        controls["batch_size"].value)
     threshold_method = str(controls["threshold_method"].value)
     threshold_value = (
         max(1, int(controls["threshold_value"].value))
@@ -3228,6 +3424,8 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "dataset_limit": dataset_limit,
+        "batch_size": batch_size,
+        "resume_from_existing": bool(controls["resume_from_existing"].value),
         "variant_mode": effective_variants["variant_mode"],
         "normalization_method": controls["normalization_method"].value,
         "clip_quantile": clip_value,
@@ -6008,13 +6206,41 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
     )
     prepared_dataset_paths = sorted(
         prepared_dataset_paths, key=lambda path: (path.stat().st_size, path.name))
-    benchmark_dataset_paths = prepared_dataset_paths[: config["dataset_limit"]
-                                                     ] if config["dataset_limit"] is not None else prepared_dataset_paths
+    selected_dataset_paths = list(
+        prepared_dataset_paths[: config["dataset_limit"]]
+        if config["dataset_limit"] is not None
+        else prepared_dataset_paths
+    )
+    selected_run_parameters = build_selected_run_parameter_frame(config)
+
+    existing_results = pd.DataFrame()
+    completed_dataset_names: set[str] = set()
+    if config["resume_from_existing"]:
+        _validate_resume_compatibility(selected_run_parameters)
+        existing_results = _read_table_if_exists(result_table_path("benchmark_results.csv"))
+        if existing_results is None:
+            existing_results = pd.DataFrame()
+        completed_dataset_names = _completed_dataset_names(
+            existing_results, config["selected_runs"]
+        )
+
+    pending_dataset_paths = [
+        path for path in selected_dataset_paths if path.stem not in completed_dataset_names
+    ]
+    batch_source_paths = pending_dataset_paths if config["resume_from_existing"] else selected_dataset_paths
+    benchmark_dataset_paths = list(
+        batch_source_paths[: config["batch_size"]]
+        if config["batch_size"] is not None
+        else batch_source_paths
+    )
+    current_batch_names = [path.stem for path in benchmark_dataset_paths]
 
     run_config_frame = pd.DataFrame(
         [
             {
                 "dataset_limit": "all" if config["dataset_limit"] is None else config["dataset_limit"],
+                "batch_size": "all selected" if config["batch_size"] is None else config["batch_size"],
+                "resume_from_existing": config["resume_from_existing"],
                 "variant_mode": config["variant_mode"],
                 "auto_preset_name": config["auto_preset_name"],
                 "normalization_method": config["normalization_method"],
@@ -6032,6 +6258,11 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                     if variant_rows
                 ),
                 "auto_filtered_out": ", ".join(DISPLAY_NAME_MAP[key] for key in config["auto_filtered_out"]) or None,
+                "selected_dataset_count": len(selected_dataset_paths),
+                "pending_dataset_count": len(pending_dataset_paths),
+                "planned_batch_count": len(benchmark_dataset_paths),
+                "next_batch_first_dataset": current_batch_names[0] if current_batch_names else None,
+                "next_batch_last_dataset": current_batch_names[-1] if current_batch_names else None,
                 "prepared_dataset_dir": portable_path_str(prepared_dataset_dir),
                 "notes_source_path": notes_info["source_path"],
                 "notes_results_path": notes_info["results_path"],
@@ -6046,6 +6277,14 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "workspace_raw_count": len(raw_dataset_paths),
                 "workspace_normalized_count": len(prepared_dataset_paths),
                 "benchmark_count": len(benchmark_dataset_paths),
+                "selected_dataset_count": len(selected_dataset_paths),
+                "batch_size": "all selected" if config["batch_size"] is None else config["batch_size"],
+                "resume_from_existing": config["resume_from_existing"],
+                "completed_dataset_count": len(completed_dataset_names),
+                "pending_dataset_count": len(pending_dataset_paths),
+                "current_batch_count": len(benchmark_dataset_paths),
+                "next_batch_first_dataset": current_batch_names[0] if current_batch_names else None,
+                "next_batch_last_dataset": current_batch_names[-1] if current_batch_names else None,
                 "variant_mode": config["variant_mode"],
                 "auto_preset_name": config["auto_preset_name"],
                 "normalization_method": config["normalization_method"],
@@ -6061,7 +6300,6 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
             }
         ]
     )
-    selected_run_parameters = build_selected_run_parameter_frame(config)
 
     run_config_frame.to_csv(result_table_path(
         "run_configuration.csv"), index=False)
@@ -6074,11 +6312,13 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         "raw_dataset_paths": raw_dataset_paths,
         "prepared_dataset_dir": prepared_dataset_dir,
         "prepared_dataset_paths": prepared_dataset_paths,
+        "selected_dataset_paths": selected_dataset_paths,
         "benchmark_dataset_paths": benchmark_dataset_paths,
         "run_config_frame": run_config_frame,
         "selected_run_parameters": selected_run_parameters,
         "preparation_summary": preparation_summary,
         "notes_info": notes_info,
+        "completed_dataset_names": sorted(completed_dataset_names),
     }
 
 
@@ -6094,7 +6334,21 @@ def run_benchmark(
     total_run_count = total_dataset_count * len(selected_runs)
     benchmark_started_at = time.perf_counter()
     completed_runs = 0
+    executed_runs = 0
+    skipped_existing_runs = 0
     recent_messages: list[str] = []
+    existing_results = pd.DataFrame()
+    completed_run_keys: set[str] = set()
+    prepared_dataset_dir_value = portable_path_str(prepared_dataset_dir)
+
+    if config.get("resume_from_existing"):
+        _validate_resume_compatibility(build_selected_run_parameter_frame(config))
+        existing_results = _read_table_if_exists(result_table_path("benchmark_results.csv"))
+        if existing_results is None:
+            existing_results = pd.DataFrame()
+        successful_existing_results = _successful_results_frame(existing_results)
+        if not successful_existing_results.empty:
+            completed_run_keys = set(_result_run_key_series(successful_existing_results))
 
     progress_bar = None
     progress_summary = None
@@ -6113,7 +6367,7 @@ def run_benchmark(
         progress_summary = _progress_html(
             (
                 f"<b>Benchmark queued</b>: {total_dataset_count} datasets x {len(selected_runs)} configurations "
-                f"= {total_run_count} runs"
+                f"= {total_run_count} dataset/config checks"
             )
         )
         progress_status = _progress_html("<b>Status</b>: waiting to start...")
@@ -6140,6 +6394,17 @@ def run_benchmark(
 
         for algorithm_index, run_config in enumerate(selected_runs, start=1):
             algorithm_key = run_config["algorithm"]
+            current_run_key = _result_run_key(
+                dataset_name=dataset["dataset_name"],
+                algorithm_run_id=run_config["algorithm_run_id"],
+                normalization_method=config["normalization_method"],
+                threshold_method=str(config["threshold_method"]),
+                threshold_value=float(config["threshold_value"]),
+                evaluation_mode=str(config["evaluation_mode"]),
+                window_size=window_size,
+                window_stride=window_stride,
+                prepared_dataset_dir=prepared_dataset_dir_value,
+            )
             if show_progress and progress_status is not None:
                 elapsed_seconds = time.perf_counter() - benchmark_started_at
                 sand_note = ""
@@ -6162,11 +6427,45 @@ def run_benchmark(
                     f"<b>Window</b>: {window_size} | <b>Stride</b>: {window_stride} | "
                     f"<b>Threshold</b>: {html.escape(str(config['threshold_method']))}={html.escape(str(config['threshold_value']))} | "
                     f"<b>Eval</b>: {html.escape(str(config['evaluation_mode']))}<br>"
-                    f"<b>Completed</b>: {completed_runs}/{total_run_count} runs | "
+                    f"<b>Checked</b>: {completed_runs}/{total_run_count} | "
+                    f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
                     f"<b>Elapsed</b>: {_format_duration(elapsed_seconds)}"
                     f"{sand_note}"
                     "</div>"
                 )
+            if current_run_key in completed_run_keys:
+                completed_runs += 1
+                skipped_existing_runs += 1
+
+                if show_progress and progress_bar is not None and progress_summary is not None and progress_recent is not None:
+                    elapsed_seconds = time.perf_counter() - benchmark_started_at
+                    average_seconds_per_check = elapsed_seconds / max(completed_runs, 1)
+                    remaining_checks = max(total_run_count - completed_runs, 0)
+                    eta_seconds = average_seconds_per_check * remaining_checks
+                    progress_bar.value = completed_runs
+                    progress_summary.value = (
+                        "<div style='white-space: normal; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; line-height: 1.45;'>"
+                        f"<b>Progress</b>: checked {completed_runs}/{total_run_count} | "
+                        f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
+                        f"<b>Datasets</b>: {dataset_index}/{total_dataset_count} | "
+                        f"<b>Elapsed</b>: {_format_duration(elapsed_seconds)} | "
+                        f"<b>ETA</b>: {_format_duration(eta_seconds)}"
+                        "</div>"
+                    )
+                    recent_line = (
+                        f"{completed_runs}/{total_run_count} | "
+                        f"{dataset['dataset_name']} | "
+                        f"{run_config['algorithm_display']} | skipped existing"
+                    )
+                    recent_messages = [recent_line] + recent_messages[:4]
+                    progress_recent.value = (
+                        "<div style='white-space: normal; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; line-height: 1.45;'>"
+                        "<b>Recent runs</b><br>"
+                        + "<br>".join(html.escape(line)
+                                      for line in recent_messages)
+                        + "</div>"
+                    )
+                continue
             start_time = time.perf_counter()
             try:
                 scores = run_algorithm(
@@ -6253,7 +6552,7 @@ def run_benchmark(
                     "threshold_method": str(config["threshold_method"]),
                     "threshold_value": float(config["threshold_value"]),
                     "evaluation_mode": str(config["evaluation_mode"]),
-                    "prepared_dataset_dir": portable_path_str(prepared_dataset_dir),
+                    "prepared_dataset_dir": prepared_dataset_dir_value,
                     "runtime_seconds": runtime_seconds,
                     "score_mean": float(scores.mean()) if scores.size else float("nan"),
                     "score_std": float(scores.std()) if scores.size else float("nan"),
@@ -6264,17 +6563,19 @@ def run_benchmark(
                 }
             )
             completed_runs += 1
+            executed_runs += 1
 
             if show_progress and progress_bar is not None and progress_summary is not None and progress_recent is not None:
                 elapsed_seconds = time.perf_counter() - benchmark_started_at
-                average_seconds_per_run = elapsed_seconds / \
+                average_seconds_per_check = elapsed_seconds / \
                     max(completed_runs, 1)
                 remaining_runs = max(total_run_count - completed_runs, 0)
-                eta_seconds = average_seconds_per_run * remaining_runs
+                eta_seconds = average_seconds_per_check * remaining_runs
                 progress_bar.value = completed_runs
                 progress_summary.value = (
                     "<div style='white-space: normal; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; line-height: 1.45;'>"
-                    f"<b>Progress</b>: {completed_runs}/{total_run_count} runs | "
+                    f"<b>Progress</b>: checked {completed_runs}/{total_run_count} | "
+                    f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
                     f"<b>Datasets</b>: {dataset_index}/{total_dataset_count} | "
                     f"<b>Elapsed</b>: {_format_duration(elapsed_seconds)} | "
                     f"<b>ETA</b>: {_format_duration(eta_seconds)}"
@@ -6297,7 +6598,12 @@ def run_benchmark(
                     + "</div>"
                 )
 
-    results = pd.DataFrame.from_records(records)
+    batch_results = pd.DataFrame.from_records(records)
+    results = _merge_benchmark_results(existing_results, batch_results)
+    if results.empty:
+        raise ValueError(
+            "No benchmark runs are available for execution. Check the selected algorithms and batch settings."
+        )
     dataset_catalog = build_dataset_catalog(results)
     algorithm_summary = summarize_algorithms(results)
     family_summary = summarize_families(results)
@@ -6334,6 +6640,11 @@ def run_benchmark(
                 "algorithm_count": len(config["selected_algorithms"]),
                 "configuration_count": len(selected_runs),
                 "run_count": len(results),
+                "batch_dataset_count": total_dataset_count,
+                "executed_run_count": executed_runs,
+                "skipped_existing_run_count": skipped_existing_runs,
+                "resume_from_existing": bool(config.get("resume_from_existing")),
+                "batch_size": "all selected" if config.get("batch_size") is None else config["batch_size"],
                 "median_series_length": dataset_catalog["series_length"].median(),
                 "median_anomaly_ratio": dataset_catalog["anomaly_ratio"].median(),
                 "median_window_size": dataset_catalog["window_size"].median(),
@@ -6353,7 +6664,8 @@ def run_benchmark(
         progress_bar.bar_style = "warning" if not errors.empty else "success"
         progress_summary.value = (
             "<div style='white-space: normal; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; line-height: 1.45;'>"
-            f"<b>Benchmark complete</b>: {completed_runs}/{total_run_count} runs finished | "
+            f"<b>Benchmark complete</b>: checked {completed_runs}/{total_run_count} | "
+            f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
             f"<b>Total time</b>: {_format_duration(total_elapsed)}"
             "</div>"
         )
@@ -6375,4 +6687,7 @@ def run_benchmark(
         "best_by_auc": best_by_auc,
         "errors": errors,
         "overview": overview,
+        "batch_results": batch_results,
+        "executed_run_count": executed_runs,
+        "skipped_existing_run_count": skipped_existing_runs,
     }
