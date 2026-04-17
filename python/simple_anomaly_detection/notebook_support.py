@@ -1612,6 +1612,10 @@ def _merge_benchmark_results(existing_results: pd.DataFrame, new_results: pd.Dat
     return merged
 
 
+def _write_benchmark_checkpoint(results_frame: pd.DataFrame) -> None:
+    results_frame.to_csv(result_table_path("benchmark_results.csv"), index=False)
+
+
 def _select_benchmark_dataset_paths(
     prepared_dataset_paths: list[Path],
     dataset_limit: int | None,
@@ -6329,6 +6333,7 @@ def run_benchmark(
     show_progress: bool = True,
 ) -> dict[str, Any]:
     records = []
+    checkpoint_results = pd.DataFrame()
     selected_runs = config["selected_runs"]
     total_dataset_count = len(benchmark_dataset_paths)
     total_run_count = total_dataset_count * len(selected_runs)
@@ -6349,6 +6354,7 @@ def run_benchmark(
         successful_existing_results = _successful_results_frame(existing_results)
         if not successful_existing_results.empty:
             completed_run_keys = set(_result_run_key_series(successful_existing_results))
+    checkpoint_results = existing_results.copy()
 
     progress_bar = None
     progress_summary = None
@@ -6562,6 +6568,11 @@ def run_benchmark(
                     **metrics,
                 }
             )
+            checkpoint_results = _merge_benchmark_results(
+                checkpoint_results,
+                pd.DataFrame.from_records([records[-1]]),
+            )
+            _write_benchmark_checkpoint(checkpoint_results)
             completed_runs += 1
             executed_runs += 1
 
@@ -6599,7 +6610,7 @@ def run_benchmark(
                 )
 
     batch_results = pd.DataFrame.from_records(records)
-    results = _merge_benchmark_results(existing_results, batch_results)
+    results = checkpoint_results if not checkpoint_results.empty else _merge_benchmark_results(existing_results, batch_results)
     if results.empty:
         raise ValueError(
             "No benchmark runs are available for execution. Check the selected algorithms and batch settings."
@@ -6613,7 +6624,7 @@ def run_benchmark(
     best_by_auc = build_best_algorithm_table(results, "roc_auc")
     errors = results.loc[results["error"] != ""].copy()
 
-    results.to_csv(result_table_path("benchmark_results.csv"), index=False)
+    _write_benchmark_checkpoint(results)
     dataset_catalog.to_csv(result_table_path(
         "dataset_catalog.csv"), index=False)
     algorithm_summary.to_csv(result_table_path(
