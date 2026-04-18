@@ -9,6 +9,7 @@ import shutil
 import sys
 import time
 import warnings
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -36,10 +37,14 @@ RESULT_ALGORITHM_PANEL_DIR = RESULT_FIGURES_DIR / "algorithm_panels"
 RESULT_DEEP_DIVE_DIR = RESULT_FIGURES_DIR / "deep_dives"
 RESULT_THESIS_FIGURES_DIR = RESULT_FIGURES_DIR / "thesis"
 RESULT_SCORES_DIR = RESULTS_DIR / "scores"
+RESULT_RUN_SESSION_DIR = RESULTS_DIR / "run_sessions"
 HIGH_ROI_NOTES_SOURCE_PATH = PROJECT_ROOT / "high_roi_algorithm_notes.md"
 HIGH_ROI_NOTES_RESULT_PATH = RESULT_TABLES_DIR / "high_roi_algorithm_notes.md"
 THESIS_FIGURE_CATALOG_PATH = RESULT_TABLES_DIR / "thesis_figure_catalog.csv"
 THESIS_FIGURE_CAPTIONS_PATH = RESULT_TABLES_DIR / "thesis_figure_captions.md"
+DEFAULT_RUN_NAME = "active_benchmark"
+RUN_SESSION_MANIFEST_FILENAME = "session_manifest.json"
+RUN_SESSION_CONTROL_STATE_FILENAME = "control_state.json"
 
 RAW_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 NORMALIZED_DATASET_ROOT.mkdir(parents=True, exist_ok=True)
@@ -64,6 +69,7 @@ def ensure_results_layout() -> None:
         RESULT_DEEP_DIVE_DIR,
         RESULT_THESIS_FIGURES_DIR,
         RESULT_SCORES_DIR,
+        RESULT_RUN_SESSION_DIR,
     ):
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -888,10 +894,12 @@ ALGORITHM_REGISTRY = {
 
 TOOLTIP_TEXT = {
     "variant_label": "Name shown on the subtab for this argument set. Use it to label different experiments of the same algorithm, such as Baseline, Fast, or High Recall.",
+    "run_name": "Stable name for this saved benchmark session. Keep the same name when you want the notebook to reopen the same configuration and continue from its last successful checkpoint.",
+    "saved_run_selector": "Pick a saved benchmark session from disk. Loading it restores the control-panel settings and reconnects resume mode to that session's checkpoint tables.",
     "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into preset combinations from paper_high_roi, paper_full_suite, or auto_ablation so parameter impact is measured automatically.",
     "dataset_limit": "How many prepared datasets to benchmark in this run. Use 0 to process every available dataset. Lower values are useful for smoke tests and fast iteration.",
     "batch_size": "How many selected datasets to process in this notebook run. Use 0 to process every selected dataset. When resume is enabled, this becomes the size of each resumable batch.",
-    "resume_from_existing": "Continue from successful rows already saved in results/tables/benchmark_results.csv. The notebook skips completed dataset/configuration pairs, retries failed or incomplete ones, and appends the new rows to the same benchmark tables. Keep the benchmark settings unchanged between batches.",
+    "resume_from_existing": "Continue from successful rows already saved for the current run name. The notebook skips completed dataset/configuration pairs, retries failed or incomplete ones, and appends the new rows to both the active results tables and the saved run-session checkpoint.",
     "normalization_method": "How raw dataset values are transformed before any algorithm runs. This controls the files created in datasets/normalized and changes the numeric scale each algorithm sees.",
     "clip_quantile": "Optional outlier clipping before normalization. Example: 0.01 clips the bottom 1% and top 1% of raw values. This can reduce extreme spikes, but it can also weaken anomaly contrast.",
     "overwrite_normalized": "Rebuild the normalized dataset files even if cached versions already exist. Turn this on after changing normalization settings when you want to force fresh prepared data.",
@@ -956,6 +964,10 @@ SHARED_PIPELINE_STEPS = [
 
 GENERAL_CONTROL_REFERENCE = [
     {
+        "label": "Run name",
+        "effect": "Binds the current setup to a saved session folder under results/run_sessions so you can reload the exact controls later and continue from the last successful checkpoint.",
+    },
+    {
         "label": "Argument mode",
         "effect": "Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi`, `paper_full_suite`, or `auto_ablation` at run time.",
     },
@@ -969,7 +981,7 @@ GENERAL_CONTROL_REFERENCE = [
     },
     {
         "label": "Resume from existing",
-        "effect": "Reuses successful benchmark rows already saved on disk, skips completed dataset/configuration pairs, and continues from the next incomplete work for the same benchmark setup.",
+        "effect": "Reuses successful benchmark rows already saved under the current run name, skips completed dataset/configuration pairs, and continues from the next incomplete work for the same benchmark setup.",
     },
     {
         "label": "Normalize",
@@ -1383,6 +1395,87 @@ def result_score_path(dataset_name: str, run_id: str) -> Path:
     return RESULT_SCORES_DIR / f"{dataset_name}__{run_id}.csv"
 
 
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def saved_run_session_id(run_name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(run_name).strip().lower()).strip("-")
+    return slug or "run"
+
+
+def saved_run_session_dir(session_id: str) -> Path:
+    return RESULT_RUN_SESSION_DIR / session_id
+
+
+def saved_run_session_tables_dir(session_id: str) -> Path:
+    return saved_run_session_dir(session_id) / "tables"
+
+
+def saved_run_session_manifest_path(session_id: str) -> Path:
+    return saved_run_session_dir(session_id) / RUN_SESSION_MANIFEST_FILENAME
+
+
+def saved_run_session_control_state_path(session_id: str) -> Path:
+    return saved_run_session_dir(session_id) / RUN_SESSION_CONTROL_STATE_FILENAME
+
+
+def saved_run_session_table_path(session_id: str, filename: str) -> Path:
+    return saved_run_session_tables_dir(session_id) / filename
+
+
+def _session_supports_global_fallback(session_id: str | None) -> bool:
+    return session_id in (None, saved_run_session_id(DEFAULT_RUN_NAME))
+
+
+def _read_json_if_exists(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating,)):
+        numeric_value = float(value)
+        return None if not math.isfinite(numeric_value) else numeric_value
+    if isinstance(value, (np.bool_,)):
+        return bool(value)
+    return value
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_json_safe(payload), indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _read_resume_table_if_exists(filename: str, session_id: str | None = None) -> pd.DataFrame | None:
+    if session_id:
+        session_frame = _read_table_if_exists(saved_run_session_table_path(session_id, filename))
+        if session_frame is not None:
+            return session_frame
+    if _session_supports_global_fallback(session_id):
+        return _read_table_if_exists(result_table_path(filename))
+    return None
+
+
+def _write_table_artifact(frame: pd.DataFrame, filename: str, session_id: str | None = None) -> None:
+    frame.to_csv(result_table_path(filename), index=False)
+    if session_id:
+        session_path = saved_run_session_table_path(session_id, filename)
+        session_path.parent.mkdir(parents=True, exist_ok=True)
+        frame.to_csv(session_path, index=False)
+
+
 def build_selected_run_parameter_frame(config: dict[str, Any]) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     dataset_limit = "all" if config["dataset_limit"] is None else config["dataset_limit"]
@@ -1431,6 +1524,7 @@ def build_results_layout_frame() -> pd.DataFrame:
         ("figures/deep_dives", RESULT_DEEP_DIVE_DIR),
         ("figures/thesis", RESULT_THESIS_FIGURES_DIR),
         ("scores", RESULT_SCORES_DIR),
+        ("run_sessions", RESULT_RUN_SESSION_DIR),
         ("tables/thesis_figure_catalog.csv", THESIS_FIGURE_CATALOG_PATH),
         ("tables/thesis_figure_captions.md", THESIS_FIGURE_CAPTIONS_PATH),
     ]
@@ -1450,6 +1544,41 @@ RESULT_RUN_KEY_COLUMNS = [
     "window_size",
     "window_stride",
     "prepared_dataset_dir",
+]
+
+PERSISTED_GENERAL_CONTROL_KEYS = [
+    "run_name",
+    "dataset_limit",
+    "batch_size",
+    "resume_from_existing",
+    "variant_mode",
+    "normalization_method",
+    "clip_quantile",
+    "overwrite_normalized",
+    "window_size",
+    "window_stride",
+    "threshold_method",
+    "evaluation_mode",
+    "save_scores",
+    "run_iforest",
+    "run_lof",
+    "run_sand",
+    "run_matrix_profile",
+    "run_damp",
+    "run_hbos",
+    "run_ocsvm",
+    "run_pca",
+]
+
+ALGORITHM_CONTROL_KEYS = [
+    "run_iforest",
+    "run_lof",
+    "run_sand",
+    "run_matrix_profile",
+    "run_damp",
+    "run_hbos",
+    "run_ocsvm",
+    "run_pca",
 ]
 
 
@@ -1493,13 +1622,18 @@ def _normalize_comparison_frame(frame: pd.DataFrame, columns: list[str]) -> pd.D
     return normalized
 
 
-def _validate_resume_compatibility(current_selected_run_parameters: pd.DataFrame) -> None:
-    existing_results = _read_table_if_exists(result_table_path("benchmark_results.csv"))
+def _validate_resume_compatibility(
+    current_selected_run_parameters: pd.DataFrame,
+    *,
+    session_id: str | None = None,
+) -> None:
+    existing_results = _read_resume_table_if_exists("benchmark_results.csv", session_id)
     if existing_results is None or existing_results.empty:
         return
 
-    existing_selected_run_parameters = _read_table_if_exists(
-        result_table_path("selected_run_parameters.csv")
+    existing_selected_run_parameters = _read_resume_table_if_exists(
+        "selected_run_parameters.csv",
+        session_id,
     )
     if existing_selected_run_parameters is None:
         raise ValueError(
@@ -1568,23 +1702,57 @@ def _result_run_key(
     )
 
 
-def _completed_dataset_names(results_frame: pd.DataFrame, selected_runs: list[dict[str, Any]]) -> set[str]:
-    if results_frame.empty or not selected_runs:
+def _dataset_completion_run_keys(
+    prepared_dataset_path: Path,
+    prepared_dataset_dir: Path,
+    config: dict[str, Any],
+    selected_runs: list[dict[str, Any]],
+) -> set[str]:
+    dataset = load_prepared_dataset(prepared_dataset_path)
+    values = dataset["values"]
+    window_size = config["window_size"] if config["window_size"] is not None else estimate_window_size(values)
+    window_stride = max(1, int(config["window_stride"]))
+    prepared_dataset_dir_value = portable_path_str(prepared_dataset_dir)
+    return {
+        _result_run_key(
+            dataset_name=dataset["dataset_name"],
+            algorithm_run_id=run_config["algorithm_run_id"],
+            normalization_method=config["normalization_method"],
+            threshold_method=str(config["threshold_method"]),
+            threshold_value=float(config["threshold_value"]),
+            evaluation_mode=str(config["evaluation_mode"]),
+            window_size=window_size,
+            window_stride=window_stride,
+            prepared_dataset_dir=prepared_dataset_dir_value,
+        )
+        for run_config in selected_runs
+    }
+
+
+def _completed_dataset_names(
+    results_frame: pd.DataFrame,
+    selected_runs: list[dict[str, Any]],
+    prepared_dataset_dir: Path,
+    selected_dataset_paths: list[Path],
+    config: dict[str, Any],
+) -> set[str]:
+    if results_frame.empty or not selected_runs or not selected_dataset_paths:
         return set()
-    expected_run_ids = {run_config["algorithm_run_id"] for run_config in selected_runs}
     successful = _successful_results_frame(results_frame)
     if successful.empty:
         return set()
-    completion_counts = (
-        successful.loc[successful["algorithm_run_id"].isin(expected_run_ids)]
-        .groupby("dataset_name")["algorithm_run_id"]
-        .nunique()
-    )
-    return {
-        dataset_name
-        for dataset_name, run_count in completion_counts.items()
-        if int(run_count) >= len(expected_run_ids)
-    }
+    completed_run_keys = set(_result_run_key_series(successful))
+    completed_datasets: set[str] = set()
+    for prepared_dataset_path in selected_dataset_paths:
+        expected_run_keys = _dataset_completion_run_keys(
+            prepared_dataset_path,
+            prepared_dataset_dir,
+            config,
+            selected_runs,
+        )
+        if expected_run_keys and expected_run_keys.issubset(completed_run_keys):
+            completed_datasets.add(prepared_dataset_path.stem)
+    return completed_datasets
 
 
 def _merge_benchmark_results(existing_results: pd.DataFrame, new_results: pd.DataFrame) -> pd.DataFrame:
@@ -1612,8 +1780,8 @@ def _merge_benchmark_results(existing_results: pd.DataFrame, new_results: pd.Dat
     return merged
 
 
-def _write_benchmark_checkpoint(results_frame: pd.DataFrame) -> None:
-    results_frame.to_csv(result_table_path("benchmark_results.csv"), index=False)
+def _write_benchmark_checkpoint(results_frame: pd.DataFrame, session_id: str | None = None) -> None:
+    _write_table_artifact(results_frame, "benchmark_results.csv", session_id)
 
 
 def _select_benchmark_dataset_paths(
@@ -2535,6 +2703,253 @@ def _apply_widget_values(widget_map: dict[str, widgets.Widget], values: dict[str
                 widget.value = value
 
 
+def snapshot_control_panel_state(controls: dict[str, Any]) -> dict[str, Any]:
+    general = {
+        key: controls[key].value
+        for key in PERSISTED_GENERAL_CONTROL_KEYS
+        if key in controls and hasattr(controls[key], "value")
+    }
+    if "threshold_value" in controls and hasattr(controls["threshold_value"], "value"):
+        general["threshold_value"] = controls["threshold_value"].value
+
+    variants: dict[str, list[dict[str, Any]]] = {}
+    if "algorithm_variants" in controls:
+        for algorithm_key in ALGORITHM_ORDER:
+            manager = controls["algorithm_variants"].get(algorithm_key)
+            if manager is None:
+                continue
+            variants[algorithm_key] = [
+                _snapshot_widget_values(entry["controls"])
+                for entry in manager["variants"]
+            ]
+
+    return {
+        "schema_version": 1,
+        "saved_at": utc_now_iso(),
+        "general": _json_safe(general),
+        "variants": _json_safe(variants),
+    }
+
+
+def apply_control_panel_state(controls: dict[str, Any], payload: dict[str, Any]) -> None:
+    general = dict(payload.get("general", {}))
+    variants = dict(payload.get("variants", {}))
+
+    threshold_method = general.pop("threshold_method", None)
+    threshold_value = general.pop("threshold_value", None)
+
+    for key in PERSISTED_GENERAL_CONTROL_KEYS:
+        if key in ("threshold_method",):
+            continue
+        if key in general and key in controls and hasattr(controls[key], "value"):
+            controls[key].value = general[key]
+
+    if threshold_method is not None and "threshold_method" in controls:
+        controls["threshold_method"].value = threshold_method
+    if threshold_value is not None and "threshold_value" in controls:
+        controls["threshold_value"].value = threshold_value
+
+    if "algorithm_variants" in controls:
+        for algorithm_key in ALGORITHM_ORDER:
+            manager = controls["algorithm_variants"].get(algorithm_key)
+            if manager is None:
+                continue
+            manager["replace_variants"](variants.get(algorithm_key) or [{}])
+
+
+def build_control_state_from_tables(
+    run_configuration_frame: pd.DataFrame | None,
+    selected_run_parameters_frame: pd.DataFrame | None,
+    *,
+    run_name: str,
+) -> dict[str, Any] | None:
+    if run_configuration_frame is None or run_configuration_frame.empty:
+        return None
+    if selected_run_parameters_frame is None or selected_run_parameters_frame.empty:
+        return None
+
+    run_row = run_configuration_frame.iloc[0]
+
+    def _value_from_frame(value: Any, fallback: Any = None) -> Any:
+        try:
+            if pd.isna(value):
+                return fallback
+        except TypeError:
+            pass
+        return value
+
+    def _bool_from_frame(value: Any, fallback: bool = False) -> bool:
+        normalized = _value_from_frame(value, fallback)
+        if isinstance(normalized, str):
+            return normalized.strip().lower() in {"1", "true", "yes", "y"}
+        return bool(normalized)
+
+    dataset_limit_value = _value_from_frame(run_row.get("dataset_limit"))
+    batch_size_value = _value_from_frame(run_row.get("batch_size"))
+    clip_quantile_value = _value_from_frame(run_row.get("clip_quantile"), 0.0)
+    window_size_value = _value_from_frame(run_row.get("window_size"), 0)
+    threshold_value = _value_from_frame(run_row.get("threshold_value"), 3.0)
+
+    general = {
+        "run_name": run_name,
+        "dataset_limit": 0 if dataset_limit_value in (None, "", "all") else int(float(dataset_limit_value)),
+        "batch_size": 0 if batch_size_value in (None, "", "all selected") else int(float(batch_size_value)),
+        "resume_from_existing": _bool_from_frame(run_row.get("resume_from_existing"), True),
+        "variant_mode": str(_value_from_frame(run_row.get("variant_mode"), "manual")),
+        "normalization_method": str(_value_from_frame(run_row.get("normalization_method"), "zscore")),
+        "clip_quantile": 0.0 if clip_quantile_value in (None, "") else float(clip_quantile_value),
+        "overwrite_normalized": False,
+        "window_size": 0 if window_size_value in (None, "") else int(float(window_size_value)),
+        "window_stride": int(float(_value_from_frame(run_row.get("window_stride"), 1))),
+        "threshold_method": str(_value_from_frame(run_row.get("threshold_method"), "sigma")),
+        "threshold_value": max(1, int(float(threshold_value))) if str(_value_from_frame(run_row.get("threshold_method"), "sigma")) == "top_k" else float(threshold_value),
+        "evaluation_mode": str(_value_from_frame(run_row.get("evaluation_mode"), "range")),
+        "save_scores": False,
+        **{key: False for key in ALGORITHM_CONTROL_KEYS},
+    }
+
+    variants: dict[str, list[dict[str, Any]]] = {algorithm_key: [] for algorithm_key in ALGORITHM_ORDER}
+    sorted_rows = selected_run_parameters_frame.sort_values(["algorithm", "variant_index"]).reset_index(drop=True)
+    for row in sorted_rows.to_dict(orient="records"):
+        algorithm_key = str(row.get("algorithm"))
+        if algorithm_key not in variants:
+            continue
+        try:
+            params = json.loads(str(row.get("params_json", "{}")))
+        except json.JSONDecodeError:
+            params = {}
+        variant_values = {"variant_name": row.get("algorithm_variant") or row.get("algorithm_display") or "Variant"}
+        variant_values.update(params)
+        variants[algorithm_key].append(variant_values)
+        enable_key = ALGORITHM_ENABLE_CONTROL.get(algorithm_key)
+        if enable_key:
+            general[enable_key] = True
+
+    return {
+        "schema_version": 1,
+        "saved_at": utc_now_iso(),
+        "general": _json_safe(general),
+        "variants": _json_safe(variants),
+    }
+
+
+def load_saved_run_session_payload(session_id: str) -> dict[str, Any] | None:
+    manifest = _read_json_if_exists(saved_run_session_manifest_path(session_id)) or {}
+    payload = _read_json_if_exists(saved_run_session_control_state_path(session_id))
+    if payload is not None:
+        return payload
+
+    session_run_configuration = _read_table_if_exists(saved_run_session_table_path(session_id, "run_configuration.csv"))
+    session_selected_runs = _read_table_if_exists(saved_run_session_table_path(session_id, "selected_run_parameters.csv"))
+    payload = build_control_state_from_tables(
+        session_run_configuration,
+        session_selected_runs,
+        run_name=str(manifest.get("run_name") or session_id),
+    )
+    if payload is not None:
+        return payload
+
+    if not _session_supports_global_fallback(session_id):
+        return None
+
+    run_configuration_frame = _read_table_if_exists(result_table_path("run_configuration.csv"))
+    selected_run_parameters_frame = _read_table_if_exists(result_table_path("selected_run_parameters.csv"))
+    return build_control_state_from_tables(
+        run_configuration_frame,
+        selected_run_parameters_frame,
+        run_name=DEFAULT_RUN_NAME,
+    )
+
+
+def load_saved_run_session_into_controls(controls: dict[str, Any], session_id: str) -> dict[str, Any]:
+    payload = load_saved_run_session_payload(session_id)
+    if payload is None:
+        raise FileNotFoundError(f"No saved run session found for '{session_id}'.")
+    apply_control_panel_state(controls, payload)
+    return payload
+
+
+def _write_saved_run_control_state(session_id: str, control_state: dict[str, Any]) -> None:
+    _write_json(saved_run_session_control_state_path(session_id), control_state)
+
+
+def _build_run_manifest_base(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "session_id": config["session_id"],
+        "run_name": config["run_name"],
+        "variant_mode": config["variant_mode"],
+        "normalization_method": config["normalization_method"],
+        "clip_quantile": config["clip_quantile"],
+        "window_size": config["window_size"],
+        "window_stride": config["window_stride"],
+        "threshold_method": config["threshold_method"],
+        "threshold_value": config["threshold_value"],
+        "evaluation_mode": config["evaluation_mode"],
+        "batch_size": "all selected" if config["batch_size"] is None else config["batch_size"],
+        "dataset_limit": "all" if config["dataset_limit"] is None else config["dataset_limit"],
+        "selected_algorithms": list(config["selected_algorithms"]),
+        "selected_algorithm_labels": [DISPLAY_NAME_MAP[key] for key in config["selected_algorithms"]],
+        "selected_run_count": len(config["selected_runs"]),
+        "tables_dir": portable_path_str(saved_run_session_tables_dir(config["session_id"])),
+        "control_state_path": portable_path_str(saved_run_session_control_state_path(config["session_id"])),
+    }
+
+
+def update_saved_run_manifest(config: dict[str, Any], **updates: Any) -> dict[str, Any]:
+    session_id = config["session_id"]
+    manifest_path = saved_run_session_manifest_path(session_id)
+    existing_manifest = _read_json_if_exists(manifest_path) or {}
+    timestamp = utc_now_iso()
+    manifest = {
+        **existing_manifest,
+        **_build_run_manifest_base(config),
+        **_json_safe(updates),
+        "updated_at": timestamp,
+    }
+    manifest.setdefault("created_at", existing_manifest.get("created_at", timestamp))
+    _write_json(manifest_path, manifest)
+    return manifest
+
+
+def list_saved_run_sessions() -> list[dict[str, Any]]:
+    ensure_results_layout()
+    manifests: list[dict[str, Any]] = []
+    for manifest_path in RESULT_RUN_SESSION_DIR.glob(f"*/{RUN_SESSION_MANIFEST_FILENAME}"):
+        manifest = _read_json_if_exists(manifest_path)
+        if manifest is not None:
+            manifests.append(manifest)
+
+    default_session = saved_run_session_id(DEFAULT_RUN_NAME)
+    has_default_manifest = any(manifest.get("session_id") == default_session for manifest in manifests)
+    if not has_default_manifest:
+        legacy_files = [
+            result_table_path("run_configuration.csv"),
+            result_table_path("selected_run_parameters.csv"),
+            result_table_path("benchmark_results.csv"),
+        ]
+        existing_legacy_files = [path for path in legacy_files if path.exists()]
+        if existing_legacy_files:
+            latest_path = max(existing_legacy_files, key=lambda path: path.stat().st_mtime)
+            manifests.append(
+                {
+                    "schema_version": 1,
+                    "session_id": default_session,
+                    "run_name": DEFAULT_RUN_NAME,
+                    "status": "legacy_global",
+                    "updated_at": datetime.fromtimestamp(latest_path.stat().st_mtime, tz=timezone.utc).isoformat(timespec="seconds"),
+                    "tables_dir": portable_path_str(RESULT_TABLES_DIR),
+                    "control_state_path": portable_path_str(result_table_path("selected_run_parameters.csv")),
+                }
+            )
+
+    manifests.sort(
+        key=lambda manifest: str(manifest.get("updated_at", "")),
+        reverse=True,
+    )
+    return manifests
+
+
 def _make_if_variant(
     default_name: str,
     initial_values: dict[str, Any] | None,
@@ -3050,6 +3465,33 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     algorithm_variants: dict[str, Any] = {}
     threshold_defaults = {"sigma": 3.0, "quantile": 0.995, "top_k": 1}
     threshold_value_slot = widgets.VBox()
+    saved_run_status = widgets.HTML()
+    saved_run_selector = widgets.Dropdown(
+        options=[("No saved runs yet", "")],
+        value="",
+        description="Saved run",
+        layout=widgets.Layout(width="520px"),
+    )
+    refresh_saved_runs_button = widgets.Button(
+        description="Refresh saved runs",
+        tooltip="Reload the saved-run list from results/run_sessions.",
+        layout=widgets.Layout(width="160px"),
+    )
+    save_run_button = widgets.Button(
+        description="Save current run",
+        tooltip="Write the current control-panel state to this run name.",
+        layout=widgets.Layout(width="150px"),
+    )
+    load_run_button = widgets.Button(
+        description="Load selected run",
+        tooltip="Restore the selected saved run into the control panel.",
+        layout=widgets.Layout(width="150px"),
+    )
+    load_latest_button = widgets.Button(
+        description="Load latest resume",
+        tooltip="Restore the most recently updated saved run, preferring incomplete sessions.",
+        layout=widgets.Layout(width="150px"),
+    )
 
     def render_preview(*_args: Any) -> None:
         if "algorithm_variants" not in controls or "variant_mode" not in controls:
@@ -3074,6 +3516,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         preview_frame = pd.DataFrame(
             [
                 {
+                    "run_name": controls["run_name"].value.strip() or DEFAULT_RUN_NAME,
                     "argument_mode": VARIANT_MODE_LABELS.get(effective["variant_mode"], effective["variant_mode"]),
                     "dataset scope": "all available" if controls["dataset_limit"].value <= 0 else controls["dataset_limit"].value,
                     "batch_size": "all selected" if controls["batch_size"].value <= 0 else controls["batch_size"].value,
@@ -3100,6 +3543,117 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     def register_widget(widget: widgets.Widget) -> None:
         if hasattr(widget, "observe"):
             widget.observe(render_preview, names="value")
+
+    def saved_run_option_label(manifest: dict[str, Any]) -> str:
+        run_name = str(manifest.get("run_name") or manifest.get("session_id") or "saved_run")
+        status = str(manifest.get("status") or "saved")
+        pending = manifest.get("pending_dataset_count")
+        selected_count = manifest.get("selected_dataset_count")
+        updated_at = str(manifest.get("updated_at") or "")[:19].replace("T", " ")
+        pending_text = ""
+        if pending is not None:
+            pending_text = f" | pending {pending}"
+            if selected_count is not None:
+                pending_text += f"/{selected_count}"
+        return f"{run_name} | {status}{pending_text} | {updated_at}".strip(" |")
+
+    def render_saved_run_summary(selected_session_id: str | None = None) -> None:
+        manifests = list_saved_run_sessions()
+        if not manifests:
+            saved_run_status.value = (
+                "<div style='line-height:1.45;'><b>Saved runs</b>: none yet. "
+                "Use <b>Run name</b> plus <b>Save current run</b> to persist a resumable benchmark setup.</div>"
+            )
+            return
+
+        chosen_manifest = next(
+            (manifest for manifest in manifests if manifest.get("session_id") == selected_session_id),
+            manifests[0],
+        )
+        selected_algorithms = ", ".join(chosen_manifest.get("selected_algorithm_labels", [])) or ", ".join(
+            chosen_manifest.get("selected_algorithms", [])
+        )
+        pending_count = chosen_manifest.get("pending_dataset_count")
+        completed_count = chosen_manifest.get("completed_dataset_count")
+        error_count = chosen_manifest.get("error_count")
+        saved_run_status.value = (
+            "<div style='line-height:1.45; white-space:normal;'>"
+            f"<b>Saved run</b>: {html.escape(str(chosen_manifest.get('run_name') or chosen_manifest.get('session_id')))}"
+            f" | <b>Status</b>: {html.escape(str(chosen_manifest.get('status', 'saved')))}"
+            f" | <b>Updated</b>: {html.escape(str(chosen_manifest.get('updated_at', '')))}<br>"
+            f"<b>Algorithms</b>: {html.escape(selected_algorithms or 'not recorded')}<br>"
+            f"<b>Completed datasets</b>: {html.escape(str(completed_count if completed_count is not None else 'n/a'))}"
+            f" | <b>Pending</b>: {html.escape(str(pending_count if pending_count is not None else 'n/a'))}"
+            f" | <b>Errors</b>: {html.escape(str(error_count if error_count is not None else 0))}"
+            "</div>"
+        )
+
+    def refresh_saved_run_options(*_args: Any) -> None:
+        manifests = list_saved_run_sessions()
+        options = [(saved_run_option_label(manifest), str(manifest["session_id"])) for manifest in manifests]
+        if not options:
+            options = [("No saved runs yet", "")]
+        current_value = saved_run_selector.value
+        current_run_id = saved_run_session_id(controls["run_name"].value.strip() or DEFAULT_RUN_NAME)
+        saved_run_selector.options = options
+        available_ids = {value for _label, value in options}
+        if current_value in available_ids:
+            saved_run_selector.value = current_value
+        elif current_run_id in available_ids:
+            saved_run_selector.value = current_run_id
+        else:
+            saved_run_selector.value = options[0][1]
+        render_saved_run_summary(saved_run_selector.value)
+
+    def save_current_run(_button: widgets.Button) -> None:
+        try:
+            config = get_run_config(controls)
+            _validate_resume_compatibility(
+                build_selected_run_parameter_frame(config),
+                session_id=config["session_id"],
+            )
+            _write_saved_run_control_state(config["session_id"], config["control_state"])
+            update_saved_run_manifest(config, status="saved")
+            refresh_saved_run_options()
+            saved_run_selector.value = config["session_id"]
+            render_saved_run_summary(config["session_id"])
+        except Exception as error:
+            saved_run_status.value = (
+                "<div style='line-height:1.45; color:#991b1b;'><b>Save failed</b>: "
+                f"{html.escape(str(error))}</div>"
+            )
+
+    def load_selected_run(_button: widgets.Button) -> None:
+        session_id = str(saved_run_selector.value or "").strip()
+        if not session_id:
+            render_saved_run_summary()
+            return
+        try:
+            load_saved_run_session_into_controls(controls, session_id)
+            refresh_saved_run_options()
+            saved_run_selector.value = session_id
+            render_saved_run_summary(session_id)
+        except Exception as error:
+            saved_run_status.value = (
+                "<div style='line-height:1.45; color:#991b1b;'><b>Load failed</b>: "
+                f"{html.escape(str(error))}</div>"
+            )
+
+    def load_latest_run(_button: widgets.Button) -> None:
+        manifests = list_saved_run_sessions()
+        if not manifests:
+            render_saved_run_summary()
+            return
+        preferred = next(
+            (
+                manifest
+                for manifest in manifests
+                if str(manifest.get("status", "")) not in {"complete", "complete_with_errors", "saved"}
+            ),
+            manifests[0],
+        )
+        saved_run_selector.value = str(preferred["session_id"])
+        load_selected_run(_button)
 
     def build_threshold_value_widget(method: str, value: float | int | None = None) -> widgets.Widget:
         if method == "top_k":
@@ -3130,6 +3684,11 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
     controls["dataset_limit"] = widgets.IntText(
         value=0, description="Dataset limit", layout=widgets.Layout(width="220px"))
+    controls["run_name"] = widgets.Text(
+        value=DEFAULT_RUN_NAME,
+        description="Run name",
+        layout=widgets.Layout(width="280px"),
+    )
     controls["batch_size"] = widgets.IntText(
         value=0, description="Batch size", layout=widgets.Layout(width="220px"))
     controls["resume_from_existing"] = widgets.Checkbox(
@@ -3184,8 +3743,10 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     controls["run_hbos"] = widgets.Checkbox(value=True, description="HBOS")
     controls["run_ocsvm"] = widgets.Checkbox(value=False, description="OCSVM")
     controls["run_pca"] = widgets.Checkbox(value=False, description="PCA")
+    controls["saved_run_selector"] = saved_run_selector
 
     for key in [
+        "run_name",
         "dataset_limit",
         "batch_size",
         "resume_from_existing",
@@ -3211,6 +3772,12 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
 
     controls["threshold_method"].observe(
         refresh_threshold_value_control, names="value")
+    saved_run_selector.observe(
+        lambda change: render_saved_run_summary(change["new"]), names="value")
+    refresh_saved_runs_button.on_click(refresh_saved_run_options)
+    save_run_button.on_click(save_current_run)
+    load_run_button.on_click(load_selected_run)
+    load_latest_button.on_click(load_latest_run)
 
     algorithm_variants["isolation_forest"] = _build_variant_manager(
         "isolation_forest", _make_if_variant, register_widget, render_preview)
@@ -3233,6 +3800,21 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     general_box = _control_block(
         "General Controls",
         [
+            _control_row(
+                [
+                    _with_tooltip(controls["run_name"], "run_name"),
+                    _with_tooltip(saved_run_selector, "saved_run_selector"),
+                ]
+            ),
+            _control_row(
+                [
+                    refresh_saved_runs_button,
+                    load_run_button,
+                    load_latest_button,
+                    save_run_button,
+                ]
+            ),
+            _control_row([saved_run_status]),
             _control_row(
                 [
                     _with_tooltip(controls["dataset_limit"], "dataset_limit"),
@@ -3282,6 +3864,8 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
             _explanation_block(
                 "Show general control explanations",
                 [
+                    "run_name",
+                    "saved_run_selector",
                     "variant_mode",
                     "dataset_limit",
                     "batch_size",
@@ -3311,6 +3895,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     )
 
     refresh_threshold_value_control()
+    refresh_saved_run_options()
     render_preview()
 
     algorithm_tabs = widgets.Tab(
@@ -3409,6 +3994,7 @@ def apply_paper_experiment_preset(controls: dict[str, Any], preset_name: str = "
 
 
 def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
+    run_name = str(controls["run_name"].value).strip() or DEFAULT_RUN_NAME
     clip_value = None if controls["clip_quantile"].value <= 0 else float(
         controls["clip_quantile"].value)
     window_size = None if controls["window_size"].value <= 0 else int(
@@ -3427,6 +4013,8 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
     effective_variants = _resolve_effective_variants_from_controls(controls)
 
     return {
+        "run_name": run_name,
+        "session_id": saved_run_session_id(run_name),
         "dataset_limit": dataset_limit,
         "batch_size": batch_size,
         "resume_from_existing": bool(controls["resume_from_existing"].value),
@@ -3447,6 +4035,7 @@ def get_run_config(controls: dict[str, Any]) -> dict[str, Any]:
         "algorithm_variants": effective_variants["algorithm_variants"],
         "auto_preset_name": effective_variants["auto_preset_name"],
         "auto_filtered_out": effective_variants["auto_filtered_out"],
+        "control_state": snapshot_control_panel_state(controls),
     }
 
 
@@ -6216,16 +6805,36 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         else prepared_dataset_paths
     )
     selected_run_parameters = build_selected_run_parameter_frame(config)
+    session_results = _read_resume_table_if_exists(
+        "benchmark_results.csv",
+        config["session_id"],
+    )
+    if session_results is not None and not session_results.empty:
+        _validate_resume_compatibility(
+            selected_run_parameters,
+            session_id=config["session_id"],
+        )
+    _write_saved_run_control_state(config["session_id"], config["control_state"])
 
     existing_results = pd.DataFrame()
     completed_dataset_names: set[str] = set()
     if config["resume_from_existing"]:
-        _validate_resume_compatibility(selected_run_parameters)
-        existing_results = _read_table_if_exists(result_table_path("benchmark_results.csv"))
+        _validate_resume_compatibility(
+            selected_run_parameters,
+            session_id=config["session_id"],
+        )
+        existing_results = _read_resume_table_if_exists(
+            "benchmark_results.csv",
+            config["session_id"],
+        )
         if existing_results is None:
             existing_results = pd.DataFrame()
         completed_dataset_names = _completed_dataset_names(
-            existing_results, config["selected_runs"]
+            existing_results,
+            config["selected_runs"],
+            prepared_dataset_dir,
+            selected_dataset_paths,
+            config,
         )
 
     pending_dataset_paths = [
@@ -6247,6 +6856,8 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "resume_from_existing": config["resume_from_existing"],
                 "variant_mode": config["variant_mode"],
                 "auto_preset_name": config["auto_preset_name"],
+                "run_name": config["run_name"],
+                "session_id": config["session_id"],
                 "normalization_method": config["normalization_method"],
                 "clip_quantile": config["clip_quantile"],
                 "window_size": config["window_size"],
@@ -6291,6 +6902,8 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
                 "next_batch_last_dataset": current_batch_names[-1] if current_batch_names else None,
                 "variant_mode": config["variant_mode"],
                 "auto_preset_name": config["auto_preset_name"],
+                "run_name": config["run_name"],
+                "session_id": config["session_id"],
                 "normalization_method": config["normalization_method"],
                 "clip_quantile": config["clip_quantile"],
                 "window_size": config["window_size"],
@@ -6305,12 +6918,33 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         ]
     )
 
-    run_config_frame.to_csv(result_table_path(
-        "run_configuration.csv"), index=False)
-    selected_run_parameters.to_csv(result_table_path(
-        "selected_run_parameters.csv"), index=False)
-    preparation_summary.to_csv(result_table_path(
-        "dataset_preparation_summary.csv"), index=False)
+    _write_table_artifact(
+        run_config_frame,
+        "run_configuration.csv",
+        config["session_id"],
+    )
+    _write_table_artifact(
+        selected_run_parameters,
+        "selected_run_parameters.csv",
+        config["session_id"],
+    )
+    _write_table_artifact(
+        preparation_summary,
+        "dataset_preparation_summary.csv",
+        config["session_id"],
+    )
+    update_saved_run_manifest(
+        config,
+        status="resume_ready" if completed_dataset_names else "prepared",
+        selected_dataset_count=len(selected_dataset_paths),
+        completed_dataset_count=len(completed_dataset_names),
+        pending_dataset_count=len(pending_dataset_paths),
+        planned_batch_count=len(benchmark_dataset_paths),
+        current_batch_count=len(benchmark_dataset_paths),
+        next_batch_first_dataset=current_batch_names[0] if current_batch_names else None,
+        next_batch_last_dataset=current_batch_names[-1] if current_batch_names else None,
+        existing_result_row_count=len(existing_results),
+    )
 
     return {
         "raw_dataset_paths": raw_dataset_paths,
@@ -6323,6 +6957,7 @@ def prepare_run_context(config: dict[str, Any]) -> dict[str, Any]:
         "preparation_summary": preparation_summary,
         "notes_info": notes_info,
         "completed_dataset_names": sorted(completed_dataset_names),
+        "pending_dataset_names": [path.stem for path in pending_dataset_paths],
     }
 
 
@@ -6347,14 +6982,28 @@ def run_benchmark(
     prepared_dataset_dir_value = portable_path_str(prepared_dataset_dir)
 
     if config.get("resume_from_existing"):
-        _validate_resume_compatibility(build_selected_run_parameter_frame(config))
-        existing_results = _read_table_if_exists(result_table_path("benchmark_results.csv"))
+        _validate_resume_compatibility(
+            build_selected_run_parameter_frame(config),
+            session_id=config["session_id"],
+        )
+        existing_results = _read_resume_table_if_exists(
+            "benchmark_results.csv",
+            config["session_id"],
+        )
         if existing_results is None:
             existing_results = pd.DataFrame()
         successful_existing_results = _successful_results_frame(existing_results)
         if not successful_existing_results.empty:
             completed_run_keys = set(_result_run_key_series(successful_existing_results))
     checkpoint_results = existing_results.copy()
+    update_saved_run_manifest(
+        config,
+        status="running",
+        batch_dataset_count=total_dataset_count,
+        executed_run_count=executed_runs,
+        skipped_existing_run_count=skipped_existing_runs,
+        existing_result_row_count=len(existing_results),
+    )
 
     progress_bar = None
     progress_summary = None
@@ -6572,7 +7221,33 @@ def run_benchmark(
                 checkpoint_results,
                 pd.DataFrame.from_records([records[-1]]),
             )
-            _write_benchmark_checkpoint(checkpoint_results)
+            _write_benchmark_checkpoint(checkpoint_results, config["session_id"])
+            completed_dataset_count = (
+                checkpoint_results.loc[checkpoint_results["error"].fillna("").astype(str) == "", "dataset_name"].nunique()
+                if not checkpoint_results.empty and "dataset_name" in checkpoint_results.columns
+                else 0
+            )
+            selected_dataset_count = int(
+                (_read_json_if_exists(saved_run_session_manifest_path(config["session_id"])) or {}).get(
+                    "selected_dataset_count",
+                    total_dataset_count,
+                )
+                or total_dataset_count
+            )
+            update_saved_run_manifest(
+                config,
+                status="running",
+                batch_dataset_count=total_dataset_count,
+                executed_run_count=executed_runs + 1,
+                skipped_existing_run_count=skipped_existing_runs,
+                selected_dataset_count=selected_dataset_count,
+                completed_dataset_count=completed_dataset_count,
+                pending_dataset_count=max(selected_dataset_count - completed_dataset_count, 0),
+                last_dataset_name=dataset["dataset_name"],
+                last_algorithm_display=run_config["algorithm_display"],
+                error_count=int(checkpoint_results["error"].fillna("").astype(str).ne("").sum()) if "error" in checkpoint_results.columns else 0,
+                result_row_count=len(checkpoint_results),
+            )
             completed_runs += 1
             executed_runs += 1
 
@@ -6624,25 +7299,25 @@ def run_benchmark(
     best_by_auc = build_best_algorithm_table(results, "roc_auc")
     errors = results.loc[results["error"] != ""].copy()
 
-    _write_benchmark_checkpoint(results)
-    dataset_catalog.to_csv(result_table_path(
-        "dataset_catalog.csv"), index=False)
-    algorithm_summary.to_csv(result_table_path(
-        "algorithm_summary.csv"), index=False)
-    family_summary.to_csv(result_table_path("family_summary.csv"), index=False)
-    overall_regime_summary.to_csv(result_table_path(
-        "overall_regime_summary.csv"), index=False)
-    best_by_evaluation.to_csv(result_table_path(
-        "best_algorithm_by_dataset_evaluation.csv"), index=False)
-    best_by_f1.to_csv(result_table_path(
-        "best_algorithm_by_dataset_f1.csv"), index=False)
-    best_by_auc.to_csv(result_table_path(
-        "best_algorithm_by_dataset_auc.csv"), index=False)
-    errors.to_csv(result_table_path("error_report.csv"), index=False)
+    _write_benchmark_checkpoint(results, config["session_id"])
+    _write_table_artifact(dataset_catalog, "dataset_catalog.csv", config["session_id"])
+    _write_table_artifact(algorithm_summary, "algorithm_summary.csv", config["session_id"])
+    _write_table_artifact(family_summary, "family_summary.csv", config["session_id"])
+    _write_table_artifact(overall_regime_summary, "overall_regime_summary.csv", config["session_id"])
+    _write_table_artifact(best_by_evaluation, "best_algorithm_by_dataset_evaluation.csv", config["session_id"])
+    _write_table_artifact(best_by_f1, "best_algorithm_by_dataset_f1.csv", config["session_id"])
+    _write_table_artifact(best_by_auc, "best_algorithm_by_dataset_auc.csv", config["session_id"])
+    _write_table_artifact(errors, "error_report.csv", config["session_id"])
 
     for algorithm_key in config["selected_algorithms"]:
-        results.loc[results["algorithm"] == algorithm_key].to_csv(
-            result_per_algorithm_table_path(algorithm_key), index=False)
+        algorithm_results = results.loc[results["algorithm"] == algorithm_key]
+        algorithm_results.to_csv(result_per_algorithm_table_path(algorithm_key), index=False)
+        session_algorithm_table = saved_run_session_table_path(
+            config["session_id"],
+            f"per_algorithm/{algorithm_key}_results.csv",
+        )
+        session_algorithm_table.parent.mkdir(parents=True, exist_ok=True)
+        algorithm_results.to_csv(session_algorithm_table, index=False)
 
     overview = pd.DataFrame(
         [
@@ -6652,6 +7327,8 @@ def run_benchmark(
                 "configuration_count": len(selected_runs),
                 "run_count": len(results),
                 "batch_dataset_count": total_dataset_count,
+                "run_name": config["run_name"],
+                "session_id": config["session_id"],
                 "executed_run_count": executed_runs,
                 "skipped_existing_run_count": skipped_existing_runs,
                 "resume_from_existing": bool(config.get("resume_from_existing")),
@@ -6686,6 +7363,20 @@ def run_benchmark(
             f"{len(errors)} runs with errors"
             "</div>"
         )
+
+    update_saved_run_manifest(
+        config,
+        status="complete_with_errors" if not errors.empty else "complete",
+        batch_dataset_count=total_dataset_count,
+        selected_dataset_count=dataset_catalog["dataset_name"].nunique(),
+        completed_dataset_count=dataset_catalog["dataset_name"].nunique(),
+        pending_dataset_count=0,
+        executed_run_count=executed_runs,
+        skipped_existing_run_count=skipped_existing_runs,
+        result_row_count=len(results),
+        error_count=len(errors),
+        current_batch_count=total_dataset_count,
+    )
 
     return {
         "results": results,

@@ -81,10 +81,12 @@ def build_notebook() -> dict:
             ## Control Reference
 
             **General**
+            - `Run name`: stable saved-session label used for config snapshots and resumable benchmark checkpoints under `results/run_sessions/`.
+            - `Saved run`: picker for restoring a previously saved session into the control panel.
             - `Argument mode`: `manual` uses the current subtabs, while the auto modes expand enabled algorithms into preset parameter combinations.
             - `Dataset limit`: how many prepared datasets to benchmark. `0` means all datasets.
             - `Batch size`: how many of the selected datasets to process in the current run. `0` means the whole selected scope.
-            - `Resume from existing results`: continue from successful rows already saved in `results/tables/benchmark_results.csv` and automatically take the next incomplete batch.
+            - `Resume from existing results`: continue from successful rows already saved for the current `Run name` and automatically take the next incomplete batch.
             - `Normalize`: preprocessing applied before any algorithm runs.
             - `Clip q`: optional quantile clipping before normalization.
             - `Window size`: base temporal context length for subsequence-aware processing. `0` keeps automatic estimation.
