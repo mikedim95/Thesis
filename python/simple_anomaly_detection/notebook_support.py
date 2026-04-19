@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 import time
+import types
 import warnings
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -1424,6 +1425,58 @@ def saved_run_session_table_path(session_id: str, filename: str) -> Path:
     return saved_run_session_tables_dir(session_id) / filename
 
 
+def saved_run_session_figures_dir(session_id: str) -> Path:
+    return saved_run_session_dir(session_id) / "figures"
+
+
+def saved_run_session_figure_path(session_id: str, filename: str) -> Path:
+    return saved_run_session_figures_dir(session_id) / filename
+
+
+def saved_run_session_algorithm_panel_dir(session_id: str) -> Path:
+    return saved_run_session_figures_dir(session_id) / "algorithm_panels"
+
+
+def saved_run_session_algorithm_panel_path(session_id: str, algorithm_key: str) -> Path:
+    return saved_run_session_algorithm_panel_dir(session_id) / f"{algorithm_key}_benchmark_panel.png"
+
+
+def saved_run_session_algorithm_paper_panel_path(session_id: str, algorithm_key: str) -> Path:
+    return saved_run_session_algorithm_panel_dir(session_id) / f"{algorithm_key}_paper_panel.png"
+
+
+def saved_run_session_algorithm_variant_comparison_path(session_id: str, algorithm_key: str) -> Path:
+    return saved_run_session_algorithm_panel_dir(session_id) / f"{algorithm_key}_variant_comparison.png"
+
+
+def saved_run_session_algorithm_ablation_panel_path(session_id: str, algorithm_key: str) -> Path:
+    return saved_run_session_algorithm_panel_dir(session_id) / f"{algorithm_key}_ablation_panel.png"
+
+
+def saved_run_session_deep_dive_dir(session_id: str) -> Path:
+    return saved_run_session_figures_dir(session_id) / "deep_dives"
+
+
+def saved_run_session_deep_dive_path(session_id: str, run_id: str, dataset_name: str) -> Path:
+    return saved_run_session_deep_dive_dir(session_id) / f"{run_id}__deep_dive__{dataset_name}.png"
+
+
+def saved_run_session_thesis_figures_dir(session_id: str) -> Path:
+    return saved_run_session_figures_dir(session_id) / "thesis"
+
+
+def saved_run_session_thesis_figure_path(session_id: str, filename: str) -> Path:
+    return saved_run_session_thesis_figures_dir(session_id) / filename
+
+
+def saved_run_session_thesis_figure_catalog_path(session_id: str) -> Path:
+    return saved_run_session_table_path(session_id, "thesis_figure_catalog.csv")
+
+
+def saved_run_session_thesis_figure_captions_path(session_id: str) -> Path:
+    return saved_run_session_table_path(session_id, "thesis_figure_captions.md")
+
+
 def _session_supports_global_fallback(session_id: str | None) -> bool:
     return session_id in (None, saved_run_session_id(DEFAULT_RUN_NAME))
 
@@ -1468,8 +1521,15 @@ def _read_resume_table_if_exists(filename: str, session_id: str | None = None) -
     return None
 
 
-def _write_table_artifact(frame: pd.DataFrame, filename: str, session_id: str | None = None) -> None:
-    frame.to_csv(result_table_path(filename), index=False)
+def _write_table_artifact(
+    frame: pd.DataFrame,
+    filename: str,
+    session_id: str | None = None,
+    *,
+    write_global: bool = True,
+) -> None:
+    if write_global:
+        frame.to_csv(result_table_path(filename), index=False)
     if session_id:
         session_path = saved_run_session_table_path(session_id, filename)
         session_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1780,8 +1840,18 @@ def _merge_benchmark_results(existing_results: pd.DataFrame, new_results: pd.Dat
     return merged
 
 
-def _write_benchmark_checkpoint(results_frame: pd.DataFrame, session_id: str | None = None) -> None:
-    _write_table_artifact(results_frame, "benchmark_results.csv", session_id)
+def _write_benchmark_checkpoint(
+    results_frame: pd.DataFrame,
+    session_id: str | None = None,
+    *,
+    write_global: bool = True,
+) -> None:
+    _write_table_artifact(
+        results_frame,
+        "benchmark_results.csv",
+        session_id,
+        write_global=write_global,
+    )
 
 
 def _select_benchmark_dataset_paths(
@@ -2948,6 +3018,505 @@ def list_saved_run_sessions() -> list[dict[str, Any]]:
         reverse=True,
     )
     return manifests
+
+
+def _session_match_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value).strip().lower())
+
+
+def resolve_saved_run_session(run_name_or_session_id: str | None = None) -> dict[str, Any]:
+    manifests = list_saved_run_sessions()
+    if not manifests:
+        raise FileNotFoundError("No saved run sessions were found under results/run_sessions.")
+
+    if run_name_or_session_id is None or not str(run_name_or_session_id).strip():
+        running = [manifest for manifest in manifests if str(manifest.get("status", "")).lower() == "running"]
+        return running[0] if running else manifests[0]
+
+    query = str(run_name_or_session_id).strip()
+    query_match = _session_match_key(query)
+    query_slug = saved_run_session_id(query)
+
+    exact_session = [
+        manifest
+        for manifest in manifests
+        if str(manifest.get("session_id", "")).strip().lower() in {query.lower(), query_slug.lower()}
+    ]
+    if exact_session:
+        return exact_session[0]
+
+    exact_name = [
+        manifest
+        for manifest in manifests
+        if _session_match_key(manifest.get("run_name", "")) == query_match
+        or _session_match_key(manifest.get("session_id", "")) == query_match
+    ]
+    if exact_name:
+        return exact_name[0]
+
+    partial_name = [
+        manifest
+        for manifest in manifests
+        if query_match
+        and (
+            query_match in _session_match_key(manifest.get("run_name", ""))
+            or query_match in _session_match_key(manifest.get("session_id", ""))
+        )
+    ]
+    if partial_name:
+        return partial_name[0]
+
+    available = ", ".join(
+        f"{manifest.get('run_name') or manifest.get('session_id')} [{manifest.get('session_id')}]"
+        for manifest in manifests[:8]
+    )
+    raise FileNotFoundError(
+        f"No saved run matched '{query}'. Available runs: {available}"
+    )
+
+
+def _saved_frame_value(row: pd.Series | None, key: str, fallback: Any = None) -> Any:
+    if row is None or key not in row.index:
+        return fallback
+    value = row[key]
+    try:
+        if pd.isna(value):
+            return fallback
+    except TypeError:
+        pass
+    return value
+
+
+def _saved_int_or_none(value: Any) -> int | None:
+    if value in (None, "", "all", "all selected"):
+        return None
+    return int(float(value))
+
+
+def _saved_float_or_none(value: Any) -> float | None:
+    if value in (None, "", "nan"):
+        return None
+    return float(value)
+
+
+def _saved_bool(value: Any, fallback: bool = False) -> bool:
+    if value is None:
+        return fallback
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def _resolve_project_path(path_value: Any) -> Path | None:
+    if path_value is None:
+        return None
+    candidate_text = str(path_value).strip()
+    if not candidate_text:
+        return None
+    candidate = Path(candidate_text)
+    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
+
+
+def _read_live_table_if_exists(
+    path: Path,
+    retries: int = 6,
+    delay_seconds: float = 0.25,
+) -> pd.DataFrame | None:
+    if not path.exists():
+        return None
+
+    last_parser_error: Exception | None = None
+    for attempt in range(max(retries, 1)):
+        try:
+            return pd.read_csv(path)
+        except pd.errors.EmptyDataError:
+            if attempt == retries - 1:
+                return pd.DataFrame()
+        except pd.errors.ParserError as exc:
+            last_parser_error = exc
+            if attempt == retries - 1:
+                break
+        time.sleep(delay_seconds)
+
+    if last_parser_error is not None:
+        try:
+            return pd.read_csv(path, engine="python", on_bad_lines="skip")
+        except pd.errors.EmptyDataError:
+            return pd.DataFrame()
+    raise last_parser_error or RuntimeError(f"Could not read {path}")
+
+
+def _build_saved_run_variants(
+    selected_run_parameters_frame: pd.DataFrame,
+) -> tuple[list[str], dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    selected_runs: list[dict[str, Any]] = []
+    algorithm_variants: dict[str, list[dict[str, Any]]] = {algorithm_key: [] for algorithm_key in ALGORITHM_ORDER}
+
+    if selected_run_parameters_frame.empty:
+        return [], {}, []
+
+    for row in selected_run_parameters_frame.sort_values(["algorithm", "variant_index"]).to_dict(orient="records"):
+        algorithm_key = str(row.get("algorithm") or "").strip()
+        if algorithm_key not in ALGORITHM_ORDER:
+            continue
+        params_json = row.get("params_json", "{}")
+        try:
+            params = json.loads(str(params_json))
+        except json.JSONDecodeError:
+            params = {}
+
+        variant_index_value = row.get("variant_index")
+        try:
+            variant_index = int(float(variant_index_value))
+        except (TypeError, ValueError):
+            variant_index = len(algorithm_variants[algorithm_key]) + 1
+
+        variant_name = str(
+            row.get("algorithm_variant")
+            or row.get("algorithm_display")
+            or _default_variant_name(variant_index)
+        )
+        variant_config = {
+            "algorithm": algorithm_key,
+            "algorithm_base_display": str(
+                row.get("algorithm_base_display")
+                or DISPLAY_NAME_MAP[algorithm_key]
+            ),
+            "algorithm_superfamily": str(
+                row.get("algorithm_superfamily")
+                or ALGORITHM_METADATA[algorithm_key]["superfamily"]
+            ),
+            "algorithm_category": str(
+                row.get("algorithm_category")
+                or ALGORITHM_METADATA[algorithm_key]["category"]
+            ),
+            "algorithm_display": str(
+                row.get("algorithm_display")
+                or f"{DISPLAY_NAME_MAP[algorithm_key]} | {variant_name}"
+            ),
+            "algorithm_variant": variant_name,
+            "algorithm_run_id": str(
+                row.get("algorithm_run_id")
+                or f"{algorithm_key}__tab_{variant_index:02d}"
+            ),
+            "variant_index": variant_index,
+            "variant_origin": str(row.get("variant_origin") or ""),
+            "variant_source": str(row.get("variant_source") or ""),
+            "variant_focus": str(row.get("variant_focus") or ""),
+            "variant_family": str(row.get("variant_family") or "variant"),
+            "ablation_parameter": str(row.get("ablation_parameter") or ""),
+            "ablation_label": str(row.get("ablation_label") or ""),
+            "ablation_role": str(row.get("ablation_role") or ""),
+            "params": params,
+        }
+        algorithm_variants[algorithm_key].append(variant_config)
+        selected_runs.append(variant_config)
+
+    selected_algorithms = [
+        algorithm_key
+        for algorithm_key in ALGORITHM_ORDER
+        if algorithm_variants.get(algorithm_key)
+    ]
+    algorithm_variants = {
+        algorithm_key: algorithm_variants[algorithm_key]
+        for algorithm_key in selected_algorithms
+    }
+    return selected_algorithms, algorithm_variants, selected_runs
+
+
+def load_saved_run_config(run_name_or_session_id: str | None = None) -> dict[str, Any]:
+    manifest = resolve_saved_run_session(run_name_or_session_id)
+    session_id = str(manifest["session_id"])
+    run_configuration_frame = _read_resume_table_if_exists("run_configuration.csv", session_id)
+    selected_run_parameters_frame = _read_resume_table_if_exists("selected_run_parameters.csv", session_id)
+    if selected_run_parameters_frame is None or selected_run_parameters_frame.empty:
+        raise FileNotFoundError(
+            f"No selected_run_parameters.csv was found for session '{session_id}'."
+        )
+
+    control_state = load_saved_run_session_payload(session_id)
+    run_row = None if run_configuration_frame is None or run_configuration_frame.empty else run_configuration_frame.iloc[0]
+    selected_algorithms, algorithm_variants, selected_runs = _build_saved_run_variants(selected_run_parameters_frame)
+
+    variant_mode = str(
+        _saved_frame_value(run_row, "variant_mode", manifest.get("variant_mode", "manual"))
+    )
+    threshold_method = str(
+        _saved_frame_value(run_row, "threshold_method", manifest.get("threshold_method", "sigma"))
+    )
+    threshold_value_raw = _saved_frame_value(
+        run_row,
+        "threshold_value",
+        manifest.get("threshold_value", 3.0),
+    )
+    threshold_value = (
+        max(1, int(float(threshold_value_raw)))
+        if threshold_method == "top_k"
+        else float(threshold_value_raw)
+    )
+
+    return {
+        "run_name": str(
+            _saved_frame_value(run_row, "run_name", manifest.get("run_name", session_id))
+        ),
+        "session_id": session_id,
+        "dataset_limit": _saved_int_or_none(
+            _saved_frame_value(run_row, "dataset_limit", manifest.get("dataset_limit"))
+        ),
+        "batch_size": _saved_int_or_none(
+            _saved_frame_value(run_row, "batch_size", manifest.get("batch_size"))
+        ),
+        "resume_from_existing": _saved_bool(
+            _saved_frame_value(run_row, "resume_from_existing", True),
+            True,
+        ),
+        "variant_mode": variant_mode,
+        "normalization_method": str(
+            _saved_frame_value(
+                run_row,
+                "normalization_method",
+                manifest.get("normalization_method", "zscore"),
+            )
+        ),
+        "clip_quantile": _saved_float_or_none(
+            _saved_frame_value(run_row, "clip_quantile", manifest.get("clip_quantile"))
+        ),
+        "overwrite_normalized_datasets": False,
+        "window_size": _saved_int_or_none(
+            _saved_frame_value(run_row, "window_size", manifest.get("window_size"))
+        ),
+        "window_stride": max(
+            1,
+            int(
+                float(
+                    _saved_frame_value(
+                        run_row,
+                        "window_stride",
+                        manifest.get("window_stride", 1),
+                    )
+                )
+            ),
+        ),
+        "window_override": _saved_int_or_none(
+            _saved_frame_value(run_row, "window_size", manifest.get("window_size"))
+        ),
+        "threshold_method": threshold_method,
+        "threshold_value": threshold_value,
+        "threshold_std_multiplier": threshold_value if threshold_method == "sigma" else None,
+        "evaluation_mode": str(
+            _saved_frame_value(
+                run_row,
+                "evaluation_mode",
+                manifest.get("evaluation_mode", "range"),
+            )
+        ),
+        "save_per_dataset_scores": False,
+        "selected_algorithms": selected_algorithms,
+        "selected_runs": selected_runs,
+        "algorithm_variants": algorithm_variants,
+        "auto_preset_name": variant_mode if variant_mode in PAPER_PRESET_DEFINITIONS else None,
+        "auto_filtered_out": [],
+        "control_state": control_state,
+    }
+
+
+def load_saved_run_context(
+    run_name_or_session_id: str | None = None,
+    *,
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    config = load_saved_run_config(run_name_or_session_id) if config is None else config
+    session_id = str(config["session_id"])
+    run_configuration_frame = _read_resume_table_if_exists("run_configuration.csv", session_id)
+    preparation_frame = _read_resume_table_if_exists("dataset_preparation_summary.csv", session_id)
+
+    prepared_dataset_dir = None
+    if preparation_frame is not None and not preparation_frame.empty:
+        prepared_dataset_dir = _resolve_project_path(
+            _saved_frame_value(preparation_frame.iloc[0], "normalized_dataset_dir")
+        )
+    if prepared_dataset_dir is None and run_configuration_frame is not None and not run_configuration_frame.empty:
+        prepared_dataset_dir = _resolve_project_path(
+            _saved_frame_value(run_configuration_frame.iloc[0], "prepared_dataset_dir")
+        )
+    if prepared_dataset_dir is None or not prepared_dataset_dir.exists():
+        prepared_dataset_dir, _ = ensure_normalized_datasets(
+            config["normalization_method"],
+            config["clip_quantile"],
+            overwrite=False,
+        )
+    else:
+        ensure_raw_datasets_available()
+
+    return {
+        "prepared_dataset_dir": prepared_dataset_dir,
+        "session_manifest": resolve_saved_run_session(session_id),
+    }
+
+
+def build_saved_run_benchmark(
+    run_name_or_session_id: str | None = None,
+    *,
+    config: dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+    persist_tables: bool = False,
+    write_global: bool = False,
+) -> dict[str, Any]:
+    config = load_saved_run_config(run_name_or_session_id) if config is None else config
+    context = load_saved_run_context(config=config) if context is None else context
+    manifest = resolve_saved_run_session(config["session_id"])
+    session_id = str(config["session_id"])
+
+    results = _read_live_table_if_exists(
+        saved_run_session_table_path(session_id, "benchmark_results.csv")
+    )
+    if (results is None or results.empty) and _session_supports_global_fallback(session_id):
+        results = _read_live_table_if_exists(result_table_path("benchmark_results.csv"))
+    if results is None or results.empty:
+        raise ValueError(
+            f"No benchmark checkpoint rows are available yet for session '{session_id}'."
+        )
+
+    dataset_catalog = build_dataset_catalog(results)
+    algorithm_summary = summarize_algorithms(results)
+    family_summary = summarize_families(results)
+    overall_regime_summary = build_overall_regime_summary(results)
+    best_by_evaluation = build_best_algorithm_table(results, "evaluation_f1")
+    best_by_f1 = build_best_algorithm_table(results, "f1")
+    best_by_auc = build_best_algorithm_table(results, "roc_auc")
+    if "error" in results.columns:
+        errors = results.loc[results["error"].fillna("").astype(str) != ""].copy()
+    else:
+        errors = pd.DataFrame()
+
+    completed_dataset_count = int(dataset_catalog["dataset_name"].nunique())
+    selected_dataset_count = int(manifest.get("selected_dataset_count") or completed_dataset_count)
+    pending_dataset_count = max(selected_dataset_count - completed_dataset_count, 0)
+    selected_run_count = int(manifest.get("selected_run_count") or len(config["selected_runs"]))
+    overview = pd.DataFrame(
+        [
+            {
+                "dataset_count": completed_dataset_count,
+                "selected_dataset_count": selected_dataset_count,
+                "completed_dataset_count": completed_dataset_count,
+                "pending_dataset_count": pending_dataset_count,
+                "algorithm_count": len(config["selected_algorithms"]),
+                "configuration_count": len(config["selected_runs"]),
+                "selected_run_count": selected_run_count,
+                "run_count": len(results),
+                "batch_dataset_count": manifest.get("batch_dataset_count", completed_dataset_count),
+                "run_name": config["run_name"],
+                "session_id": session_id,
+                "session_status": manifest.get("status", "saved"),
+                "executed_run_count": manifest.get("executed_run_count", len(results)),
+                "skipped_existing_run_count": manifest.get("skipped_existing_run_count", 0),
+                "resume_from_existing": bool(config.get("resume_from_existing")),
+                "batch_size": "all selected" if config.get("batch_size") is None else config["batch_size"],
+                "median_series_length": dataset_catalog["series_length"].median(),
+                "median_anomaly_ratio": dataset_catalog["anomaly_ratio"].median(),
+                "median_window_size": dataset_catalog["window_size"].median(),
+                "window_stride": config["window_stride"],
+                "threshold_method": config["threshold_method"],
+                "threshold_value": config["threshold_value"],
+                "evaluation_mode": config["evaluation_mode"],
+                "error_count": len(errors),
+                "normalization_method": config["normalization_method"],
+                "progress_fraction": (
+                    completed_dataset_count / selected_dataset_count
+                    if selected_dataset_count > 0
+                    else float("nan")
+                ),
+            }
+        ]
+    )
+
+    if persist_tables:
+        _write_benchmark_checkpoint(results, session_id, write_global=write_global)
+        _write_table_artifact(dataset_catalog, "dataset_catalog.csv", session_id, write_global=write_global)
+        _write_table_artifact(algorithm_summary, "algorithm_summary.csv", session_id, write_global=write_global)
+        _write_table_artifact(family_summary, "family_summary.csv", session_id, write_global=write_global)
+        _write_table_artifact(
+            overall_regime_summary,
+            "overall_regime_summary.csv",
+            session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(
+            best_by_evaluation,
+            "best_algorithm_by_dataset_evaluation.csv",
+            session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(
+            best_by_f1,
+            "best_algorithm_by_dataset_f1.csv",
+            session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(
+            best_by_auc,
+            "best_algorithm_by_dataset_auc.csv",
+            session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(errors, "error_report.csv", session_id, write_global=write_global)
+        _write_table_artifact(overview, "snapshot_overview.csv", session_id, write_global=write_global)
+
+        for algorithm_key in config["selected_algorithms"]:
+            algorithm_results = results.loc[results["algorithm"] == algorithm_key].copy()
+            if write_global:
+                algorithm_results.to_csv(result_per_algorithm_table_path(algorithm_key), index=False)
+            session_algorithm_table = saved_run_session_table_path(
+                session_id,
+                f"per_algorithm/{algorithm_key}_results.csv",
+            )
+            session_algorithm_table.parent.mkdir(parents=True, exist_ok=True)
+            algorithm_results.to_csv(session_algorithm_table, index=False)
+
+    return {
+        "results": results,
+        "dataset_catalog": dataset_catalog,
+        "algorithm_summary": algorithm_summary,
+        "family_summary": family_summary,
+        "overall_regime_summary": overall_regime_summary,
+        "best_by_evaluation": best_by_evaluation,
+        "best_by_f1": best_by_f1,
+        "best_by_auc": best_by_auc,
+        "errors": errors,
+        "overview": overview,
+        "batch_results": pd.DataFrame(),
+        "executed_run_count": int(manifest.get("executed_run_count", len(results))),
+        "skipped_existing_run_count": int(manifest.get("skipped_existing_run_count", 0)),
+        "selected_dataset_count": selected_dataset_count,
+        "completed_dataset_count": completed_dataset_count,
+        "pending_dataset_count": pending_dataset_count,
+        "is_partial": pending_dataset_count > 0 or str(manifest.get("status", "")).lower() == "running",
+        "session_manifest": manifest,
+    }
+
+
+def load_saved_run_notebook_state(
+    run_name_or_session_id: str | None = None,
+    *,
+    persist_tables: bool = False,
+    write_global: bool = False,
+) -> dict[str, Any]:
+    config = load_saved_run_config(run_name_or_session_id)
+    context = load_saved_run_context(config=config)
+    benchmark = build_saved_run_benchmark(
+        config=config,
+        context=context,
+        persist_tables=persist_tables,
+        write_global=write_global,
+    )
+    ns_module = sys.modules.get(__name__) or types.SimpleNamespace(**globals())
+    return {
+        "ns": ns_module,
+        "config": config,
+        "context": context,
+        "benchmark": benchmark,
+        "snapshot_extracted_at": utc_now_iso(),
+    }
 
 
 def _make_if_variant(
@@ -6266,7 +6835,294 @@ def build_thesis_figure_caption_markdown(catalog: pd.DataFrame) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: int = 1200) -> dict[str, Any]:
+def _snapshot_figure_path(
+    filename: str,
+    session_id: str | None,
+    *,
+    write_global: bool,
+) -> Path:
+    return result_figure_path(filename) if write_global or not session_id else saved_run_session_figure_path(session_id, filename)
+
+
+def _snapshot_algorithm_panel_path(
+    algorithm_key: str,
+    session_id: str | None,
+    panel_kind: str,
+    *,
+    write_global: bool,
+) -> Path:
+    if write_global or not session_id:
+        if panel_kind == "benchmark":
+            return result_algorithm_panel_path(algorithm_key)
+        if panel_kind == "paper":
+            return result_algorithm_paper_panel_path(algorithm_key)
+        if panel_kind == "variant_comparison":
+            return result_algorithm_variant_comparison_path(algorithm_key)
+        if panel_kind == "ablation":
+            return result_algorithm_ablation_panel_path(algorithm_key)
+    else:
+        if panel_kind == "benchmark":
+            return saved_run_session_algorithm_panel_path(session_id, algorithm_key)
+        if panel_kind == "paper":
+            return saved_run_session_algorithm_paper_panel_path(session_id, algorithm_key)
+        if panel_kind == "variant_comparison":
+            return saved_run_session_algorithm_variant_comparison_path(session_id, algorithm_key)
+        if panel_kind == "ablation":
+            return saved_run_session_algorithm_ablation_panel_path(session_id, algorithm_key)
+    raise ValueError(f"Unknown panel kind: {panel_kind}")
+
+
+def _snapshot_deep_dive_path(
+    session_id: str | None,
+    run_id: str,
+    dataset_name: str,
+    *,
+    write_global: bool,
+) -> Path:
+    return result_deep_dive_path(run_id, dataset_name) if write_global or not session_id else saved_run_session_deep_dive_path(session_id, run_id, dataset_name)
+
+
+def _snapshot_thesis_figure_path(
+    filename: str,
+    session_id: str | None,
+    *,
+    write_global: bool,
+) -> Path:
+    return result_thesis_figure_path(filename) if write_global or not session_id else saved_run_session_thesis_figure_path(session_id, filename)
+
+
+def _snapshot_thesis_catalog_path(
+    session_id: str | None,
+    *,
+    write_global: bool,
+) -> Path:
+    return THESIS_FIGURE_CATALOG_PATH if write_global or not session_id else saved_run_session_thesis_figure_catalog_path(session_id)
+
+
+def _snapshot_thesis_captions_path(
+    session_id: str | None,
+    *,
+    write_global: bool,
+) -> Path:
+    return THESIS_FIGURE_CAPTIONS_PATH if write_global or not session_id else saved_run_session_thesis_figure_captions_path(session_id)
+
+
+def _close_figure(fig: Any) -> None:
+    if fig is None:
+        return
+    plt = _load_plotting_module()
+    plt.close(fig)
+
+
+def export_algorithm_section_artifacts(
+    notebook_state: dict[str, Any],
+    algorithm_key: str,
+    *,
+    session_id: str | None = None,
+    write_global: bool = False,
+    context_points: int = 1200,
+) -> dict[str, Any]:
+    ns = notebook_state["ns"]
+    config = notebook_state.get("config")
+    context = notebook_state.get("context")
+    benchmark = notebook_state.get("benchmark")
+    if config is None or context is None or benchmark is None:
+        raise ValueError("Run the benchmark cells before exporting algorithm section artifacts.")
+
+    resolved_session_id = session_id or config.get("session_id")
+    results = benchmark["results"]
+    if algorithm_key not in config["selected_algorithms"]:
+        raise ValueError(f"Algorithm '{algorithm_key}' is not enabled in this run.")
+
+    variant_config = ns.build_variant_config_table(config, algorithm_key)
+    parameter_effects = ns.build_algorithm_parameter_effect_table(results, algorithm_key)
+    dataset_variant_summary = ns.build_algorithm_regime_table(results, algorithm_key, "variant")
+    length_summary = ns.build_algorithm_regime_table(results, algorithm_key, "length_bucket")
+    anomaly_ratio_summary = ns.build_algorithm_regime_table(results, algorithm_key, "anomaly_ratio_bucket")
+    section_summary, section_top = ns.build_algorithm_section_tables(results, algorithm_key)
+    ablation_impact = ns.build_algorithm_ablation_impact_table(results, algorithm_key)
+    ablation_dataset_variant = ns.build_algorithm_ablation_regime_table(results, algorithm_key, "variant")
+    ablation_length = ns.build_algorithm_ablation_regime_table(results, algorithm_key, "length_bucket")
+
+    _write_table_artifact(
+        variant_config,
+        f"{algorithm_key}_variant_configuration.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    _write_table_artifact(
+        parameter_effects,
+        f"{algorithm_key}_parameter_effects.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    _write_table_artifact(
+        dataset_variant_summary,
+        f"{algorithm_key}_dataset_variant_summary.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    _write_table_artifact(
+        length_summary,
+        f"{algorithm_key}_length_summary.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    _write_table_artifact(
+        anomaly_ratio_summary,
+        f"{algorithm_key}_anomaly_ratio_summary.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    _write_table_artifact(
+        section_summary,
+        f"{algorithm_key}_section_summary.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    _write_table_artifact(
+        section_top,
+        f"{algorithm_key}_top_cases.csv",
+        resolved_session_id,
+        write_global=write_global,
+    )
+    if not ablation_impact.empty:
+        _write_table_artifact(
+            ablation_impact,
+            f"{algorithm_key}_ablation_impacts.csv",
+            resolved_session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(
+            ablation_dataset_variant,
+            f"{algorithm_key}_ablation_dataset_variant_summary.csv",
+            resolved_session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(
+            ablation_length,
+            f"{algorithm_key}_ablation_length_summary.csv",
+            resolved_session_id,
+            write_global=write_global,
+        )
+
+    benchmark_fig = ns.plot_algorithm_benchmark_panel(
+        results,
+        algorithm_key,
+        _snapshot_algorithm_panel_path(
+            algorithm_key,
+            resolved_session_id,
+            "benchmark",
+            write_global=write_global,
+        ),
+    )
+    _close_figure(benchmark_fig)
+
+    paper_fig = ns.plot_algorithm_paper_panel(
+        results,
+        algorithm_key,
+        _snapshot_algorithm_panel_path(
+            algorithm_key,
+            resolved_session_id,
+            "paper",
+            write_global=write_global,
+        ),
+    )
+    _close_figure(paper_fig)
+
+    ablation_fig = ns.plot_algorithm_ablation_panel(
+        results,
+        algorithm_key,
+        _snapshot_algorithm_panel_path(
+            algorithm_key,
+            resolved_session_id,
+            "ablation",
+            write_global=write_global,
+        ),
+    )
+    _close_figure(ablation_fig)
+
+    comparison_payload = ns.build_algorithm_variant_comparison(
+        config,
+        context["prepared_dataset_dir"],
+        results,
+        algorithm_key,
+    )
+    comparison_dataset = None
+    if comparison_payload is not None and len(comparison_payload["variants"]) > 1:
+        comparison_dataset = str(comparison_payload["dataset"]["dataset_name"])
+        _write_table_artifact(
+            comparison_payload["selection_summary"],
+            f"{algorithm_key}_variant_comparison_selection.csv",
+            resolved_session_id,
+            write_global=write_global,
+        )
+        _write_table_artifact(
+            comparison_payload["summary"],
+            f"{algorithm_key}_variant_comparison.csv",
+            resolved_session_id,
+            write_global=write_global,
+        )
+        comparison_fig = ns.plot_algorithm_variant_comparison(
+            comparison_payload,
+            algorithm_key,
+            context_points=context_points,
+            save_path=_snapshot_algorithm_panel_path(
+                algorithm_key,
+                resolved_session_id,
+                "variant_comparison",
+                write_global=write_global,
+            ),
+        )
+        _close_figure(comparison_fig)
+
+    showcase = ns.build_algorithm_showcase(
+        config,
+        context["prepared_dataset_dir"],
+        results,
+        algorithm_key,
+    )
+    showcase_dataset = None
+    if showcase is not None:
+        showcase_dataset = str(showcase["dataset"]["dataset_name"])
+        _write_table_artifact(
+            showcase["summary"],
+            f"{algorithm_key}_showcase_summary.csv",
+            resolved_session_id,
+            write_global=write_global,
+        )
+        showcase_fig = ns.plot_algorithm_deep_dive(
+            showcase["raw_values"],
+            showcase["dataset"]["values"],
+            showcase["dataset"],
+            showcase["scores"],
+            showcase["predictions"],
+            showcase["metric_row"],
+            algorithm_key,
+            context_points=context_points,
+            save_path=_snapshot_deep_dive_path(
+                resolved_session_id,
+                str(showcase["metric_row"]["algorithm_run_id"]),
+                showcase_dataset,
+                write_global=write_global,
+            ),
+        )
+        _close_figure(showcase_fig)
+
+    return {
+        "algorithm_key": algorithm_key,
+        "comparison_dataset": comparison_dataset,
+        "showcase_dataset": showcase_dataset,
+    }
+
+
+def export_thesis_figure_pack(
+    notebook_state: dict[str, Any],
+    context_points: int = 1200,
+    *,
+    session_id: str | None = None,
+    write_global: bool = True,
+) -> dict[str, Any]:
     ns = notebook_state["ns"]
     config = notebook_state.get("config")
     context = notebook_state.get("context")
@@ -6274,8 +7130,10 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
     if config is None or context is None or benchmark is None:
         raise ValueError("Run the benchmark cells before exporting the thesis figure pack.")
 
+    resolved_session_id = session_id or config.get("session_id")
     ensure_results_layout()
-    RESULT_THESIS_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    figure_dir = RESULT_THESIS_FIGURES_DIR if write_global or not resolved_session_id else saved_run_session_thesis_figures_dir(resolved_session_id)
+    figure_dir.mkdir(parents=True, exist_ok=True)
 
     plt = _load_plotting_module()
     results = benchmark["results"]
@@ -6290,7 +7148,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
         overview_fig = plot_benchmark_overview_panel(benchmark)
         overview_paths = _save_figure_bundle(
             overview_fig,
-            result_thesis_figure_path("benchmark_overview.png"),
+            _snapshot_thesis_figure_path(
+                "benchmark_overview.png",
+                resolved_session_id,
+                write_global=write_global,
+            ),
         )
         _append_thesis_figure_row(
             rows,
@@ -6316,7 +7178,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
         if pareto_fig is not None:
             pareto_paths = _save_figure_bundle(
                 pareto_fig,
-                result_thesis_figure_path("pareto_frontier.png"),
+                _snapshot_thesis_figure_path(
+                    "pareto_frontier.png",
+                    resolved_session_id,
+                    write_global=write_global,
+                ),
             )
             _append_thesis_figure_row(
                 rows,
@@ -6334,7 +7200,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
         metric_heatmap_fig = plot_metric_heatmap_panel(benchmark)
         metric_heatmap_paths = _save_figure_bundle(
             metric_heatmap_fig,
-            result_thesis_figure_path("metric_heatmap.png"),
+            _snapshot_thesis_figure_path(
+                "metric_heatmap.png",
+                resolved_session_id,
+                write_global=write_global,
+            ),
         )
         _append_thesis_figure_row(
             rows,
@@ -6352,7 +7222,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
         family_heatmap_fig = plot_family_evaluation_heatmap_panel(benchmark)
         family_heatmap_paths = _save_figure_bundle(
             family_heatmap_fig,
-            result_thesis_figure_path("family_evaluation_heatmap.png"),
+            _snapshot_thesis_figure_path(
+                "family_evaluation_heatmap.png",
+                resolved_session_id,
+                write_global=write_global,
+            ),
         )
         best_family = family_summary.sort_values("mean_evaluation_f1", ascending=False).iloc[0] if not family_summary.empty else None
         _append_thesis_figure_row(
@@ -6375,7 +7249,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
         wins_fig = plot_algorithm_wins_panel(benchmark)
         wins_paths = _save_figure_bundle(
             wins_fig,
-            result_thesis_figure_path("algorithm_wins.png"),
+            _snapshot_thesis_figure_path(
+                "algorithm_wins.png",
+                resolved_session_id,
+                write_global=write_global,
+            ),
         )
         wins = _winner_count_frame(benchmark)
         evaluation_winner = wins.sort_values("evaluation_wins", ascending=False).iloc[0] if not wins.empty else None
@@ -6402,7 +7280,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
             if ablation_fig is not None and not ablation_overview.empty:
                 ablation_paths = _save_figure_bundle(
                     ablation_fig,
-                    result_thesis_figure_path("ablation_overview.png"),
+                    _snapshot_thesis_figure_path(
+                        "ablation_overview.png",
+                        resolved_session_id,
+                        write_global=write_global,
+                    ),
                 )
                 strongest_gain = ablation_overview.loc[ablation_overview["mean_delta_evaluation_f1"].idxmax()]
                 _append_thesis_figure_row(
@@ -6442,7 +7324,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
             if paper_fig is not None:
                 paper_paths = _save_figure_bundle(
                     paper_fig,
-                    result_thesis_figure_path(f"{algorithm_key}_paper_panel.png"),
+                    _snapshot_thesis_figure_path(
+                        f"{algorithm_key}_paper_panel.png",
+                        resolved_session_id,
+                        write_global=write_global,
+                    ),
                 )
                 _append_thesis_figure_row(
                     rows,
@@ -6464,7 +7350,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
                 ablation_best = ablation_impact.sort_values("mean_delta_evaluation_f1", ascending=False).iloc[0]
                 ablation_paths = _save_figure_bundle(
                     ablation_fig,
-                    result_thesis_figure_path(f"{algorithm_key}_ablation_panel.png"),
+                    _snapshot_thesis_figure_path(
+                        f"{algorithm_key}_ablation_panel.png",
+                        resolved_session_id,
+                        write_global=write_global,
+                    ),
                 )
                 _append_thesis_figure_row(
                     rows,
@@ -6496,7 +7386,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
                     dataset_name = comparison_payload["dataset"]["dataset_name"]
                     comparison_paths = _save_figure_bundle(
                         comparison_fig,
-                        result_thesis_figure_path(f"{algorithm_key}_variant_comparison_{_slugify_label(dataset_name)}.png"),
+                        _snapshot_thesis_figure_path(
+                            f"{algorithm_key}_variant_comparison_{_slugify_label(dataset_name)}.png",
+                            resolved_session_id,
+                            write_global=write_global,
+                        ),
                     )
                     _append_thesis_figure_row(
                         rows,
@@ -6532,7 +7426,11 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
                 showcase_name = showcase["dataset"]["dataset_name"]
                 deep_dive_paths = _save_figure_bundle(
                     deep_dive_fig,
-                    result_thesis_figure_path(f"{algorithm_key}_showcase_{_slugify_label(showcase_name)}.png"),
+                    _snapshot_thesis_figure_path(
+                        f"{algorithm_key}_showcase_{_slugify_label(showcase_name)}.png",
+                        resolved_session_id,
+                        write_global=write_global,
+                    ),
                 )
                 _append_thesis_figure_row(
                     rows,
@@ -6549,16 +7447,139 @@ def export_thesis_figure_pack(notebook_state: dict[str, Any], context_points: in
                 plt.close(deep_dive_fig)
 
     catalog = pd.DataFrame(rows)
-    catalog.to_csv(THESIS_FIGURE_CATALOG_PATH, index=False)
-    THESIS_FIGURE_CAPTIONS_PATH.write_text(
+    catalog_path = _snapshot_thesis_catalog_path(
+        resolved_session_id,
+        write_global=write_global,
+    )
+    captions_path = _snapshot_thesis_captions_path(
+        resolved_session_id,
+        write_global=write_global,
+    )
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    captions_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog.to_csv(catalog_path, index=False)
+    captions_path.write_text(
         build_thesis_figure_caption_markdown(catalog),
         encoding="utf-8",
     )
     return {
         "catalog": catalog,
-        "catalog_path": THESIS_FIGURE_CATALOG_PATH,
-        "captions_path": THESIS_FIGURE_CAPTIONS_PATH,
-        "figure_dir": RESULT_THESIS_FIGURES_DIR,
+        "catalog_path": catalog_path,
+        "captions_path": captions_path,
+        "figure_dir": figure_dir,
+    }
+
+
+def export_saved_run_snapshot_artifacts(
+    run_name_or_session_id: str | None = None,
+    *,
+    include_algorithm_sections: bool = True,
+    include_thesis_pack: bool = False,
+    write_global: bool = False,
+    context_points: int = 1200,
+) -> dict[str, Any]:
+    notebook_state = load_saved_run_notebook_state(
+        run_name_or_session_id,
+        persist_tables=True,
+        write_global=write_global,
+    )
+    config = notebook_state["config"]
+    benchmark = notebook_state["benchmark"]
+    session_id = str(config["session_id"])
+
+    overview_fig = plot_benchmark_overview_panel(
+        benchmark,
+        _snapshot_figure_path(
+            "benchmark_overview.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(overview_fig)
+
+    pareto_fig = plot_pareto_frontier_panel(
+        benchmark,
+        _snapshot_figure_path(
+            "pareto_frontier.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(pareto_fig)
+
+    metric_heatmap_fig = plot_metric_heatmap_panel(
+        benchmark,
+        _snapshot_figure_path(
+            "metric_heatmap.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(metric_heatmap_fig)
+
+    family_heatmap_fig = plot_family_evaluation_heatmap_panel(
+        benchmark,
+        _snapshot_figure_path(
+            "family_evaluation_heatmap.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(family_heatmap_fig)
+
+    wins_fig = plot_algorithm_wins_panel(
+        benchmark,
+        _snapshot_figure_path(
+            "algorithm_wins.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(wins_fig)
+
+    ablation_fig = plot_ablation_overview_panel(
+        benchmark["results"],
+        _snapshot_figure_path(
+            "ablation_overview.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(ablation_fig)
+
+    exported_algorithms: list[dict[str, Any]] = []
+    if include_algorithm_sections:
+        for algorithm_key in config["selected_algorithms"]:
+            exported_algorithms.append(
+                export_algorithm_section_artifacts(
+                    notebook_state,
+                    algorithm_key,
+                    session_id=session_id,
+                    write_global=write_global,
+                    context_points=context_points,
+                )
+            )
+
+    thesis_payload = None
+    if include_thesis_pack:
+        thesis_payload = export_thesis_figure_pack(
+            notebook_state,
+            context_points=context_points,
+            session_id=session_id,
+            write_global=write_global,
+        )
+
+    return {
+        "run_name": config["run_name"],
+        "session_id": session_id,
+        "artifact_root": RESULTS_DIR if write_global else saved_run_session_dir(session_id),
+        "completed_dataset_count": benchmark["completed_dataset_count"],
+        "selected_dataset_count": benchmark["selected_dataset_count"],
+        "pending_dataset_count": benchmark["pending_dataset_count"],
+        "is_partial": benchmark["is_partial"],
+        "exported_algorithms": exported_algorithms,
+        "thesis_payload": thesis_payload,
+        "snapshot_extracted_at": notebook_state["snapshot_extracted_at"],
     }
 
 
