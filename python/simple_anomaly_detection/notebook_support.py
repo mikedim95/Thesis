@@ -1322,6 +1322,7 @@ THESIS_PLOT_STYLE = {
 
 @lru_cache(maxsize=1)
 def _load_plotting_module():
+    from mpl_toolkits.mplot3d import Axes3D as _Axes3D  # noqa: F401
     import matplotlib.pyplot as plt
 
     plt.rcParams.update(DEFAULT_PLOT_STYLE)
@@ -6158,6 +6159,161 @@ def build_algorithm_variant_comparison(
     }
 
 
+def _layered_variant_groups(subset: pd.DataFrame, plt: Any) -> list[dict[str, Any]]:
+    ordered = subset.copy()
+    sort_columns = [column for column in ("variant_index", "dataset_name") if column in ordered.columns]
+    if sort_columns:
+        ordered = ordered.sort_values(sort_columns)
+
+    palette = plt.get_cmap("tab10")
+    groups: list[dict[str, Any]] = []
+    for group_index, (display_name, frame) in enumerate(ordered.groupby("algorithm_display", sort=False)):
+        variant_label = (
+            str(frame["algorithm_variant"].iloc[0])
+            if "algorithm_variant" in frame.columns
+            else str(display_name).split(" | ", 1)[-1]
+        )
+        if variant_label in {"", "nan", "None"}:
+            variant_label = str(display_name)
+        groups.append(
+            {
+                "display_name": str(display_name),
+                "variant_label": variant_label,
+                "frame": frame.copy(),
+                "color": palette(group_index % 10),
+                "layer": float(group_index),
+            }
+        )
+    return groups
+
+
+def _style_3d_axis(
+    ax: Any,
+    *,
+    elev: float = 24.0,
+    azim: float = -58.0,
+    box_aspect: tuple[float, float, float] = (1.35, 0.95, 0.8),
+) -> None:
+    ax.view_init(elev=elev, azim=azim)
+    if hasattr(ax, "set_box_aspect"):
+        ax.set_box_aspect(box_aspect)
+    for axis in (getattr(ax, "xaxis", None), getattr(ax, "yaxis", None), getattr(ax, "zaxis", None)):
+        pane = getattr(axis, "pane", None)
+        if pane is not None:
+            pane.set_facecolor((0.97, 0.98, 0.99, 1.0))
+            pane.set_edgecolor("#cbd5e1")
+    ax.tick_params(pad=4)
+    ax.grid(True, alpha=0.22)
+
+
+def _layer_jitter(size: int, spread: float = 0.18) -> np.ndarray:
+    if size <= 1:
+        return np.zeros(size, dtype=float)
+    return np.linspace(-spread, spread, size, dtype=float)
+
+
+def _draw_layered_histogram_3d(
+    ax: Any,
+    variant_groups: list[dict[str, Any]],
+    value_column: str,
+    *,
+    x_label: str,
+    bins: int = 20,
+) -> None:
+    all_values = [
+        group["frame"][value_column].dropna().to_numpy(dtype=float)
+        for group in variant_groups
+        if value_column in group["frame"]
+    ]
+    if not all_values:
+        ax.text2D(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+        return
+
+    flattened = np.concatenate([values for values in all_values if len(values) > 0])
+    if flattened.size == 0:
+        ax.text2D(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+        return
+
+    min_value = float(np.nanmin(flattened))
+    max_value = float(np.nanmax(flattened))
+    if math.isclose(min_value, max_value):
+        padding = 0.05 if min_value == 0 else abs(min_value) * 0.05
+        min_value -= padding
+        max_value += padding
+    bin_edges = np.linspace(min_value, max_value, bins + 1)
+    max_count = 0
+
+    for group in variant_groups:
+        values = group["frame"][value_column].dropna().to_numpy(dtype=float)
+        counts, _ = np.histogram(values, bins=bin_edges)
+        max_count = max(max_count, int(counts.max()) if len(counts) > 0 else 0)
+        if counts.sum() == 0:
+            continue
+        ax.bar(
+            bin_edges[:-1],
+            counts,
+            zs=group["layer"],
+            zdir="y",
+            width=np.diff(bin_edges) * 0.92,
+            align="edge",
+            color=group["color"],
+            alpha=0.72,
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel("Variant layer")
+    ax.set_zlabel("Dataset count")
+    ax.set_yticks([group["layer"] for group in variant_groups])
+    ax.set_yticklabels([group["variant_label"] for group in variant_groups], fontsize=8)
+    ax.set_ylim(-0.45, max(len(variant_groups) - 0.1, 0.9))
+    ax.set_zlim(0, max(1, max_count) * 1.08)
+    _style_3d_axis(ax, elev=24.0, azim=-60.0)
+
+
+def _draw_layered_scatter_3d(
+    ax: Any,
+    variant_groups: list[dict[str, Any]],
+    x_column: str,
+    y_column: str,
+    *,
+    x_label: str,
+    y_label: str,
+    depth_label: str = "Variant layer",
+) -> None:
+    for group in variant_groups:
+        frame = group["frame"].copy()
+        sort_columns = [column for column in (x_column, y_column, "dataset_name") if column in frame.columns]
+        if sort_columns:
+            frame = frame.sort_values(sort_columns)
+        x_values = frame[x_column].to_numpy(dtype=float)
+        y_values = frame[y_column].to_numpy(dtype=float)
+        valid_mask = np.isfinite(x_values) & np.isfinite(y_values)
+        if not np.any(valid_mask):
+            continue
+        x_values = x_values[valid_mask]
+        y_values = y_values[valid_mask]
+        depth_values = np.full(x_values.shape[0], group["layer"], dtype=float) + _layer_jitter(x_values.shape[0])
+        ax.scatter(
+            x_values,
+            y_values,
+            depth_values,
+            s=34,
+            alpha=0.78,
+            color=group["color"],
+            depthshade=True,
+        )
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_zlabel(depth_label)
+    ax.set_zticks([group["layer"] for group in variant_groups])
+    ax.set_zticklabels([group["variant_label"] for group in variant_groups], fontsize=8)
+    ax.set_zlim(-0.45, max(len(variant_groups) - 0.1, 0.9))
+    _style_3d_axis(ax, elev=21.0, azim=-63.0)
+
+
 def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: str, save_path: Path | None = None) -> plt.Figure | None:
     subset = results_frame.loc[results_frame["algorithm"]
                                == algorithm_key].copy()
@@ -6166,24 +6322,30 @@ def plot_algorithm_benchmark_panel(results_frame: pd.DataFrame, algorithm_key: s
     plt = _load_plotting_module()
     evaluation_mode = str(subset["evaluation_mode"].iloc[0]).lower()
     metric_label = "Range F1" if evaluation_mode == "range" else "Point F1"
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), constrained_layout=True)
-    palette = plt.get_cmap("tab10")
-    for color_index, (display_name, frame) in enumerate(subset.groupby("algorithm_display")):
-        color = palette(color_index % 10)
-        axes[0].hist(frame["evaluation_f1"].dropna(), bins=20, alpha=0.45,
-                     label=display_name, color=color, edgecolor="white")
-        axes[1].scatter(frame["runtime_seconds"], frame["evaluation_f1"],
-                        alpha=0.7, color=color, label=display_name)
-    axes[0].set_title(
-        f"{DISPLAY_NAME_MAP[algorithm_key]} | {metric_label} distribution")
-    axes[0].set_xlabel(metric_label)
-    axes[0].set_ylabel("Dataset count")
-    axes[0].legend()
-    axes[1].set_title(
-        f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs {metric_label}")
-    axes[1].set_xlabel("Runtime (seconds)")
-    axes[1].set_ylabel(metric_label)
-    axes[1].legend()
+    variant_groups = _layered_variant_groups(subset, plt)
+    fig = plt.figure(figsize=(15.4, 6.4))
+    grid = fig.add_gridspec(1, 2)
+    distribution_ax = fig.add_subplot(grid[0, 0], projection="3d")
+    tradeoff_ax = fig.add_subplot(grid[0, 1], projection="3d")
+    fig.subplots_adjust(left=0.03, right=0.99, bottom=0.06, top=0.91, wspace=0.05)
+
+    _draw_layered_histogram_3d(
+        distribution_ax,
+        variant_groups,
+        "evaluation_f1",
+        x_label=metric_label,
+    )
+    distribution_ax.set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Layered 3D {metric_label} distribution")
+
+    _draw_layered_scatter_3d(
+        tradeoff_ax,
+        variant_groups,
+        "runtime_seconds",
+        "evaluation_f1",
+        x_label="Runtime (seconds)",
+        y_label=metric_label,
+    )
+    tradeoff_ax.set_title(f"{DISPLAY_NAME_MAP[algorithm_key]} | Layered 3D runtime vs {metric_label}")
 
     if save_path is not None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -6484,7 +6646,16 @@ def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, 
     anomaly_pivot = _ordered_regime_pivot(
         results_frame, algorithm_key, "anomaly_ratio_bucket", ANOMALY_RATIO_BUCKET_ORDER, metric=metric_spec["metric_column"])
 
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
+    fig = plt.figure(figsize=(16.4, 12.4))
+    grid = fig.add_gridspec(2, 2)
+    axes = np.array(
+        [
+            [fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1])],
+            [fig.add_subplot(grid[1, 0]), fig.add_subplot(grid[1, 1], projection="3d")],
+        ],
+        dtype=object,
+    )
+    fig.subplots_adjust(left=0.07, right=0.95, bottom=0.06, top=0.95, wspace=0.16, hspace=0.20)
     image = _draw_metric_heatmap(
         axes[0, 0],
         variant_pivot,
@@ -6504,14 +6675,17 @@ def plot_algorithm_paper_panel(results_frame: pd.DataFrame, algorithm_key: str, 
         "PuBuGn",
     )
 
-    for display_name, frame in subset.groupby("algorithm_display"):
-        axes[1, 1].scatter(frame["runtime_seconds"],
-                           frame[metric_spec["metric_column"]], alpha=0.7, label=display_name)
+    variant_groups = _layered_variant_groups(subset, plt)
+    _draw_layered_scatter_3d(
+        axes[1, 1],
+        variant_groups,
+        "runtime_seconds",
+        metric_spec["metric_column"],
+        x_label="Runtime (seconds)",
+        y_label=metric_spec["label"],
+    )
     axes[1, 1].set_title(
-        f"{DISPLAY_NAME_MAP[algorithm_key]} | Runtime vs {metric_spec['label']}")
-    axes[1, 1].set_xlabel("Runtime (seconds)")
-    axes[1, 1].set_ylabel(metric_spec["label"])
-    axes[1, 1].legend()
+        f"{DISPLAY_NAME_MAP[algorithm_key]} | Layered 3D runtime vs {metric_spec['label']}")
 
     if image is not None:
         fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02)
