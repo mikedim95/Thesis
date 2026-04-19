@@ -10,6 +10,7 @@ import sys
 import time
 import types
 import warnings
+from difflib import get_close_matches
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -3065,6 +3066,16 @@ def resolve_saved_run_session(run_name_or_session_id: str | None = None) -> dict
     ]
     if partial_name:
         return partial_name[0]
+
+    fuzzy_candidates: dict[str, dict[str, Any]] = {}
+    for manifest in manifests:
+        for candidate in (manifest.get("run_name", ""), manifest.get("session_id", "")):
+            key = _session_match_key(candidate)
+            if key:
+                fuzzy_candidates.setdefault(key, manifest)
+    close_matches = get_close_matches(query_match, list(fuzzy_candidates), n=1, cutoff=0.65)
+    if close_matches:
+        return fuzzy_candidates[close_matches[0]]
 
     available = ", ".join(
         f"{manifest.get('run_name') or manifest.get('session_id')} [{manifest.get('session_id')}]"
