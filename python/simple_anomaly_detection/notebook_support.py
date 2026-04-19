@@ -3606,6 +3606,51 @@ def ensure_notebook_state_benchmark(
         raise
 
 
+def bootstrap_notebook_state(
+    saved_run_name_or_session_id: str | None = None,
+    *,
+    hydrate_benchmark: bool = False,
+    persist_tables: bool = True,
+    write_global: bool = False,
+) -> dict[str, Any]:
+    dataset_name_source = RAW_DATASET_DIR if any(
+        RAW_DATASET_DIR.glob("*.txt")
+    ) else LEGACY_VIRGIN_DIR
+    dataset_names = [path.stem for path in sorted(dataset_name_source.glob("*.txt"))]
+    panel_bundle = build_control_panel(dataset_names)
+    ns_module = sys.modules.get(__name__) or types.SimpleNamespace(**globals())
+
+    state = {
+        "project_root": PROJECT_ROOT,
+        "ns": ns_module,
+        "controls": panel_bundle["controls"],
+        "panel_bundle": panel_bundle,
+        "config": None,
+        "context": None,
+        "benchmark": None,
+    }
+
+    try:
+        manifest = resolve_saved_run_session(saved_run_name_or_session_id)
+        load_saved_run_session_into_controls(
+            state["controls"],
+            str(manifest["session_id"]),
+        )
+    except FileNotFoundError:
+        if hydrate_benchmark:
+            raise
+
+    if hydrate_benchmark:
+        ensure_notebook_state_benchmark(
+            state,
+            refresh_from_saved_run=True,
+            persist_tables=persist_tables,
+            write_global=write_global,
+        )
+
+    return state
+
+
 def _recover_saved_run_progress_counts(
     session_id: str,
 ) -> tuple[int, int]:
