@@ -3166,7 +3166,13 @@ def _build_saved_run_variants(
     if selected_run_parameters_frame.empty:
         return [], {}, []
 
-    for row in selected_run_parameters_frame.sort_values(["algorithm", "variant_index"]).to_dict(orient="records"):
+    sortable_frame = selected_run_parameters_frame.copy()
+    sortable_frame["__algorithm_order__"] = sortable_frame["algorithm"].map(
+        {algorithm_key: index for index, algorithm_key in enumerate(ALGORITHM_ORDER)}
+    )
+    sortable_frame["__algorithm_order__"] = sortable_frame["__algorithm_order__"].fillna(len(ALGORITHM_ORDER))
+
+    for row in sortable_frame.sort_values(["__algorithm_order__", "variant_index"]).to_dict(orient="records"):
         algorithm_key = str(row.get("algorithm") or "").strip()
         if algorithm_key not in ALGORITHM_ORDER:
             continue
@@ -3598,6 +3604,70 @@ def ensure_notebook_state_benchmark(
         if has_config and has_context and has_benchmark:
             return notebook_state
         raise
+
+
+def _recover_saved_run_progress_counts(
+    session_id: str,
+) -> tuple[int, int]:
+    manifest = _read_json_if_exists(saved_run_session_manifest_path(session_id)) or {}
+    executed_run_count = int(manifest.get("executed_run_count") or 0)
+    skipped_existing_run_count = int(manifest.get("skipped_existing_run_count") or 0)
+
+    snapshot_overview = _read_table_if_exists(
+        saved_run_session_table_path(session_id, "snapshot_overview.csv")
+    )
+    if snapshot_overview is not None and not snapshot_overview.empty:
+        row = snapshot_overview.iloc[0]
+        executed_run_count = max(
+            executed_run_count,
+            int(_saved_frame_value(row, "executed_run_count", 0) or 0),
+        )
+        skipped_existing_run_count = max(
+            skipped_existing_run_count,
+            int(_saved_frame_value(row, "skipped_existing_run_count", 0) or 0),
+        )
+
+    return executed_run_count, skipped_existing_run_count
+
+
+def _count_completed_run_prefix(
+    benchmark_dataset_paths: list[Path],
+    selected_runs: list[dict[str, Any]],
+    completed_run_keys: set[str],
+    config: dict[str, Any],
+    prepared_dataset_dir_value: str,
+) -> int:
+    if not benchmark_dataset_paths or not selected_runs or not completed_run_keys:
+        return 0
+
+    prefix_count = 0
+    for prepared_dataset_path in benchmark_dataset_paths:
+        dataset = load_prepared_dataset(prepared_dataset_path)
+        values = dataset["values"]
+        window_size = (
+            config["window_size"]
+            if config["window_size"] is not None
+            else estimate_window_size(values)
+        )
+        window_stride = max(1, int(config["window_stride"]))
+
+        for run_config in selected_runs:
+            current_run_key = _result_run_key(
+                dataset_name=dataset["dataset_name"],
+                algorithm_run_id=run_config["algorithm_run_id"],
+                normalization_method=config["normalization_method"],
+                threshold_method=str(config["threshold_method"]),
+                threshold_value=float(config["threshold_value"]),
+                evaluation_mode=str(config["evaluation_mode"]),
+                window_size=window_size,
+                window_stride=window_stride,
+                prepared_dataset_dir=prepared_dataset_dir_value,
+            )
+            if current_run_key not in completed_run_keys:
+                return prefix_count
+            prefix_count += 1
+
+    return prefix_count
 
 
 def _make_if_variant(
@@ -8093,13 +8163,15 @@ def run_benchmark(
     total_dataset_count = len(benchmark_dataset_paths)
     total_run_count = total_dataset_count * len(selected_runs)
     benchmark_started_at = time.perf_counter()
-    completed_runs = 0
-    executed_runs = 0
-    skipped_existing_runs = 0
     recent_messages: list[str] = []
     existing_results = pd.DataFrame()
     completed_run_keys: set[str] = set()
     prepared_dataset_dir_value = portable_path_str(prepared_dataset_dir)
+    executed_runs, skipped_existing_runs = _recover_saved_run_progress_counts(
+        config["session_id"],
+    )
+    completed_runs = 0
+    already_accounted_run_count = 0
 
     if config.get("resume_from_existing"):
         _validate_resume_compatibility(
@@ -8115,6 +8187,14 @@ def run_benchmark(
         successful_existing_results = _successful_results_frame(existing_results)
         if not successful_existing_results.empty:
             completed_run_keys = set(_result_run_key_series(successful_existing_results))
+    already_accounted_run_count = _count_completed_run_prefix(
+        benchmark_dataset_paths,
+        selected_runs,
+        completed_run_keys,
+        config,
+        prepared_dataset_dir_value,
+    )
+    completed_runs = already_accounted_run_count
     checkpoint_results = existing_results.copy()
     update_saved_run_manifest(
         config,
@@ -8132,17 +8212,19 @@ def run_benchmark(
 
     if show_progress:
         progress_bar = widgets.IntProgress(
-            value=0,
+            value=completed_runs,
             min=0,
             max=max(total_run_count, 1),
             description="Runs",
             bar_style="info",
             layout=widgets.Layout(width="100%"),
         )
+        remaining_checks = max(total_run_count - completed_runs, 0)
         progress_summary = _progress_html(
             (
-                f"<b>Benchmark queued</b>: {total_dataset_count} datasets x {len(selected_runs)} configurations "
-                f"= {total_run_count} dataset/config checks"
+                f"<b>Resume</b>: checked {completed_runs}/{total_run_count} | "
+                f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
+                f"<b>Remaining</b>: {remaining_checks}"
             )
         )
         progress_status = _progress_html("<b>Status</b>: waiting to start...")
@@ -8168,6 +8250,7 @@ def run_benchmark(
         window_stride = max(1, int(config["window_stride"]))
 
         for algorithm_index, run_config in enumerate(selected_runs, start=1):
+            run_check_index = ((dataset_index - 1) * len(selected_runs)) + algorithm_index
             algorithm_key = run_config["algorithm"]
             current_run_key = _result_run_key(
                 dataset_name=dataset["dataset_name"],
@@ -8199,18 +8282,48 @@ def run_benchmark(
                     f"<b>Status</b><br>"
                     f"<b>Dataset</b>: {dataset_index}/{total_dataset_count} | {html.escape(dataset['dataset_name'])}<br>"
                     f"<b>Configuration</b>: {algorithm_index}/{len(selected_runs)} | {html.escape(run_config['algorithm_display'])}<br>"
-                    f"<b>Window</b>: {window_size} | <b>Stride</b>: {window_stride} | "
-                    f"<b>Threshold</b>: {html.escape(str(config['threshold_method']))}={html.escape(str(config['threshold_value']))} | "
-                    f"<b>Eval</b>: {html.escape(str(config['evaluation_mode']))}<br>"
-                    f"<b>Checked</b>: {completed_runs}/{total_run_count} | "
-                    f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
+                        f"<b>Window</b>: {window_size} | <b>Stride</b>: {window_stride} | "
+                        f"<b>Threshold</b>: {html.escape(str(config['threshold_method']))}={html.escape(str(config['threshold_value']))} | "
+                        f"<b>Eval</b>: {html.escape(str(config['evaluation_mode']))}<br>"
+                        f"<b>Checked</b>: {completed_runs}/{total_run_count} | "
+                        f"<b>Executed</b>: {executed_runs} | <b>Skipped</b>: {skipped_existing_runs} | "
                     f"<b>Elapsed</b>: {_format_duration(elapsed_seconds)}"
                     f"{sand_note}"
                     "</div>"
                 )
+            already_accounted = run_check_index <= already_accounted_run_count
             if current_run_key in completed_run_keys:
+                if already_accounted:
+                    continue
                 completed_runs += 1
                 skipped_existing_runs += 1
+
+                completed_dataset_count = (
+                    checkpoint_results.loc[checkpoint_results["error"].fillna("").astype(str) == "", "dataset_name"].nunique()
+                    if not checkpoint_results.empty and "dataset_name" in checkpoint_results.columns
+                    else 0
+                )
+                selected_dataset_count = int(
+                    (_read_json_if_exists(saved_run_session_manifest_path(config["session_id"])) or {}).get(
+                        "selected_dataset_count",
+                        total_dataset_count,
+                    )
+                    or total_dataset_count
+                )
+                update_saved_run_manifest(
+                    config,
+                    status="running",
+                    batch_dataset_count=total_dataset_count,
+                    executed_run_count=executed_runs,
+                    skipped_existing_run_count=skipped_existing_runs,
+                    selected_dataset_count=selected_dataset_count,
+                    completed_dataset_count=completed_dataset_count,
+                    pending_dataset_count=max(selected_dataset_count - completed_dataset_count, 0),
+                    last_dataset_name=dataset["dataset_name"],
+                    last_algorithm_display=run_config["algorithm_display"],
+                    error_count=int(checkpoint_results["error"].fillna("").astype(str).ne("").sum()) if "error" in checkpoint_results.columns else 0,
+                    result_row_count=len(checkpoint_results),
+                )
 
                 if show_progress and progress_bar is not None and progress_summary is not None and progress_recent is not None:
                     elapsed_seconds = time.perf_counter() - benchmark_started_at
@@ -8241,6 +8354,8 @@ def run_benchmark(
                         + "</div>"
                     )
                 continue
+            if already_accounted:
+                already_accounted_run_count = run_check_index - 1
             start_time = time.perf_counter()
             try:
                 scores = run_algorithm(
@@ -8342,6 +8457,8 @@ def run_benchmark(
                 pd.DataFrame.from_records([records[-1]]),
             )
             _write_benchmark_checkpoint(checkpoint_results, config["session_id"])
+            completed_runs += 1
+            executed_runs += 1
             completed_dataset_count = (
                 checkpoint_results.loc[checkpoint_results["error"].fillna("").astype(str) == "", "dataset_name"].nunique()
                 if not checkpoint_results.empty and "dataset_name" in checkpoint_results.columns
@@ -8358,7 +8475,7 @@ def run_benchmark(
                 config,
                 status="running",
                 batch_dataset_count=total_dataset_count,
-                executed_run_count=executed_runs + 1,
+                executed_run_count=executed_runs,
                 skipped_existing_run_count=skipped_existing_runs,
                 selected_dataset_count=selected_dataset_count,
                 completed_dataset_count=completed_dataset_count,
@@ -8368,8 +8485,6 @@ def run_benchmark(
                 error_count=int(checkpoint_results["error"].fillna("").astype(str).ne("").sum()) if "error" in checkpoint_results.columns else 0,
                 result_row_count=len(checkpoint_results),
             )
-            completed_runs += 1
-            executed_runs += 1
 
             if show_progress and progress_bar is not None and progress_summary is not None and progress_recent is not None:
                 elapsed_seconds = time.perf_counter() - benchmark_started_at
@@ -8451,6 +8566,7 @@ def run_benchmark(
                 "session_id": config["session_id"],
                 "executed_run_count": executed_runs,
                 "skipped_existing_run_count": skipped_existing_runs,
+                "checked_run_count": completed_runs,
                 "resume_from_existing": bool(config.get("resume_from_existing")),
                 "batch_size": "all selected" if config.get("batch_size") is None else config["batch_size"],
                 "median_series_length": dataset_catalog["series_length"].median(),
