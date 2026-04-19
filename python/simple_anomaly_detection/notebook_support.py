@@ -3530,6 +3530,76 @@ def load_saved_run_notebook_state(
     }
 
 
+def _notebook_state_run_reference(notebook_state: dict[str, Any]) -> str | None:
+    config = notebook_state.get("config")
+    if isinstance(config, dict):
+        session_id = str(config.get("session_id") or "").strip()
+        if session_id:
+            return session_id
+        run_name = str(config.get("run_name") or "").strip()
+        if run_name:
+            return run_name
+
+    controls = notebook_state.get("controls")
+    if isinstance(controls, dict):
+        run_name_control = controls.get("run_name")
+        if run_name_control is not None and hasattr(run_name_control, "value"):
+            run_name = str(run_name_control.value or "").strip()
+            if run_name:
+                return run_name
+
+    return None
+
+
+def hydrate_notebook_state_from_saved_run(
+    notebook_state: dict[str, Any],
+    run_name_or_session_id: str | None = None,
+    *,
+    persist_tables: bool = True,
+    write_global: bool = False,
+) -> dict[str, Any]:
+    resolved_run = run_name_or_session_id or _notebook_state_run_reference(notebook_state)
+    snapshot = load_saved_run_notebook_state(
+        resolved_run,
+        persist_tables=persist_tables,
+        write_global=write_global,
+    )
+    notebook_state["config"] = snapshot["config"]
+    notebook_state["context"] = snapshot["context"]
+    notebook_state["benchmark"] = snapshot["benchmark"]
+    notebook_state["snapshot_extracted_at"] = snapshot["snapshot_extracted_at"]
+    if "ns" not in notebook_state:
+        notebook_state["ns"] = snapshot["ns"]
+    return notebook_state
+
+
+def ensure_notebook_state_benchmark(
+    notebook_state: dict[str, Any],
+    *,
+    refresh_from_saved_run: bool = False,
+    persist_tables: bool = True,
+    write_global: bool = False,
+) -> dict[str, Any]:
+    has_config = isinstance(notebook_state.get("config"), dict)
+    has_context = isinstance(notebook_state.get("context"), dict)
+    benchmark = notebook_state.get("benchmark")
+    has_benchmark = isinstance(benchmark, dict) and benchmark.get("results") is not None
+
+    if has_config and has_context and has_benchmark and not refresh_from_saved_run:
+        return notebook_state
+
+    try:
+        return hydrate_notebook_state_from_saved_run(
+            notebook_state,
+            persist_tables=persist_tables,
+            write_global=write_global,
+        )
+    except Exception:
+        if has_config and has_context and has_benchmark:
+            return notebook_state
+        raise
+
+
 def _make_if_variant(
     default_name: str,
     initial_values: dict[str, Any] | None,
@@ -7134,6 +7204,12 @@ def export_thesis_figure_pack(
     session_id: str | None = None,
     write_global: bool = True,
 ) -> dict[str, Any]:
+    notebook_state = ensure_notebook_state_benchmark(
+        notebook_state,
+        refresh_from_saved_run=True,
+        persist_tables=True,
+        write_global=False,
+    )
     ns = notebook_state["ns"]
     config = notebook_state.get("config")
     context = notebook_state.get("context")
@@ -7595,6 +7671,12 @@ def export_saved_run_snapshot_artifacts(
 
 
 def render_ablation_overview(notebook_state: dict[str, Any]) -> None:
+    notebook_state = ensure_notebook_state_benchmark(
+        notebook_state,
+        refresh_from_saved_run=True,
+        persist_tables=True,
+        write_global=False,
+    )
     ns = notebook_state["ns"]
     config = notebook_state["config"]
     benchmark = notebook_state["benchmark"]
@@ -7634,6 +7716,12 @@ def render_ablation_overview(notebook_state: dict[str, Any]) -> None:
 
 
 def render_algorithm_report(notebook_state: dict[str, Any], algorithm_key: str, context_points: int = 1200) -> None:
+    notebook_state = ensure_notebook_state_benchmark(
+        notebook_state,
+        refresh_from_saved_run=True,
+        persist_tables=True,
+        write_global=False,
+    )
     ns = notebook_state["ns"]
     config = notebook_state["config"]
     benchmark = notebook_state["benchmark"]
