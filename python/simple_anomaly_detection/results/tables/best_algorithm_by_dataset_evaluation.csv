@@ -1,151 +1,51 @@
 dataset_name,best_algorithm,best_algorithm_base_display,best_algorithm_superfamily,best_algorithm_category,best_algorithm_display,best_algorithm_variant,best_window_size,best_window_stride,best_threshold_method,best_threshold_value,best_evaluation_mode,best_evaluation_f1
-004_UCR_Anomaly_DISTORTEDBIDMC1_2500_5400_5600,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,81,1,sigma,3.0,range,0.7584905660377358
-005_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature1_4000_5391_5392,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,24,1,sigma,3.0,range,0.01438848920863309
-006_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature2_4000_5703_5727,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,24,1,sigma,3.0,range,0.12573099415204678
-007_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature3_4000_6520_6544,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.4385964912280702
-008_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature4_4000_5549_5597,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,24,1,sigma,3.0,range,0.1606334841628959
-009_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature5_4000_4852_4900,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.27705031013094417
-010_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature6_4000_6006_6054,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.4066390041493776
-011_UCR_Anomaly_DISTORTEDECG1_10000_11800_12100,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,91,1,sigma,3.0,range,0.33909899345255545
-012_UCR_Anomaly_DISTORTEDECG2_15000_16000_16100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,91,1,sigma,3.0,range,0.19850119872091163
-013_UCR_Anomaly_DISTORTEDECG3_15000_16000_16100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.6644736842105263
-014_UCR_Anomaly_DISTORTEDECG3_8000_17000_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.7426470588235294
-016_UCR_Anomaly_DISTORTEDECG4_5000_16900_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.7542213883677298
-017_UCR_Anomaly_DISTORTEDECG4_5000_17000_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.637223974763407
-018_UCR_Anomaly_DISTORTEDECG4_8000_17000_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.38476190476190475
-019_UCR_Anomaly_DISTORTEDGP711MarkerLFM5z1_5000_6168_6212,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,218,1,sigma,3.0,range,0.33834586466165417
-020_UCR_Anomaly_DISTORTEDGP711MarkerLFM5z2_5000_7175_7388,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,218,1,sigma,3.0,range,0.6416791604197901
-021_UCR_Anomaly_DISTORTEDGP711MarkerLFM5z3_5000_5948_5993,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.3650793650793651
-022_UCR_Anomaly_DISTORTEDGP711MarkerLFM5z4_4000_6527_6645,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.6467391304347826
-023_UCR_Anomaly_DISTORTEDGP711MarkerLFM5z5_5000_8612_8716,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,218,1,sigma,3.0,range,0.6441717791411042
-024_UCR_Anomaly_DISTORTEDInternalBleeding10_3200_4526_4556,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,154,1,sigma,3.0,range,0.2366035652592025
-025_UCR_Anomaly_DISTORTEDInternalBleeding14_2800_5607_5634,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,154,1,sigma,3.0,range,0.3218229623137599
-026_UCR_Anomaly_DISTORTEDInternalBleeding15_1700_5684_5854,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,173,1,sigma,3.0,range,0.6584231561099673
-027_UCR_Anomaly_DISTORTEDInternalBleeding16_1200_4187_4199,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,183,1,sigma,3.0,range,0.0
-028_UCR_Anomaly_DISTORTEDInternalBleeding17_1600_3198_3309,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,183,1,sigma,3.0,range,0.7441860465116279
-029_UCR_Anomaly_DISTORTEDInternalBleeding18_2300_4485_4587,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,183,1,sigma,3.0,range,0.40278314650173946
-030_UCR_Anomaly_DISTORTEDInternalBleeding19_3000_4187_4197,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,183,1,sigma,3.0,range,0.11340206185567009
-031_UCR_Anomaly_DISTORTEDInternalBleeding20_2700_5759_5919,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,183,1,sigma,3.0,range,0.8870523415977962
-032_UCR_Anomaly_DISTORTEDInternalBleeding4_1000_4675_5033,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,178,1,sigma,3.0,range,0.7684650797337218
-033_UCR_Anomaly_DISTORTEDInternalBleeding5_4000_6200_6370,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,173,1,sigma,3.0,range,0.8306795795050079
-034_UCR_Anomaly_DISTORTEDInternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Wide Sample,Wide Sample,154,1,sigma,3.0,range,0.8851957345636872
-035_UCR_Anomaly_DISTORTEDInternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,165,1,sigma,3.0,range,0.49168207024029575
+005_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature1_4000_5391_5392,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,24,1,sigma,3.0,range,0.04195804195804196
+006_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature2_4000_5703_5727,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Gamma 0.1,Gamma 0.1,24,1,sigma,3.0,range,0.5907436297451898
+007_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature3_4000_6520_6544,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x4,Subseq x4,24,1,sigma,3.0,range,0.4385964912280702
+008_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature4_4000_5549_5597,sand,SAND,Distance-based,Clustering,SAND | Subseq x2,Subseq x2,24,1,sigma,3.0,range,0.21626984126984128
+009_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature5_4000_4852_4900,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Gamma 0.1,Gamma 0.1,24,1,sigma,3.0,range,0.31465517241379315
+010_UCR_Anomaly_DISTORTEDCIMIS44AirTemperature6_4000_6006_6054,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x4,Subseq x4,24,1,sigma,3.0,range,0.4066390041493776
+024_UCR_Anomaly_DISTORTEDInternalBleeding10_3200_4526_4556,sand,SAND,Distance-based,Clustering,SAND | Batch 1000,Batch 1000,154,1,sigma,3.0,range,0.5265649658074697
+025_UCR_Anomaly_DISTORTEDInternalBleeding14_2800_5607_5634,sand,SAND,Distance-based,Clustering,SAND | Subseq x2,Subseq x2,154,1,sigma,3.0,range,0.32558139534883723
+026_UCR_Anomaly_DISTORTEDInternalBleeding15_1700_5684_5854,sand,SAND,Distance-based,Clustering,SAND | Init 3000,Init 3000,173,1,sigma,3.0,range,0.766301419076702
+027_UCR_Anomaly_DISTORTEDInternalBleeding16_1200_4187_4199,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Seed 7,Seed 7,183,1,sigma,3.0,range,0.18478260869565216
+028_UCR_Anomaly_DISTORTEDInternalBleeding17_1600_3198_3309,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Metric manhattan,Metric manhattan,183,1,sigma,3.0,range,0.8
+029_UCR_Anomaly_DISTORTEDInternalBleeding18_2300_4485_4587,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x1,Subseq x1,183,1,sigma,3.0,range,0.40278314650173946
+030_UCR_Anomaly_DISTORTEDInternalBleeding19_3000_4187_4197,sand,SAND,Distance-based,Clustering,SAND | Init 3000,Init 3000,183,1,sigma,3.0,range,0.5789473684210525
+031_UCR_Anomaly_DISTORTEDInternalBleeding20_2700_5759_5919,damp,DAMP,Distance-based,Discord,DAMP | Start x2,Start x2,183,1,sigma,3.0,range,0.9019607843137255
+032_UCR_Anomaly_DISTORTEDInternalBleeding4_1000_4675_5033,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Gamma 0.1,Gamma 0.1,178,1,sigma,3.0,range,0.7730690362269309
+033_UCR_Anomaly_DISTORTEDInternalBleeding5_4000_6200_6370,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,173,1,sigma,3.0,range,0.8306795795050079
+034_UCR_Anomaly_DISTORTEDInternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Trees 400,Trees 400,154,1,sigma,3.0,range,0.8851957345636872
+035_UCR_Anomaly_DISTORTEDInternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,165,1,sigma,3.0,range,0.49168207024029575
 036_UCR_Anomaly_DISTORTEDInternalBleeding9_4200_6599_6681,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,175,1,sigma,3.0,range,0.0
-037_UCR_Anomaly_DISTORTEDLab2Cmac011215EPG1_5000_17210_17260,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,33,1,sigma,3.0,range,0.15292353823088456
-038_UCR_Anomaly_DISTORTEDLab2Cmac011215EPG2_5000_27862_27932,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,33,1,sigma,3.0,range,0.08829740265961647
-039_UCR_Anomaly_DISTORTEDLab2Cmac011215EPG3_5000_16390_16420,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,33,1,sigma,3.0,range,0.04665161775771258
-040_UCR_Anomaly_DISTORTEDLab2Cmac011215EPG4_6000_17390_17520,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,34,1,sigma,3.0,range,0.12804020477431696
-041_UCR_Anomaly_DISTORTEDLab2Cmac011215EPG5_7000_17390_17520,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,33,1,sigma,3.0,range,0.07059101097086234
-042_UCR_Anomaly_DISTORTEDLab2Cmac011215EPG6_7000_12190_12420,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,33,1,sigma,3.0,range,0.23285088174268095
-043_UCR_Anomaly_DISTORTEDMesoplodonDensirostris_10000_19280_19440,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Nu 0.10,Nu 0.10,45,1,sigma,3.0,range,0.21443514644351466
-044_UCR_Anomaly_DISTORTEDPowerDemand1_9000_18485_18821,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,168,1,sigma,3.0,range,0.7883040935672515
-045_UCR_Anomaly_DISTORTEDPowerDemand2_14000_23357_23717,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,168,1,sigma,3.0,range,0.8597599494630449
-046_UCR_Anomaly_DISTORTEDPowerDemand3_16000_23405_23477,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,168,1,sigma,3.0,range,0.19714393325876525
-047_UCR_Anomaly_DISTORTEDPowerDemand4_18000_24005_24077,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,168,1,sigma,3.0,range,0.03895410885805763
-048_UCR_Anomaly_DISTORTEDTkeepFifthMARS_3500_5988_6085,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,98,1,sigma,3.0,range,0.8634361233480177
-049_UCR_Anomaly_DISTORTEDTkeepFirstMARS_3500_5365_5380,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,98,1,sigma,3.0,range,0.23880597014925373
-050_UCR_Anomaly_DISTORTEDTkeepForthMARS_3500_5988_6085,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,98,1,sigma,3.0,range,0.258
-051_UCR_Anomaly_DISTORTEDTkeepSecondMARS_3500_9330_9340,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,98,1,sigma,3.0,range,0.3018197958277852
-052_UCR_Anomaly_DISTORTEDTkeepThirdMARS_3500_4711_4809,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,98,1,sigma,3.0,range,0.6971830985915494
-053_UCR_Anomaly_DISTORTEDWalkingAceleration1_1500_2764_2995,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,115,1,sigma,3.0,range,0.32688927943760987
-054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Feat 0.6,Feat 0.6,115,1,sigma,3.0,range,0.6486486486486487
-055_UCR_Anomaly_DISTORTEDapneaecg2_10000_20950_21100,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,40,1,sigma,3.0,range,0.2115757407920244
-056_UCR_Anomaly_DISTORTEDapneaecg3_5000_11111_11211,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,40,1,sigma,3.0,range,0.17449930596866944
-057_UCR_Anomaly_DISTORTEDapneaecg4_6000_16000_16100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,40,1,sigma,3.0,range,0.08994008889862112
-058_UCR_Anomaly_DISTORTEDapneaecg_10000_12240_12308,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,40,1,sigma,3.0,range,0.29336078229541945
-065_UCR_Anomaly_DISTORTEDinsectEPG1_3000_7000_7030,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,26,1,sigma,3.0,range,0.09379727685325265
-066_UCR_Anomaly_DISTORTEDinsectEPG2_3700_8000_8025,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,26,1,sigma,3.0,range,0.1925925925925926
-067_UCR_Anomaly_DISTORTEDinsectEPG3_5200_7000_7050,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,26,1,sigma,3.0,range,0.14925373134328357
-068_UCR_Anomaly_DISTORTEDinsectEPG4_1300_6508_6558,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,26,1,sigma,3.0,range,0.21656050955414013
-069_UCR_Anomaly_DISTORTEDinsectEPG5_3200_8500_8501,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,26,1,sigma,3.0,range,0.07407407407407407
-071_UCR_Anomaly_DISTORTEDltstdbs30791AS_23000_52600_52800,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,233,1,sigma,3.0,range,0.3672156391231207
-072_UCR_Anomaly_DISTORTEDltstdbs30791ES_20000_52600_52800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,233,1,sigma,3.0,range,0.20455036048871045
-074_UCR_Anomaly_DISTORTEDqtdbSel1005V_4000_12400_12800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,188,1,sigma,3.0,range,0.2827747938573265
-075_UCR_Anomaly_DISTORTEDqtdbSel100MLII_4000_13400_13800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,189,1,sigma,3.0,range,0.31919222347358056
-084_UCR_Anomaly_DISTORTEDs20101mML2_12000_35774_35874,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,108,1,sigma,3.0,range,0.09099099099099098
-085_UCR_Anomaly_DISTORTEDs20101m_10000_35774_35874,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,108,1,sigma,3.0,range,0.06704281447062728
-094_UCR_Anomaly_NOISEBIDMC1_2500_5400_5600,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,81,1,sigma,3.0,range,0.7613636363636362
-095_UCR_Anomaly_NOISECIMIS44AirTemperature4_4000_5549_5597,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,24,1,sigma,3.0,range,0.22765576936833823
-096_UCR_Anomaly_NOISEECG4_5000_16900_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.7542213883677298
-097_UCR_Anomaly_NOISEGP711MarkerLFM5z3_5000_5948_5993,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.35384615384615387
-098_UCR_Anomaly_NOISEInternalBleeding16_1200_4187_4199,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,183,1,sigma,3.0,range,0.05882352941176471
-099_UCR_Anomaly_NOISEInternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Wide Sample,Wide Sample,154,1,sigma,3.0,range,0.8607685433422699
-100_UCR_Anomaly_NOISELab2Cmac011215EPG1_5000_17210_17260,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,34,1,sigma,3.0,range,0.16693944353518822
-101_UCR_Anomaly_NOISELab2Cmac011215EPG4_6000_17390_17520,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,34,1,sigma,3.0,range,0.12007037872998381
-102_UCR_Anomaly_NOISEMesoplodonDensirostris_10000_19280_19440,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,46,1,sigma,3.0,range,0.3552779112606119
-103_UCR_Anomaly_NOISETkeepThirdMARS_3500_4711_4809,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,98,1,sigma,3.0,range,0.5658379173078001
-104_UCR_Anomaly_NOISEapneaecg4_6000_16000_16100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,40,1,sigma,3.0,range,0.14777690730943005
-107_UCR_Anomaly_NOISEinsectEPG3_5200_7000_7050,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,26,1,sigma,3.0,range,0.05459057071960298
-112_UCR_Anomaly_BIDMC1_2500_5400_5600,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,81,1,sigma,3.0,range,0.7599243856332704
-113_UCR_Anomaly_CIMIS44AirTemperature1_4000_5391_5392,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,24,1,sigma,3.0,range,0.011049723756906079
-114_UCR_Anomaly_CIMIS44AirTemperature2_4000_5703_5727,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,24,1,sigma,3.0,range,0.13642960812772134
-115_UCR_Anomaly_CIMIS44AirTemperature3_4000_6520_6544,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.24875621890547264
-116_UCR_Anomaly_CIMIS44AirTemperature4_4000_5549_5597,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,24,1,sigma,3.0,range,0.18974657136016965
-117_UCR_Anomaly_CIMIS44AirTemperature5_4000_4852_4900,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.30145867098865475
-118_UCR_Anomaly_CIMIS44AirTemperature6_4000_6006_6054,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.5730994152046784
-119_UCR_Anomaly_ECG1_10000_11800_12100,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,91,1,sigma,3.0,range,0.333424538577177
-120_UCR_Anomaly_ECG2_15000_16000_16100,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,91,1,sigma,3.0,range,0.18711906983094037
-121_UCR_Anomaly_ECG3_15000_16000_16100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.6733333333333333
-122_UCR_Anomaly_ECG3_8000_17000_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.7188612099644128
-124_UCR_Anomaly_ECG4_5000_16900_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.7542213883677298
-125_UCR_Anomaly_ECG4_5000_17000_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.6352201257861635
-126_UCR_Anomaly_ECG4_8000_17000_17100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,166,1,sigma,3.0,range,0.3862332695984703
-127_UCR_Anomaly_GP711MarkerLFM5z1_5000_6168_6212,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.3448275862068966
-128_UCR_Anomaly_GP711MarkerLFM5z2_5000_7175_7388,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.646532502429821
-129_UCR_Anomaly_GP711MarkerLFM5z3_5000_5948_5993,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.35384615384615387
-130_UCR_Anomaly_GP711MarkerLFM5z4_4000_6527_6645,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,218,1,sigma,3.0,range,0.6449864498644986
-131_UCR_Anomaly_GP711MarkerLFM5z5_5000_8612_8716,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,218,1,sigma,3.0,range,0.6306306306306306
+053_UCR_Anomaly_DISTORTEDWalkingAceleration1_1500_2764_2995,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Train frac 0.20,Train frac 0.20,115,1,sigma,3.0,range,0.32688927943760987
+054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,hbos,HBOS,Density-based,Distribution,HBOS | Bins 20,Bins 20,115,1,sigma,3.0,range,0.6857142857142856
+095_UCR_Anomaly_NOISECIMIS44AirTemperature4_4000_5549_5597,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Neighbors 10,Neighbors 10,24,1,sigma,3.0,range,0.13095648359911025
+098_UCR_Anomaly_NOISEInternalBleeding16_1200_4187_4199,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Neighbors 10,Neighbors 10,183,1,sigma,3.0,range,0.05882352941176471
+099_UCR_Anomaly_NOISEInternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Trees 400,Trees 400,154,1,sigma,3.0,range,0.8607685433422699
+113_UCR_Anomaly_CIMIS44AirTemperature1_4000_5391_5392,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x1,Subseq x1,24,1,sigma,3.0,range,0.011049723756906079
+114_UCR_Anomaly_CIMIS44AirTemperature2_4000_5703_5727,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Gamma 0.1,Gamma 0.1,24,1,sigma,3.0,range,0.4475377544320421
+115_UCR_Anomaly_CIMIS44AirTemperature3_4000_6520_6544,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x4,Subseq x4,24,1,sigma,3.0,range,0.24875621890547264
+116_UCR_Anomaly_CIMIS44AirTemperature4_4000_5549_5597,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,24,1,sigma,3.0,range,0.18974657136016965
+117_UCR_Anomaly_CIMIS44AirTemperature5_4000_4852_4900,hbos,HBOS,Density-based,Distribution,HBOS | Baseline,Baseline,24,1,sigma,3.0,range,0.37340153452685426
+118_UCR_Anomaly_CIMIS44AirTemperature6_4000_6006_6054,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x4,Subseq x4,24,1,sigma,3.0,range,0.5730994152046784
 132_UCR_Anomaly_InternalBleeding10_3200_4526_4556,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,154,1,sigma,3.0,range,0.43661971830985913
-133_UCR_Anomaly_InternalBleeding14_2800_5607_5634,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,154,1,sigma,3.0,range,0.3060109289617486
-134_UCR_Anomaly_InternalBleeding15_1700_5684_5854,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Wide Sample,Wide Sample,173,1,sigma,3.0,range,0.8910505836575876
-135_UCR_Anomaly_InternalBleeding16_1200_4187_4199,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,183,1,sigma,3.0,range,0.13131313131313133
+133_UCR_Anomaly_InternalBleeding14_2800_5607_5634,sand,SAND,Distance-based,Clustering,SAND | Batch 1000,Batch 1000,154,1,sigma,3.0,range,0.3708609271523179
+134_UCR_Anomaly_InternalBleeding15_1700_5684_5854,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Seed 7,Seed 7,173,1,sigma,3.0,range,0.896774193548387
+135_UCR_Anomaly_InternalBleeding16_1200_4187_4199,sand,SAND,Distance-based,Clustering,SAND | Init 3000,Init 3000,183,1,sigma,3.0,range,0.24074074074074076
 136_UCR_Anomaly_InternalBleeding17_1600_3198_3309,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,183,1,sigma,3.0,range,0.8454761904761904
-137_UCR_Anomaly_InternalBleeding18_2300_4485_4587,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,183,1,sigma,3.0,range,0.8952213544026242
-138_UCR_Anomaly_InternalBleeding19_3000_4187_4197,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,183,1,sigma,3.0,range,0.18803418803418803
-139_UCR_Anomaly_InternalBleeding20_2700_5759_5919,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,183,1,sigma,3.0,range,0.8846153846153846
-140_UCR_Anomaly_InternalBleeding4_1000_4675_5033,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,178,1,sigma,3.0,range,0.7805878980602746
+137_UCR_Anomaly_InternalBleeding18_2300_4485_4587,sand,SAND,Distance-based,Clustering,SAND | Subseq x2,Subseq x2,183,1,sigma,3.0,range,0.9801980198019802
+138_UCR_Anomaly_InternalBleeding19_3000_4187_4197,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Gamma 0.1,Gamma 0.1,183,1,sigma,3.0,range,0.2222222222222222
+139_UCR_Anomaly_InternalBleeding20_2700_5759_5919,sand,SAND,Distance-based,Clustering,SAND | Overlap 64,Overlap 64,183,1,sigma,3.0,range,0.9044471883007045
+140_UCR_Anomaly_InternalBleeding4_1000_4675_5033,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,178,1,sigma,3.0,range,0.7805878980602746
 141_UCR_Anomaly_InternalBleeding5_4000_6200_6370,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,173,1,sigma,3.0,range,0.8335607094133697
-142_UCR_Anomaly_InternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,154,1,sigma,3.0,range,0.8636499491900294
-143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,165,1,sigma,3.0,range,0.7515937568696417
+142_UCR_Anomaly_InternalBleeding6_1500_3474_3629,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Bootstrap on,Bootstrap on,154,1,sigma,3.0,range,0.8664423817437477
+143_UCR_Anomaly_InternalBleeding8_2500_5865_5974,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Subseq x1,Subseq x1,165,1,sigma,3.0,range,0.7515937568696417
 144_UCR_Anomaly_InternalBleeding9_4200_6599_6681,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,175,1,sigma,3.0,range,0.0
-145_UCR_Anomaly_Lab2Cmac011215EPG1_5000_17210_17260,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Baseline,Baseline,33,1,sigma,3.0,range,0.18378378378378377
-146_UCR_Anomaly_Lab2Cmac011215EPG2_5000_27862_27932,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,33,1,sigma,3.0,range,0.07567483971917024
-147_UCR_Anomaly_Lab2Cmac011215EPG3_5000_16390_16420,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,33,1,sigma,3.0,range,0.06768558951965066
-148_UCR_Anomaly_Lab2Cmac011215EPG4_6000_17390_17520,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Feat 0.6,Feat 0.6,34,1,sigma,3.0,range,0.1276163381426539
-149_UCR_Anomaly_Lab2Cmac011215EPG5_7000_17390_17520,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,33,1,sigma,3.0,range,0.08773822160295493
-150_UCR_Anomaly_Lab2Cmac011215EPG6_7000_12190_12420,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,33,1,sigma,3.0,range,0.15236591110409184
-151_UCR_Anomaly_MesoplodonDensirostris_10000_19280_19440,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,46,1,sigma,3.0,range,0.29685777287761855
-152_UCR_Anomaly_PowerDemand1_9000_18485_18821,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,168,1,sigma,3.0,range,0.7828106852497096
-153_UCR_Anomaly_PowerDemand2_14000_23357_23717,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,168,1,sigma,3.0,range,0.8795779019242707
-154_UCR_Anomaly_PowerDemand3_16000_23405_23477,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,168,1,sigma,3.0,range,0.04853776366288392
-155_UCR_Anomaly_PowerDemand4_18000_24005_24077,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,168,1,sigma,3.0,range,0.03962008141112619
-156_UCR_Anomaly_TkeepFifthMARS_3500_5988_6085,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,98,1,sigma,3.0,range,0.8484848484848484
-157_UCR_Anomaly_TkeepFirstMARS_3500_5365_5380,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,98,1,sigma,3.0,range,0.14285714285714288
-158_UCR_Anomaly_TkeepForthMARS_3500_5988_6085,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Wide Sample,Wide Sample,98,1,sigma,3.0,range,0.6426592797783934
-159_UCR_Anomaly_TkeepSecondMARS_3500_9330_9340,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,98,1,sigma,3.0,range,0.2391304347826087
-160_UCR_Anomaly_TkeepThirdMARS_3500_4711_4809,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,98,1,sigma,3.0,range,0.6947368421052631
-161_UCR_Anomaly_WalkingAceleration1_1500_2764_2995,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Baseline,Baseline,115,1,sigma,3.0,range,0.30797773654916516
-162_UCR_Anomaly_WalkingAceleration5_2700_5920_5979,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Wide Sample,Wide Sample,115,1,sigma,3.0,range,0.6521739130434783
-163_UCR_Anomaly_apneaecg2_10000_20950_21100,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,40,1,sigma,3.0,range,0.1437291897891232
-164_UCR_Anomaly_apneaecg3_5000_11111_11211,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,40,1,sigma,3.0,range,0.129073482428115
-165_UCR_Anomaly_apneaecg4_6000_16000_16100,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,40,1,sigma,3.0,range,0.08384021042248889
-166_UCR_Anomaly_apneaecg_10000_12240_12308,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,40,1,sigma,3.0,range,0.209277238403452
-173_UCR_Anomaly_insectEPG1_3000_7000_7030,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,26,1,sigma,3.0,range,0.14220183486238533
-174_UCR_Anomaly_insectEPG2_3700_8000_8025,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,26,1,sigma,3.0,range,0.1925925925925926
-175_UCR_Anomaly_insectEPG3_5200_7000_7050,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,26,1,sigma,3.0,range,0.27794561933534745
-176_UCR_Anomaly_insectEPG4_1300_6508_6558,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,26,1,sigma,3.0,range,0.23776223776223776
-177_UCR_Anomaly_insectEPG5_3200_8500_8501,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Warmup 0.20,Warmup 0.20,26,1,sigma,3.0,range,0.05194805194805195
-178_UCR_Anomaly_ltstdbs30791AI_17555_52600_52800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,233,1,sigma,3.0,range,0.13786008230452673
-179_UCR_Anomaly_ltstdbs30791AS_23000_52600_52800,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Global L1,Global L1,233,1,sigma,3.0,range,0.17453387420052846
-180_UCR_Anomaly_ltstdbs30791ES_20000_52600_52800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,233,1,sigma,3.0,range,0.1979515317786923
-182_UCR_Anomaly_qtdbSel1005V_4000_12400_12800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,188,1,sigma,3.0,range,0.23898788389083556
-183_UCR_Anomaly_qtdbSel100MLII_4000_13400_13800,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,189,1,sigma,3.0,range,0.31919222347358056
-192_UCR_Anomaly_s20101mML2_12000_35774_35874,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,108,1,sigma,3.0,range,0.07648617947747065
-193_UCR_Anomaly_s20101m_10000_35774_35874,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,108,1,sigma,3.0,range,0.0667547918043622
-201_UCR_Anomaly_CHARISfive_10000_17001_17016,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x1,Context x1,33,1,sigma,3.0,range,0.06584362139917695
-202_UCR_Anomaly_CHARISfive_10411_10998_11028,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,33,1,sigma,3.0,range,0.08895265423242468
-203_UCR_Anomaly_CHARISfive_10500_10995_11028,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,33,1,sigma,3.0,range,0.04244694132334582
-212_UCR_Anomaly_Italianpowerdemand_8913_29480_29504,isolation_forest,Isolation Forest,Density-based,Tree,Isolation Forest | Baseline,Baseline,168,1,sigma,3.0,range,0.0
-248_UCR_Anomaly_weallwalk_2000_4702_4707,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Local k10,Local k10,24,1,sigma,3.0,range,0.020618556701030924
-249_UCR_Anomaly_weallwalk_2753_8285_8315,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x2,Context x2,24,1,sigma,3.0,range,0.3053030351427494
-250_UCR_Anomaly_weallwalk_2951_7290_7296,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Context x4,Context x4,24,1,sigma,3.0,range,0.20320855614973263
+161_UCR_Anomaly_WalkingAceleration1_1500_2764_2995,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Gamma 0.1,Gamma 0.1,115,1,sigma,3.0,range,0.4184852374839538
+162_UCR_Anomaly_WalkingAceleration5_2700_5920_5979,sand,SAND,Distance-based,Clustering,SAND | Overlap 64,Overlap 64,115,1,sigma,3.0,range,0.9186552406064601
+173_UCR_Anomaly_insectEPG1_3000_7000_7030,damp,DAMP,Distance-based,Discord,DAMP | x_lag x8,x_lag x8,26,1,sigma,3.0,range,0.3028169014084507
+174_UCR_Anomaly_insectEPG2_3700_8000_8025,ocsvm,OCSVM,Density-based,Distribution,OCSVM | Kernel linear,Kernel linear,26,1,sigma,3.0,range,0.2459717198290036
+175_UCR_Anomaly_insectEPG3_5200_7000_7050,matrix_profile,Matrix Profile,Distance-based,Discord,Matrix Profile | Baseline,Baseline,26,1,sigma,3.0,range,0.27794561933534745
+176_UCR_Anomaly_insectEPG4_1300_6508_6558,damp,DAMP,Distance-based,Discord,DAMP | Baseline,Baseline,26,1,sigma,3.0,range,0.2854291417165669
+248_UCR_Anomaly_weallwalk_2000_4702_4707,local_outlier_factor,Local Outlier Factor,Distance-based,Proximity,Local Outlier Factor | Neighbors 10,Neighbors 10,24,1,sigma,3.0,range,0.020618556701030924

@@ -1,0 +1,2 @@
+showcase_dataset,algorithm_display,window_size,window_stride,threshold_method,threshold_value,evaluation_mode,evaluation_recall,evaluation_f1,roc_auc,f1,range_f1,runtime_seconds
+137_UCR_Anomaly_InternalBleeding18_2300_4485_4587,Local Outlier Factor | Neighbors 10,183,1,sigma,3.0,range,1.0,0.801556420233463,0.9982333430897596,0.8015564202334631,0.801556420233463,0.1156209000037051

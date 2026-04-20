@@ -1,0 +1,11 @@
+algorithm_display,ablation_parameter,ablation_role,length_bucket,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+PCA | Weighted off,weighted,score_driver,medium,84,0.0016922921121856388,0.000345536255336594,0.9889350556598802
+PCA | Standardize off,standardization,score_driver,medium,84,4.395156604936916e-05,-0.001001732265347614,0.8185299395602345
+PCA | Whiten on,whiten,score_driver,medium,84,0.0,0.0,1.0088662296784048
+PCA | Score comps 2,n_selected_components,score_driver,medium,84,-0.0002813693307429488,-1.6795198995098338e-05,0.39525629024436854
+PCA | Components 0.95,n_components,score_driver,medium,84,-0.0011671959700391209,-0.004818512352807407,0.426980080356443
+PCA | Components 0.95,n_components,score_driver,long,6,0.0,0.0008486018544920969,0.45841693873830475
+PCA | Score comps 2,n_selected_components,score_driver,long,6,0.0,1.2083656772188546e-05,0.3650253906514425
+PCA | Standardize off,standardization,score_driver,long,6,0.0,3.991168222161409e-05,0.8150823770288244
+PCA | Weighted off,weighted,score_driver,long,6,0.0,0.00013223653605514674,1.047422774960652
+PCA | Whiten on,whiten,score_driver,long,6,0.0,0.0,1.023267614592063

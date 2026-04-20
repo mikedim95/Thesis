@@ -1,0 +1,41 @@
+{
+  "batch_size": 3,
+  "clip_quantile": null,
+  "control_state_path": "results\\run_sessions\\active-benchmark-2\\control_state.json",
+  "created_at": "2026-04-18T21:36:29+00:00",
+  "dataset_limit": "all",
+  "evaluation_mode": "range",
+  "normalization_method": "zscore",
+  "run_name": "active_benchmark 2",
+  "schema_version": 1,
+  "selected_algorithm_labels": [
+    "Isolation Forest",
+    "Local Outlier Factor",
+    "SAND",
+    "Matrix Profile",
+    "DAMP",
+    "HBOS",
+    "OCSVM",
+    "PCA"
+  ],
+  "selected_algorithms": [
+    "isolation_forest",
+    "local_outlier_factor",
+    "sand",
+    "matrix_profile",
+    "damp",
+    "hbos",
+    "ocsvm",
+    "pca"
+  ],
+  "selected_run_count": 40,
+  "session_id": "active-benchmark-2",
+  "status": "saved",
+  "tables_dir": "results\\run_sessions\\active-benchmark-2\\tables",
+  "threshold_method": "sigma",
+  "threshold_value": 3.0,
+  "updated_at": "2026-04-18T21:36:29+00:00",
+  "variant_mode": "auto_ablation",
+  "window_size": null,
+  "window_stride": 1
+}

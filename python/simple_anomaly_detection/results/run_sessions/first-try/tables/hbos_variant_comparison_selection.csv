@@ -1,0 +1,2 @@
+comparison_dataset,variant_count,evaluation_spread,best_evaluation_f1,mean_evaluation_f1,mean_roc_auc
+133_UCR_Anomaly_InternalBleeding14_2800_5607_5634,4,0.3513513513513513,0.3513513513513513,0.08783783783783783,0.94685749651125

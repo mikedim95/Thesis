@@ -1,0 +1,7 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,bootstrap,max_features,max_samples,n_estimators,random_state
+Isolation Forest | Baseline,Baseline,auto,auto_ablation,Stable tree baseline for comparison.,baseline,baseline,Baseline,baseline,False,1.0,256,200,42
+Isolation Forest | Trees 400,Trees 400,auto,auto_ablation,Measures whether a larger forest improves score stability enough to justify the runtime.,ablation,n_estimators,Trees 400,score_driver,False,1.0,256,400,42
+Isolation Forest | Max samples auto,Max samples auto,auto,auto_ablation,Measures how a broader training sample per tree changes the global isolation pattern.,ablation,max_samples,Max samples auto,score_driver,False,1.0,auto,200,42
+Isolation Forest | Max feat 0.6,Max feat 0.6,auto,auto_ablation,Measures the effect of stronger random feature subsampling inside the forest.,ablation,max_features,Max feat 0.6,score_driver,False,0.6,256,200,42
+Isolation Forest | Bootstrap on,Bootstrap on,auto,auto_ablation,Measures whether sampling windows with replacement changes the tree ensemble enough to alter detections.,ablation,bootstrap,Bootstrap on,score_driver,True,1.0,256,200,42
+Isolation Forest | Seed 7,Seed 7,auto,auto_ablation,Measures sensitivity to stochastic initialization rather than score geometry.,ablation,random_state,Seed 7,stability,False,1.0,256,200,7

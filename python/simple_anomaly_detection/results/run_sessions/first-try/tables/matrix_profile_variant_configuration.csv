@@ -1,0 +1,4 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,subsequence_multiplier
+Matrix Profile | Baseline,Baseline,auto,auto_ablation,Balanced discord context for one-factor ablation.,baseline,baseline,Baseline,baseline,2
+Matrix Profile | Subseq x1,Subseq x1,auto,auto_ablation,Measures a shorter discord context focused on local deviations.,ablation,subsequence_multiplier,Subseq x1,score_driver,1
+Matrix Profile | Subseq x4,Subseq x4,auto,auto_ablation,Measures a broader discord context for long anomalous structure.,ablation,subsequence_multiplier,Subseq x4,score_driver,4

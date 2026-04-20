@@ -1,0 +1,16 @@
+algorithm_display,ablation_parameter,ablation_role,variant,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+Local Outlier Factor | Leaf size 60,leaf_size,backend,distorted,38,0.0,0.0,0.973842409878834
+Local Outlier Factor | Search brute,algorithm,backend,distorted,38,0.0,0.0,0.9939301272179429
+Local Outlier Factor | Metric manhattan,metric,score_driver,distorted,38,-0.0030795772167294096,0.005829156753542275,9.125966860834668
+Local Outlier Factor | p = 1,p,score_driver,distorted,38,-0.0030795772167294096,0.005829156753542275,9.176715008680386
+Local Outlier Factor | Neighbors 10,n_neighbors,score_driver,distorted,38,-0.04679690383074916,-0.08691475179702202,0.9427263474646137
+Local Outlier Factor | Leaf size 60,leaf_size,backend,noise,8,0.0,0.0,1.0028906818571661
+Local Outlier Factor | Search brute,algorithm,backend,noise,8,0.0,0.0,0.9670095203307914
+Local Outlier Factor | Metric manhattan,metric,score_driver,noise,8,-0.013116005674881711,0.0024650162010035476,8.987068571878034
+Local Outlier Factor | p = 1,p,score_driver,noise,8,-0.013116005674881711,0.0024650162010035476,9.02037633498337
+Local Outlier Factor | Neighbors 10,n_neighbors,score_driver,noise,8,-0.07417051310268075,-0.032514716341206,0.9578947003497661
+Local Outlier Factor | Leaf size 60,leaf_size,backend,raw,45,0.0,0.0,0.9985769410294771
+Local Outlier Factor | Search brute,algorithm,backend,raw,45,0.0,0.0,1.0147309113241203
+Local Outlier Factor | Metric manhattan,metric,score_driver,raw,45,-0.007406239638827794,0.00380798638021144,9.393483007143756
+Local Outlier Factor | p = 1,p,score_driver,raw,45,-0.007406239638827794,0.00380798638021144,9.501597114617512
+Local Outlier Factor | Neighbors 10,n_neighbors,score_driver,raw,45,-0.04435284383614943,-0.0660621386522915,0.9797125267645459

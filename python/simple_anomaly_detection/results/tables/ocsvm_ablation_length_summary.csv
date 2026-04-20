@@ -1,0 +1,9 @@
+algorithm_display,ablation_parameter,ablation_role,length_bucket,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+OCSVM | Gamma 0.1,gamma,score_driver,medium,84,0.03363575193032375,-0.033623568999952294,1.140257683039754
+OCSVM | Train frac 0.20,train_fraction,score_driver,medium,84,0.005481083465011761,-0.009320663183551141,1.538563276781516
+OCSVM | Nu 0.10,nu,score_driver,medium,84,-0.008207617961141033,-0.0007268138541064215,1.3881640905874058
+OCSVM | Kernel linear,kernel,score_driver,medium,84,-0.12285638409749569,-0.3580452207366226,0.27250895284158794
+OCSVM | Gamma 0.1,gamma,score_driver,long,43,0.12501596474604676,-0.009341190157889269,0.868312381866946
+OCSVM | Train frac 0.20,train_fraction,score_driver,long,43,0.009475541666357081,0.003749267412560025,1.721534297801299
+OCSVM | Nu 0.10,nu,score_driver,long,43,0.003908319392364432,0.011145609519163978,1.5163504172546987
+OCSVM | Kernel linear,kernel,score_driver,long,43,-0.09690246310584097,-0.40438882853603714,0.2423976388300886

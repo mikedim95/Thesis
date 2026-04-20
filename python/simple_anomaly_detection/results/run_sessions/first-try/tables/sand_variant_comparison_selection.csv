@@ -1,0 +1,2 @@
+comparison_dataset,variant_count,evaluation_spread,best_evaluation_f1,mean_evaluation_f1,mean_roc_auc
+054_UCR_Anomaly_DISTORTEDWalkingAceleration5_2700_5920_5979,7,0.8461538461538461,0.8461538461538461,0.12087912087912088,0.9979500948930297

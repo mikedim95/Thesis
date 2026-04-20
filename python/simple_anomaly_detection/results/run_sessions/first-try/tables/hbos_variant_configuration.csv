@@ -1,0 +1,5 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,alpha,n_bins,tol
+HBOS | Baseline,Baseline,auto,auto_ablation,Lightweight histogram baseline.,baseline,baseline,Baseline,baseline,0.1,10,0.5
+HBOS | Bins 20,Bins 20,auto,auto_ablation,Measures finer histogram resolution at every window position.,ablation,n_bins,Bins 20,score_driver,0.1,20,0.5
+HBOS | Alpha 0.05,Alpha 0.05,auto,auto_ablation,Measures milder smoothing inside the log-density score.,ablation,alpha,Alpha 0.05,score_driver,0.05,10,0.5
+HBOS | Tol 0.2,Tol 0.2,auto,auto_ablation,Measures stricter out-of-range penalties near histogram edges.,ablation,tol,Tol 0.2,score_driver,0.1,10,0.2

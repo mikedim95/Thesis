@@ -1,0 +1,7 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,n_components,n_selected_components,standardization,weighted,whiten
+PCA | Baseline,Baseline,auto,auto_ablation,Weighted reconstruction-style baseline.,baseline,baseline,Baseline,baseline,,,True,True,False
+PCA | Components 0.95,Components 0.95,auto,auto_ablation,Measures explained-variance truncation rather than retaining the default PCA basis.,ablation,n_components,Components 0.95,score_driver,0.95,,True,True,False
+PCA | Score comps 2,Score comps 2,auto,auto_ablation,Measures scoring on a narrow set of trailing low-variance components.,ablation,n_selected_components,Score comps 2,score_driver,,2.0,True,True,False
+PCA | Whiten on,Whiten on,auto,auto_ablation,Measures whitening of retained components before the PCA score is computed.,ablation,whiten,Whiten on,score_driver,,,True,True,True
+PCA | Weighted off,Weighted off,auto,auto_ablation,Measures the score without explained-variance weighting.,ablation,weighted,Weighted off,score_driver,,,True,False,False
+PCA | Standardize off,Standardize off,auto,auto_ablation,Measures PCA on raw normalized windows without per-feature standardization.,ablation,standardization,Standardize off,score_driver,,,False,True,False

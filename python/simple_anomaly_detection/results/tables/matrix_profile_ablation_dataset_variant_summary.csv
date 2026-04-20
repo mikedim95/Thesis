@@ -1,0 +1,7 @@
+algorithm_display,ablation_parameter,ablation_role,variant,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+Matrix Profile | Subseq x1,subsequence_multiplier,score_driver,distorted,56,0.016489012638118642,-0.0067567318152687685,0.9452345405042871
+Matrix Profile | Subseq x4,subsequence_multiplier,score_driver,distorted,56,-0.04947759659190624,-0.009519670800983473,0.9917991663521846
+Matrix Profile | Subseq x1,subsequence_multiplier,score_driver,noise,11,0.005617093362757838,-0.04924107093086736,0.9783640833148654
+Matrix Profile | Subseq x4,subsequence_multiplier,score_driver,noise,11,-0.05816014848985652,-0.027761209870954807,1.0044599054932453
+Matrix Profile | Subseq x1,subsequence_multiplier,score_driver,raw,60,0.021977572386343312,-0.00912879732975409,0.9519867565325331
+Matrix Profile | Subseq x4,subsequence_multiplier,score_driver,raw,60,-0.07195680242544639,-0.01913808543454304,0.9911855249947809

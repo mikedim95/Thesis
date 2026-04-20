@@ -19,8 +19,11 @@ This file is generated from `notebook_support.py` and the detector implementatio
 
 ## General controls visible in the notebook
 
+- `Run name`: Binds the current setup to a saved session folder under results/run_sessions so you can reload the exact controls later and continue from the last successful checkpoint.
 - `Argument mode`: Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi`, `paper_full_suite`, or `auto_ablation` at run time.
 - `Dataset limit`: Filters how many prepared datasets are benchmarked. It does not change anomaly scores on any individual dataset.
+- `Batch size`: Caps how many of the selected datasets are processed in the current notebook run. With resume enabled, it defines the size of each resumable batch.
+- `Resume from existing`: Reuses successful benchmark rows already saved under the current run name, skips completed dataset/configuration pairs, and continues from the next incomplete work for the same benchmark setup.
 - `Normalize`: Changes the numeric scale seen by every detector before windowing. This can materially change distance-based, density-based, and boundary-based scores.
 - `Clip q`: Clamps extreme tails before normalization. This can suppress large spikes, which may reduce false positives or weaken genuine anomaly contrast.
 - `Window size`: Sets the base temporal context used for sliding-window embedding. Matrix Profile, DAMP, and SAND also derive their subsequence lengths or warm-up positions from this base length.

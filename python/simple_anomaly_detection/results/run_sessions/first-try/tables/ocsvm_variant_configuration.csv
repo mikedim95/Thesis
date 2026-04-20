@@ -1,0 +1,6 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,gamma,kernel,nu,train_fraction
+OCSVM | Baseline,Baseline,auto,auto_ablation,Standard RBF novelty boundary with short warm-up.,baseline,baseline,Baseline,baseline,scale,rbf,0.05,0.1
+OCSVM | Kernel linear,Kernel linear,auto,auto_ablation,Measures whether a linear novelty boundary is sufficient in the embedded window space.,ablation,kernel,Kernel linear,score_driver,scale,linear,0.05,0.1
+OCSVM | Nu 0.10,Nu 0.10,auto,auto_ablation,Measures a more permissive novelty boundary.,ablation,nu,Nu 0.10,score_driver,scale,rbf,0.1,0.1
+OCSVM | Gamma 0.1,Gamma 0.1,auto,auto_ablation,Measures a more local nonlinear boundary than the default `scale` heuristic.,ablation,gamma,Gamma 0.1,score_driver,0.1,rbf,0.05,0.1
+OCSVM | Train frac 0.20,Train frac 0.20,auto,auto_ablation,Measures a longer mostly-normal warmup segment for fitting the boundary.,ablation,train_fraction,Train frac 0.20,score_driver,scale,rbf,0.05,0.2

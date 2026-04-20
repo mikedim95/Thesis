@@ -1,0 +1,2 @@
+comparison_dataset,variant_count,evaluation_spread,best_evaluation_f1,mean_evaluation_f1,mean_roc_auc
+175_UCR_Anomaly_insectEPG3_5200_7000_7050,6,0.1501272264631043,0.1501272264631043,0.048295366146217565,0.9196703311866617

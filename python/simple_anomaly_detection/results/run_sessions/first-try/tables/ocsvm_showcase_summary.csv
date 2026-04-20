@@ -1,0 +1,2 @@
+showcase_dataset,algorithm_display,window_size,window_stride,threshold_method,threshold_value,evaluation_mode,evaluation_recall,evaluation_f1,roc_auc,f1,range_f1,runtime_seconds
+130_UCR_Anomaly_GP711MarkerLFM5z4_4000_6527_6645,OCSVM | Gamma 0.1,218,1,sigma,3.0,range,1.0,0.6415094339622641,0.9925040970011436,0.6415094339622641,0.6415094339622641,0.3369880999962333

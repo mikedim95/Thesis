@@ -1,0 +1,11 @@
+algorithm_display,ablation_parameter,ablation_role,length_bucket,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+Isolation Forest | Trees 400,n_estimators,score_driver,medium,84,0.010604036349381825,0.006445971243757907,1.931498003536223
+Isolation Forest | Seed 7,random_state,stability,medium,84,0.008967971243257366,0.019353817051449076,0.9930060609224919
+Isolation Forest | Max feat 0.6,max_features,score_driver,medium,84,0.008815455480052617,0.006280232173884404,2.6980885521656703
+Isolation Forest | Max samples auto,max_samples,score_driver,medium,84,0.0,0.0,0.9906130417681462
+Isolation Forest | Bootstrap on,bootstrap,score_driver,medium,84,-0.0013642782286238716,0.003958766176077552,0.91921215777369
+Isolation Forest | Bootstrap on,bootstrap,score_driver,long,7,0.0,-0.0005509558728801212,0.9707578036723259
+Isolation Forest | Max feat 0.6,max_features,score_driver,long,7,0.0,-0.009344145698103672,7.458472971999538
+Isolation Forest | Max samples auto,max_samples,score_driver,long,7,0.0,0.0,1.0729954589078032
+Isolation Forest | Seed 7,random_state,stability,long,7,0.0,-0.005341869228450456,1.048010917454637
+Isolation Forest | Trees 400,n_estimators,score_driver,long,7,0.0,-0.012309183928561665,2.032717083845626

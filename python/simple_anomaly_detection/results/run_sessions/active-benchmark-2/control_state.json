@@ -1,0 +1,171 @@
+{
+  "general": {
+    "batch_size": 3,
+    "clip_quantile": 0.0,
+    "dataset_limit": 0,
+    "evaluation_mode": "range",
+    "normalization_method": "zscore",
+    "overwrite_normalized": false,
+    "resume_from_existing": true,
+    "run_damp": true,
+    "run_hbos": true,
+    "run_iforest": true,
+    "run_lof": true,
+    "run_matrix_profile": true,
+    "run_name": "active_benchmark 2",
+    "run_ocsvm": true,
+    "run_pca": true,
+    "run_sand": true,
+    "save_scores": false,
+    "threshold_method": "sigma",
+    "threshold_value": 3.0,
+    "variant_mode": "auto_ablation",
+    "window_size": 0,
+    "window_stride": 1
+  },
+  "saved_at": "2026-04-18T21:36:29+00:00",
+  "schema_version": 1,
+  "variants": {
+    "damp": [
+      {
+        "start_index_multiplier": 1.0,
+        "variant_name": "Baseline",
+        "x_lag_multiplier": 0.0
+      }
+    ],
+    "hbos": [
+      {
+        "alpha": 0.09999999999999999,
+        "n_bins": 10,
+        "tol": 0.5,
+        "variant_name": "Baseline"
+      }
+    ],
+    "isolation_forest": [
+      {
+        "bootstrap": false,
+        "max_features": 1.0,
+        "max_samples": "256",
+        "n_estimators": 200,
+        "random_state": 42,
+        "variant_name": "Baseline"
+      },
+      {
+        "bootstrap": false,
+        "max_features": 1.0,
+        "max_samples": "256",
+        "n_estimators": 400,
+        "random_state": 42,
+        "variant_name": "Trees 400"
+      },
+      {
+        "bootstrap": false,
+        "max_features": 1.0,
+        "max_samples": "auto",
+        "n_estimators": 200,
+        "random_state": 42,
+        "variant_name": "Max samples auto"
+      },
+      {
+        "bootstrap": false,
+        "max_features": 0.6,
+        "max_samples": "256",
+        "n_estimators": 200,
+        "random_state": 42,
+        "variant_name": "Max feat 0.6"
+      },
+      {
+        "bootstrap": true,
+        "max_features": 1.0,
+        "max_samples": "256",
+        "n_estimators": 200,
+        "random_state": 42,
+        "variant_name": "Bootstrap on"
+      },
+      {
+        "bootstrap": false,
+        "max_features": 1.0,
+        "max_samples": "256",
+        "n_estimators": 200,
+        "random_state": 7,
+        "variant_name": "Seed 7"
+      }
+    ],
+    "local_outlier_factor": [
+      {
+        "algorithm": "auto",
+        "leaf_size": 30,
+        "metric": "minkowski",
+        "n_neighbors": 20,
+        "p": 2,
+        "variant_name": "Baseline"
+      },
+      {
+        "algorithm": "auto",
+        "leaf_size": 30,
+        "metric": "minkowski",
+        "n_neighbors": 10,
+        "p": 2,
+        "variant_name": "Neighbors 10"
+      },
+      {
+        "algorithm": "brute",
+        "leaf_size": 30,
+        "metric": "minkowski",
+        "n_neighbors": 20,
+        "p": 2,
+        "variant_name": "Search brute"
+      },
+      {
+        "algorithm": "auto",
+        "leaf_size": 60,
+        "metric": "minkowski",
+        "n_neighbors": 20,
+        "p": 2,
+        "variant_name": "Leaf size 60"
+      },
+      {
+        "algorithm": "auto",
+        "leaf_size": 30,
+        "metric": "manhattan",
+        "n_neighbors": 20,
+        "p": 2,
+        "variant_name": "Metric manhattan"
+      },
+      {
+        "algorithm": "auto",
+        "leaf_size": 30,
+        "metric": "minkowski",
+        "n_neighbors": 20,
+        "p": 1,
+        "variant_name": "p = 1"
+      }
+    ],
+    "matrix_profile": [
+      {
+        "subsequence_multiplier": 1,
+        "variant_name": "Baseline"
+      }
+    ],
+    "ocsvm": [
+      {
+        "gamma": "scale",
+        "kernel": "rbf",
+        "nu": 0.05,
+        "train_fraction": 0.1,
+        "variant_name": "Baseline"
+      }
+    ],
+    "pca": [
+      {
+        "n_components": "",
+        "n_selected_components": 0,
+        "standardization": true,
+        "variant_name": "Baseline",
+        "weighted": true,
+        "whiten": false
+      }
+    ],
+    "sand": []
+  }
+}

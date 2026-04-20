@@ -1,0 +1,2 @@
+showcase_dataset,algorithm_display,window_size,window_stride,threshold_method,threshold_value,evaluation_mode,evaluation_recall,evaluation_f1,roc_auc,f1,range_f1,runtime_seconds
+031_UCR_Anomaly_DISTORTEDInternalBleeding20_2700_5759_5919,Matrix Profile | Subseq x1,183,1,sigma,3.0,range,1.0,0.8870523415977962,0.9971377284125732,0.8870523415977961,0.8870523415977962,0.0665729999891482

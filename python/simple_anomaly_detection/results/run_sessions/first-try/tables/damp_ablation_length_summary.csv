@@ -1,0 +1,5 @@
+algorithm_display,ablation_parameter,ablation_role,length_bucket,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+DAMP | x_lag x8,x_lag_multiplier,score_driver,medium,84,0.003860163913985256,-0.001334305838483726,0.9891345768037422
+DAMP | Start x2,start_index_multiplier,score_driver,medium,84,-0.001435270185431835,0.01583404648713819,1.0955263094720844
+DAMP | x_lag x8,x_lag_multiplier,score_driver,long,6,0.009598207285119084,0.0021124978244169146,0.9408318618484953
+DAMP | Start x2,start_index_multiplier,score_driver,long,6,-0.00026856065082607,-0.11881557176234929,1.20561961602403

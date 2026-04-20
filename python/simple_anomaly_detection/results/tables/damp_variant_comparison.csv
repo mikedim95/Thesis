@@ -1,0 +1,4 @@
+comparison_dataset,variant_index,algorithm_display,algorithm_variant,window_size,window_stride,roc_auc,average_precision,evaluation_precision,evaluation_recall,evaluation_f1,range_f1,runtime_seconds
+173_UCR_Anomaly_insectEPG1_3000_7000_7030,1,DAMP | Baseline,Baseline,26,1,0.9704338822920376,0.1425112385102883,0.0,0.0,0.0,0.0,5.504011000011815
+173_UCR_Anomaly_insectEPG1_3000_7000_7030,2,DAMP | Start x2,Start x2,26,1,0.9704338822920372,0.1425112385102883,0.0,0.0,0.0,0.0,5.458415300003253
+173_UCR_Anomaly_insectEPG1_3000_7000_7030,3,DAMP | x_lag x8,x_lag x8,26,1,0.8981978192642444,0.1084625061347455,0.3333333333333333,0.2774193548387097,0.3028169014084507,0.3028169014084507,5.366479999996955

@@ -1,0 +1,7 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,algorithm,leaf_size,metric,n_neighbors,p
+Local Outlier Factor | Baseline,Baseline,auto,auto_ablation,Balanced neighborhood baseline.,baseline,baseline,Baseline,baseline,auto,30,minkowski,20,2
+Local Outlier Factor | Neighbors 10,Neighbors 10,auto,auto_ablation,Makes LOF more local so short or sharp anomalies have more leverage.,ablation,n_neighbors,Neighbors 10,score_driver,auto,30,minkowski,10,2
+Local Outlier Factor | Search brute,Search brute,auto,auto_ablation,Measures the neighbor-search backend while leaving the density formula unchanged.,ablation,algorithm,Search brute,backend,brute,30,minkowski,20,2
+Local Outlier Factor | Leaf size 60,Leaf size 60,auto,auto_ablation,Measures the tree-search backend tuning rather than a scoring-theory change.,ablation,leaf_size,Leaf size 60,backend,auto,60,minkowski,20,2
+Local Outlier Factor | Metric manhattan,Metric manhattan,auto,auto_ablation,Measures how redefining window similarity changes local density estimates.,ablation,metric,Metric manhattan,score_driver,auto,30,manhattan,20,2
+Local Outlier Factor | p = 1,p = 1,auto,auto_ablation,Measures the Minkowski exponent directly while keeping the metric family the same.,ablation,p,p = 1,score_driver,auto,30,minkowski,20,1

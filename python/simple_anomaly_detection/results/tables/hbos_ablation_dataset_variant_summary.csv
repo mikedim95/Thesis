@@ -1,0 +1,10 @@
+algorithm_display,ablation_parameter,ablation_role,variant,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+HBOS | Tol 0.2,tol,score_driver,distorted,56,0.0,0.0,0.9905073003142577
+HBOS | Alpha 0.05,alpha,score_driver,distorted,56,-0.0017297418100874966,-0.0004239858058439581,0.996829682426774
+HBOS | Bins 20,n_bins,score_driver,distorted,56,-0.008767005144093827,-0.0015982235814331644,0.9977771095062785
+HBOS | Bins 20,n_bins,score_driver,noise,11,0.010587842477815303,0.010076153997972088,0.9941938248098541
+HBOS | Tol 0.2,tol,score_driver,noise,11,0.0,0.0,0.9937086587984593
+HBOS | Alpha 0.05,alpha,score_driver,noise,11,-0.007093860711082215,0.006241246141290427,1.036068493108701
+HBOS | Bins 20,n_bins,score_driver,raw,60,0.010110175639197241,-0.0050481394617722854,0.9973236730699928
+HBOS | Tol 0.2,tol,score_driver,raw,60,0.0,0.0,0.9970557323944667
+HBOS | Alpha 0.05,alpha,score_driver,raw,60,-0.002007049459036328,-0.0037409956311501126,0.9962642843641581

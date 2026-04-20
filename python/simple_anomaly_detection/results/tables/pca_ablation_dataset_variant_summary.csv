@@ -1,0 +1,16 @@
+algorithm_display,ablation_parameter,ablation_role,variant,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+PCA | Weighted off,weighted,score_driver,distorted,56,0.00031487689025153223,0.000551546433843225,0.9959329528018829
+PCA | Whiten on,whiten,score_driver,distorted,56,0.0,0.0,0.9919191778775056
+PCA | Standardize off,standardization,score_driver,distorted,56,-0.0001523104792841647,-0.00026993227205108713,0.8115894832749326
+PCA | Score comps 2,n_selected_components,score_driver,distorted,56,-0.00028786471027869267,1.832827253987891e-05,0.36048176840929713
+PCA | Components 0.95,n_components,score_driver,distorted,56,-0.0007538852739327981,-0.0015916156875714082,0.42200684856042514
+PCA | Standardize off,standardization,score_driver,noise,11,0.0001376458372607298,-0.0005336185866460179,0.8135994202001026
+PCA | Score comps 2,n_selected_components,score_driver,noise,11,0.0,-6.871328099569948e-05,0.42623766836716537
+PCA | Whiten on,whiten,score_driver,noise,11,0.0,0.0,1.1637957012426845
+PCA | Weighted off,weighted,score_driver,noise,11,-7.506348791185444e-05,-0.0007376990833576195,0.9914224827049934
+PCA | Components 0.95,n_components,score_driver,noise,11,-0.010730503768172124,-0.004709037614026215,0.4920819730394584
+PCA | Weighted off,weighted,score_driver,raw,60,0.0020982939466864404,0.00023293804145470956,0.9886000581542093
+PCA | Components 0.95,n_components,score_driver,raw,60,0.0018484176136784813,-0.004147749773130048,0.45627892533480374
+PCA | Standardize off,standardization,score_driver,raw,60,0.00016142665270929302,-0.0009345688213224308,0.8236630433115947
+PCA | Whiten on,whiten,score_driver,raw,60,0.0,0.0,1.000087593329152
+PCA | Score comps 2,n_selected_components,score_driver,raw,60,-0.0011417668809726737,-3.8346945673869245e-05,0.4116917984867525

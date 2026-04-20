@@ -1,0 +1,8 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,alpha,batch_size,init_length,k,overlap,subsequence_multiplier
+SAND | Baseline,Baseline,auto,auto_ablation,Reference online clustering configuration.,baseline,baseline,Baseline,baseline,0.5,2000,5000,,,4
+SAND | Alpha 0.7,Alpha 0.7,auto,auto_ablation,Measures faster adaptation to recent behavior in the online updates.,ablation,alpha,Alpha 0.7,score_driver,0.7,2000,5000,,,4
+SAND | Init 3000,Init 3000,auto,auto_ablation,Measures a shorter initialization phase before online updates take over.,ablation,init_length,Init 3000,score_driver,0.5,2000,3000,,,4
+SAND | Batch 1000,Batch 1000,auto,auto_ablation,Measures finer-grained online updates at the cost of more update steps.,ablation,batch_size,Batch 1000,score_driver,0.5,1000,5000,,,4
+SAND | k = 3,k = 3,auto,auto_ablation,Measures a more local nearest-subsequence comparison.,ablation,k,k = 3,score_driver,0.5,2000,5000,3.0,,4
+SAND | Subseq x2,Subseq x2,auto,auto_ablation,Measures a shorter subsequence context while keeping the rest of SAND fixed.,ablation,subsequence_multiplier,Subseq x2,score_driver,0.5,2000,5000,,,2
+SAND | Overlap 64,Overlap 64,auto,auto_ablation,Measures a coarser explicit subsequence step rather than the auto overlap heuristic.,ablation,overlap,Overlap 64,score_driver,0.5,2000,5000,,64.0,4

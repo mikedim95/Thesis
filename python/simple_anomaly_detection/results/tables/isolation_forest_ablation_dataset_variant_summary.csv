@@ -1,0 +1,16 @@
+algorithm_display,ablation_parameter,ablation_role,variant,dataset_count,mean_delta_evaluation_f1,mean_delta_roc_auc,mean_runtime_ratio
+Isolation Forest | Max feat 0.6,max_features,score_driver,distorted,56,0.014619101946206942,0.0066479635275173065,3.952574958843809
+Isolation Forest | Seed 7,random_state,stability,distorted,56,0.01307358482672313,0.01585931092673363,0.9895119856145984
+Isolation Forest | Trees 400,n_estimators,score_driver,distorted,56,0.007378907135557634,0.006271265571430435,1.937656718751555
+Isolation Forest | Bootstrap on,bootstrap,score_driver,distorted,56,0.004277410256155008,0.007201272598330026,0.9021903368851741
+Isolation Forest | Max samples auto,max_samples,score_driver,distorted,56,0.0,0.0,0.9872300880794889
+Isolation Forest | Seed 7,random_state,stability,noise,11,0.02699580753466223,0.005965723080540512,1.014635916955138
+Isolation Forest | Max feat 0.6,max_features,score_driver,noise,11,0.017707239559934015,0.0028295851702492725,3.157860457661108
+Isolation Forest | Trees 400,n_estimators,score_driver,noise,11,0.012207602369418495,0.013981919142820688,1.9907857387901815
+Isolation Forest | Max samples auto,max_samples,score_driver,noise,11,0.0,0.0,0.9977167508799176
+Isolation Forest | Bootstrap on,bootstrap,score_driver,noise,11,-0.01206642984553631,-0.014539238488648708,0.910289040565749
+Isolation Forest | Trees 400,n_estimators,score_driver,raw,61,0.00813017366112808,0.005832350843798227,1.95497590386146
+Isolation Forest | Max samples auto,max_samples,score_driver,raw,61,0.0,0.0,1.0129637643599205
+Isolation Forest | Max feat 0.6,max_features,score_driver,raw,61,-0.0024440386476688994,0.006168443396816829,4.2301703155359744
+Isolation Forest | Seed 7,random_state,stability,raw,61,-0.0024504461714272125,0.01604004548158756,1.0081376964407551
+Isolation Forest | Bootstrap on,bootstrap,score_driver,raw,61,-0.0044134252309139515,-0.0001581713192465389,0.9218819512652471

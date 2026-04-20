@@ -1,0 +1,4 @@
+algorithm_display,algorithm_variant,variant_origin,variant_source,variant_focus,variant_family,ablation_parameter,ablation_label,ablation_role,start_index_multiplier,x_lag_multiplier
+DAMP | Baseline,Baseline,auto,auto_ablation,Reference streaming-discord configuration.,baseline,baseline,Baseline,baseline,1.0,
+DAMP | Start x2,Start x2,auto,auto_ablation,Measures the effect of waiting longer before the backward search begins.,ablation,start_index_multiplier,Start x2,score_driver,2.0,
+DAMP | x_lag x8,x_lag x8,auto,auto_ablation,Measures a much deeper historical search horizon during backward matching.,ablation,x_lag_multiplier,x_lag x8,score_driver,1.0,8.0
