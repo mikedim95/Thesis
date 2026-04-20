@@ -106,6 +106,7 @@ def ensure_results_layout() -> None:
     for filename in (
         "benchmark_overview.png",
         "pareto_frontier.png",
+        "runtime_tail_detail.png",
         "metric_heatmap.png",
         "family_evaluation_heatmap.png",
         "family_range_f1_heatmap.png",
@@ -6540,6 +6541,130 @@ def plot_pareto_frontier_panel(benchmark: dict[str, Any], save_path: Path | None
     return fig
 
 
+def plot_runtime_tail_detail_panel(
+    benchmark: dict[str, Any],
+    save_path: Path | None = None,
+    tail_count: int = 10,
+) -> plt.Figure | None:
+    plt = _load_plotting_module()
+    algorithm_summary = benchmark["algorithm_summary"]
+    if algorithm_summary.empty:
+        return None
+
+    metric_spec = _evaluation_metric_spec(benchmark["results"])
+    wins = _winner_count_frame(benchmark)
+    tradeoff_frame, _ = _pareto_frontier_frame(algorithm_summary)
+    frontier_labels: set[str] = set()
+    best_seen = -np.inf
+    for row in tradeoff_frame.itertuples():
+        if row.mean_evaluation_f1 >= best_seen:
+            frontier_labels.add(str(row.algorithm_display))
+            best_seen = float(row.mean_evaluation_f1)
+
+    detail = (
+        algorithm_summary[["algorithm_display", "mean_runtime_seconds", "mean_evaluation_f1", "mean_roc_auc"]]
+        .merge(wins, on="algorithm_display", how="left")
+        .assign(is_pareto=lambda frame: frame["algorithm_display"].isin(frontier_labels))
+        .sort_values("mean_runtime_seconds", ascending=False)
+        .head(max(1, int(tail_count)))
+        .reset_index(drop=True)
+    )
+    if detail.empty:
+        return None
+
+    fig_height = max(5.2, 0.62 * len(detail) + 1.8)
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(17.2, fig_height),
+        sharey=True,
+        gridspec_kw={"width_ratios": [1.45, 1.0, 1.0]},
+    )
+    fig.subplots_adjust(left=0.34, right=0.99, top=0.86, bottom=0.10, wspace=0.08)
+    fig.suptitle("Slow-configuration detail", fontsize=16)
+
+    y_positions = np.arange(len(detail))
+    pareto_mask = detail["is_pareto"].to_numpy(dtype=bool)
+    runtime_values = detail["mean_runtime_seconds"].to_numpy(dtype=float)
+    evaluation_values = detail["mean_evaluation_f1"].to_numpy(dtype=float)
+    roc_values = detail["mean_roc_auc"].to_numpy(dtype=float)
+    evaluation_wins = detail["evaluation_wins"].fillna(0).to_numpy(dtype=float)
+    auc_wins = detail["auc_wins"].fillna(0).to_numpy(dtype=float)
+
+    runtime_ax, metric_ax, wins_ax = axes
+
+    # Use row-wise labels so the long configuration names remain readable.
+    runtime_ax.barh(
+        y_positions[~pareto_mask],
+        runtime_values[~pareto_mask],
+        color="#4c78a8",
+        alpha=0.88,
+        label="Other slow configurations",
+    )
+    runtime_ax.barh(
+        y_positions[pareto_mask],
+        runtime_values[pareto_mask],
+        color="#e45756",
+        alpha=0.90,
+        label="Pareto frontier",
+    )
+    runtime_ax.set_yticks(y_positions)
+    runtime_ax.set_yticklabels(detail["algorithm_display"])
+    runtime_ax.invert_yaxis()
+    runtime_ax.set_title(f"Slowest {len(detail)} by runtime", fontsize=12, pad=10)
+    runtime_ax.text(0.01, 1.01, "red = Pareto", transform=runtime_ax.transAxes, fontsize=7.5, color="#991b1b", ha="left", va="bottom")
+    runtime_ax.set_xlabel("Mean runtime (seconds)")
+    runtime_max = float(runtime_values.max()) if len(runtime_values) else 1.0
+    runtime_pad = max(0.3, runtime_max * 0.018)
+    runtime_ax.set_xlim(0.0, runtime_max + runtime_pad * 5.5)
+    for index, value in enumerate(runtime_values):
+        runtime_ax.text(value + runtime_pad, index, f"{value:.1f}s", va="center", fontsize=9, color="#0f172a")
+
+    metric_ax.hlines(y_positions, evaluation_values, roc_values, color="#cbd5e1", linewidth=1.4, zorder=1)
+    metric_ax.scatter(evaluation_values, y_positions, s=68, color="#f58518", zorder=3, label=metric_spec["mean_label"])
+    metric_ax.scatter(roc_values, y_positions, s=68, color="#54a24b", zorder=3, label="Mean ROC AUC")
+    metric_ax.set_title("Average accuracy", fontsize=12, pad=10)
+    metric_ax.text(0.01, 1.01, "orange = Range F1, green = ROC AUC", transform=metric_ax.transAxes, fontsize=7.5, color="#475569", ha="left", va="bottom")
+    metric_ax.set_xlabel("Metric value")
+    metric_ax.set_xlim(0.0, 1.02)
+    metric_ax.tick_params(axis="y", left=False, labelleft=False)
+    for index, (evaluation_value, roc_value) in enumerate(zip(evaluation_values, roc_values, strict=False)):
+        metric_ax.text(min(evaluation_value + 0.02, 0.99), index - 0.16, f"{evaluation_value:.3f}", va="center", fontsize=8.5, color="#b45309")
+        metric_ax.text(min(roc_value + 0.02, 0.99), index + 0.16, f"{roc_value:.3f}", va="center", fontsize=8.5, color="#166534")
+
+    wins_bar_height = 0.34
+    wins_ax.barh(
+        y_positions - wins_bar_height / 2,
+        evaluation_wins,
+        height=wins_bar_height,
+        color="#4c78a8",
+        alpha=0.90,
+        label=f"{metric_spec['label']} wins",
+    )
+    wins_ax.barh(
+        y_positions + wins_bar_height / 2,
+        auc_wins,
+        height=wins_bar_height,
+        color="#e45756",
+        alpha=0.90,
+        label="ROC AUC wins",
+    )
+    wins_ax.set_title("Per-dataset wins", fontsize=12, pad=10)
+    wins_ax.text(0.01, 1.01, "blue = Range F1 wins, red = ROC AUC wins", transform=wins_ax.transAxes, fontsize=7.5, color="#475569", ha="left", va="bottom")
+    wins_ax.set_xlabel("Dataset wins")
+    wins_ax.tick_params(axis="y", left=False, labelleft=False)
+    wins_max = float(max(np.nanmax(evaluation_wins), np.nanmax(auc_wins), 1.0))
+    wins_ax.set_xlim(0.0, wins_max + 2.8)
+    for index, (evaluation_win, auc_win) in enumerate(zip(evaluation_wins, auc_wins, strict=False)):
+        wins_ax.text(evaluation_win + 0.2, index - wins_bar_height / 2, f"{int(evaluation_win)}", va="center", fontsize=8.5, color="#1d4e89")
+        wins_ax.text(auc_win + 0.2, index + wins_bar_height / 2, f"{int(auc_win)}", va="center", fontsize=8.5, color="#991b1b")
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
+
+
 def plot_metric_heatmap_panel(benchmark: dict[str, Any], save_path: Path | None = None) -> plt.Figure:
     plt = _load_plotting_module()
     algorithm_summary = benchmark["algorithm_summary"]
@@ -7573,6 +7698,29 @@ def export_thesis_figure_pack(
             )
             plt.close(pareto_fig)
 
+        runtime_tail_fig = plot_runtime_tail_detail_panel(benchmark)
+        if runtime_tail_fig is not None:
+            runtime_tail_paths = _save_figure_bundle(
+                runtime_tail_fig,
+                _snapshot_thesis_figure_path(
+                    "runtime_tail_detail.png",
+                    resolved_session_id,
+                    write_global=write_global,
+                ),
+            )
+            _append_thesis_figure_row(
+                rows,
+                figure_id="runtime_tail_detail",
+                figure_group="overview",
+                title="Slow-configuration detail",
+                caption=(
+                    f"Companion detail view for the high-runtime end of the benchmark, where direct point annotations become crowded. "
+                    f"The figure isolates the {10} slowest configurations and aligns mean runtime, mean {metric_spec['label']}, mean ROC AUC, and per-dataset win counts on shared rows so the right-tail tradeoffs are readable."
+                ),
+                saved_paths=runtime_tail_paths,
+            )
+            plt.close(runtime_tail_fig)
+
         metric_heatmap_fig = plot_metric_heatmap_panel(benchmark)
         metric_heatmap_paths = _save_figure_bundle(
             metric_heatmap_fig,
@@ -7882,6 +8030,16 @@ def export_saved_run_snapshot_artifacts(
         ),
     )
     _close_figure(pareto_fig)
+
+    runtime_tail_fig = plot_runtime_tail_detail_panel(
+        benchmark,
+        _snapshot_figure_path(
+            "runtime_tail_detail.png",
+            session_id,
+            write_global=write_global,
+        ),
+    )
+    _close_figure(runtime_tail_fig)
 
     metric_heatmap_fig = plot_metric_heatmap_panel(
         benchmark,

@@ -326,6 +326,7 @@ def build_notebook() -> dict:
                 figure_jobs = [
                     ("benchmark_overview.png", lambda: ns.plot_benchmark_overview_panel(benchmark, ns.result_figure_path("benchmark_overview.png"))),
                     ("pareto_frontier.png", lambda: ns.plot_pareto_frontier_panel(benchmark, ns.result_figure_path("pareto_frontier.png"))),
+                    ("runtime_tail_detail.png", lambda: ns.plot_runtime_tail_detail_panel(benchmark, ns.result_figure_path("runtime_tail_detail.png"))),
                     ("metric_heatmap.png", lambda: ns.plot_metric_heatmap_panel(benchmark, ns.result_figure_path("metric_heatmap.png"))),
                     ("family_evaluation_heatmap.png", lambda: ns.plot_family_evaluation_heatmap_panel(benchmark, ns.result_figure_path("family_evaluation_heatmap.png"))),
                     ("algorithm_wins.png", lambda: ns.plot_algorithm_wins_panel(benchmark, ns.result_figure_path("algorithm_wins.png"))),
