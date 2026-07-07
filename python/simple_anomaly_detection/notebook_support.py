@@ -198,6 +198,17 @@ ALGORITHM_ENABLE_CONTROL = {
 DATASET_VARIANT_ORDER = ["raw", "noise", "distorted"]
 LENGTH_BUCKET_ORDER = ["short", "medium", "long"]
 ANOMALY_RATIO_BUCKET_ORDER = ["sparse", "moderate", "dense"]
+FINAL_PAPER_METHOD_ORDER = [
+    "isolation_forest",
+    "local_outlier_factor",
+    "sand",
+    "matrix_profile",
+    "ocsvm",
+]
+PAPER_TUNING_FRACTION = 0.20
+PAPER_SPLIT_TUNING = "tuning"
+PAPER_SPLIT_FINAL = "final_evaluation"
+PAPER_FIGURE_LIMIT = 10
 
 PAPER_PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
     "paper_high_roi": {
@@ -867,8 +878,178 @@ PAPER_PRESET_DEFINITIONS["auto_ablation"] = {
     "variants": _build_auto_ablation_variants(),
 }
 
+PAPER_PRESET_DEFINITIONS["final_paper_tuning"] = {
+    "label": "Final Paper Tuning Grid",
+    "description": (
+        "Main-paper workflow: run a compact hyperparameter grid for the selected defensible methods, "
+        "select one configuration per method on a deterministic tuning split, and report only those selected "
+        "configurations on the held-out final-evaluation split."
+    ),
+    "enabled_algorithms": FINAL_PAPER_METHOD_ORDER,
+    "variants": {
+        "isolation_forest": [
+            {
+                "variant_name": "IF baseline",
+                "focus": "Reference tree-ensemble configuration with fixed sampling and seed.",
+                "variant_family": "tuning_candidate",
+                "n_estimators": 200,
+                "max_samples": 256,
+                "max_features": 1.0,
+                "bootstrap": False,
+                "random_state": 42,
+            },
+            {
+                "variant_name": "IF wide sample",
+                "focus": "Tests whether more trees and sklearn's automatic sample size stabilize the isolation score.",
+                "variant_family": "tuning_candidate",
+                "n_estimators": 400,
+                "max_samples": "auto",
+                "max_features": 1.0,
+                "bootstrap": False,
+                "random_state": 42,
+            },
+            {
+                "variant_name": "IF feature subsample",
+                "focus": "Tests stronger random feature subsampling inside the forest.",
+                "variant_family": "tuning_candidate",
+                "n_estimators": 400,
+                "max_samples": 256,
+                "max_features": 0.6,
+                "bootstrap": False,
+                "random_state": 42,
+            },
+        ],
+        "local_outlier_factor": [
+            {
+                "variant_name": "LOF baseline",
+                "focus": "Balanced neighborhood baseline over sliding-window embeddings.",
+                "variant_family": "tuning_candidate",
+                "n_neighbors": 20,
+                "algorithm": "auto",
+                "leaf_size": 30,
+                "metric": "minkowski",
+                "p": 2,
+            },
+            {
+                "variant_name": "LOF local k10",
+                "focus": "Tests a smaller neighborhood for short, local shape changes.",
+                "variant_family": "tuning_candidate",
+                "n_neighbors": 10,
+                "algorithm": "auto",
+                "leaf_size": 30,
+                "metric": "minkowski",
+                "p": 2,
+            },
+            {
+                "variant_name": "LOF manhattan k50",
+                "focus": "Tests a broader neighborhood with Manhattan distance for more global density contrast.",
+                "variant_family": "tuning_candidate",
+                "n_neighbors": 50,
+                "algorithm": "auto",
+                "leaf_size": 30,
+                "metric": "manhattan",
+                "p": 1,
+            },
+        ],
+        "sand": [
+            {
+                "variant_name": "SAND baseline",
+                "focus": "Reference online clustering configuration with automatic nearest-subsequence count.",
+                "variant_family": "tuning_candidate",
+                "alpha": 0.5,
+                "init_length": 5000,
+                "batch_size": 2000,
+                "k": 0,
+                "subsequence_multiplier": 4,
+                "overlap": 0,
+            },
+            {
+                "variant_name": "SAND shorter context",
+                "focus": "Tests shorter subsequences while keeping the online update schedule fixed.",
+                "variant_family": "tuning_candidate",
+                "alpha": 0.5,
+                "init_length": 5000,
+                "batch_size": 2000,
+                "k": 0,
+                "subsequence_multiplier": 2,
+                "overlap": 0,
+            },
+            {
+                "variant_name": "SAND overlap 64",
+                "focus": "Tests an explicit coarser subsequence step that can improve accuracy/cost tradeoffs.",
+                "variant_family": "tuning_candidate",
+                "alpha": 0.5,
+                "init_length": 5000,
+                "batch_size": 2000,
+                "k": 0,
+                "subsequence_multiplier": 4,
+                "overlap": 64,
+            },
+        ],
+        "matrix_profile": [
+            {
+                "variant_name": "MP context x1",
+                "focus": "Shortest discord context for local deviations.",
+                "variant_family": "tuning_candidate",
+                "subsequence_multiplier": 1,
+            },
+            {
+                "variant_name": "MP context x2",
+                "focus": "Balanced discord context.",
+                "variant_family": "tuning_candidate",
+                "subsequence_multiplier": 2,
+            },
+            {
+                "variant_name": "MP context x4",
+                "focus": "Longer discord context for broader anomalous structure.",
+                "variant_family": "tuning_candidate",
+                "subsequence_multiplier": 4,
+            },
+        ],
+        "ocsvm": [
+            {
+                "variant_name": "OCSVM baseline",
+                "focus": "Standard RBF novelty boundary fitted on the initial mostly-normal prefix.",
+                "variant_family": "tuning_candidate",
+                "kernel": "rbf",
+                "nu": 0.05,
+                "gamma": "scale",
+                "train_fraction": 0.10,
+            },
+            {
+                "variant_name": "OCSVM nu 0.10",
+                "focus": "Tests a more permissive novelty-boundary calibration.",
+                "variant_family": "tuning_candidate",
+                "kernel": "rbf",
+                "nu": 0.10,
+                "gamma": "scale",
+                "train_fraction": 0.10,
+            },
+            {
+                "variant_name": "OCSVM warmup 0.20",
+                "focus": "Tests a longer mostly-normal fitting prefix.",
+                "variant_family": "tuning_candidate",
+                "kernel": "rbf",
+                "nu": 0.05,
+                "gamma": "scale",
+                "train_fraction": 0.20,
+            },
+            {
+                "variant_name": "OCSVM linear",
+                "focus": "Tests whether a linear novelty boundary is sufficient in the window space.",
+                "variant_family": "tuning_candidate",
+                "kernel": "linear",
+                "nu": 0.05,
+                "gamma": "scale",
+                "train_fraction": 0.10,
+            },
+        ],
+    },
+}
+
 VARIANT_MODE_LABELS = {
     "manual": "Manual subtabs",
+    "final_paper_tuning": "Auto: final_paper_tuning",
     "paper_high_roi": "Auto: paper_high_roi",
     "paper_full_suite": "Auto: paper_full_suite",
     "auto_ablation": "Auto: auto_ablation",
@@ -899,7 +1080,7 @@ TOOLTIP_TEXT = {
     "variant_label": "Name shown on the subtab for this argument set. Use it to label different experiments of the same algorithm, such as Baseline, Fast, or High Recall.",
     "run_name": "Stable name for this saved benchmark session. Keep the same name when you want the notebook to reopen the same configuration and continue from its last successful checkpoint.",
     "saved_run_selector": "Pick a saved benchmark session from disk. Loading it restores the control-panel settings and reconnects resume mode to that session's checkpoint tables.",
-    "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into preset combinations from paper_high_roi, paper_full_suite, or auto_ablation so parameter impact is measured automatically.",
+    "variant_mode": "How argument combinations are sourced for the run. Manual uses the visible subtabs exactly as edited. Auto modes ignore the live subtab values at run time and expand each enabled algorithm into preset configurations. Use final_paper_tuning for the main paper workflow, and auto_ablation only for one-knob sensitivity evidence.",
     "dataset_limit": "How many prepared datasets to benchmark in this run. Use 0 to process every available dataset. Lower values are useful for smoke tests and fast iteration.",
     "batch_size": "How many selected datasets to process in this notebook run. Use 0 to process every selected dataset. When resume is enabled, this becomes the size of each resumable batch.",
     "resume_from_existing": "Continue from successful rows already saved for the current run name. The notebook skips completed dataset/configuration pairs, retries failed or incomplete ones, and appends the new rows to both the active results tables and the saved run-session checkpoint.",
@@ -972,7 +1153,7 @@ GENERAL_CONTROL_REFERENCE = [
     },
     {
         "label": "Argument mode",
-        "effect": "Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated multi-variant sweeps from `paper_high_roi`, `paper_full_suite`, or `auto_ablation` at run time.",
+        "effect": "Selects whether the run uses the visible subtabs exactly (`manual`) or replaces them with curated automatic configurations. `final_paper_tuning` is the main paper mode: it tunes candidate configurations and reports one selected configuration per method.",
     },
     {
         "label": "Dataset limit",
@@ -2138,6 +2319,7 @@ def build_algorithm_reference_overview() -> pd.DataFrame:
                 "visible_controls": ", ".join(
                     item["label"] for item in ALGORITHM_REFERENCE[algorithm_key]["controls"]
                 ),
+                "final_paper_tuning_configurations": preset_counts.get("final_paper_tuning", 0),
                 "paper_high_roi_variants": preset_counts.get("paper_high_roi", 0),
                 "paper_full_suite_variants": preset_counts.get("paper_full_suite", 0),
             }
@@ -2176,6 +2358,7 @@ def build_high_roi_algorithm_notes_markdown() -> str:
             "## Automatic sweep mode",
             "",
             "- `manual`: use the visible subtabs exactly as edited.",
+            "- `final_paper_tuning`: run the main-paper hyperparameter grid, choose one configuration per method on the deterministic tuning split, and report those choices on the final-evaluation split.",
             "- `paper_high_roi`: automatically benchmark the curated high-return variants from `PAPER_PRESET_DEFINITIONS` for the enabled high-ROI algorithms.",
             "- `paper_full_suite`: automatically benchmark the broader appendix-style variants from `PAPER_PRESET_DEFINITIONS` for every enabled algorithm that has a configured sweep.",
             "- `auto_ablation`: automatically benchmark one baseline plus one-knob-at-a-time ablations so parameter claims are paired against a fixed reference.",
@@ -4463,6 +4646,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
     controls["variant_mode"] = widgets.Dropdown(
         options=[
             (VARIANT_MODE_LABELS["manual"], "manual"),
+            (VARIANT_MODE_LABELS["final_paper_tuning"], "final_paper_tuning"),
             (VARIANT_MODE_LABELS["paper_high_roi"], "paper_high_roi"),
             (VARIANT_MODE_LABELS["paper_full_suite"], "paper_full_suite"),
             (VARIANT_MODE_LABELS["auto_ablation"], "auto_ablation"),
@@ -4503,12 +4687,12 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
         value=True, description="Isolation Forest")
     controls["run_lof"] = widgets.Checkbox(
         value=True, description="Local Outlier Factor")
-    controls["run_sand"] = widgets.Checkbox(value=False, description="SAND")
+    controls["run_sand"] = widgets.Checkbox(value=True, description="SAND")
     controls["run_matrix_profile"] = widgets.Checkbox(
         value=True, description="Matrix Profile")
     controls["run_damp"] = widgets.Checkbox(value=False, description="DAMP")
-    controls["run_hbos"] = widgets.Checkbox(value=True, description="HBOS")
-    controls["run_ocsvm"] = widgets.Checkbox(value=False, description="OCSVM")
+    controls["run_hbos"] = widgets.Checkbox(value=False, description="HBOS")
+    controls["run_ocsvm"] = widgets.Checkbox(value=True, description="OCSVM")
     controls["run_pca"] = widgets.Checkbox(value=False, description="PCA")
     controls["saved_run_selector"] = saved_run_selector
 
@@ -4693,7 +4877,7 @@ def build_control_panel(dataset_names: list[str]) -> dict[str, Any]:
                 "<h2 style='margin-top:0;'>Control Panel</h2>"
                 "<p>Change the knobs here, then rerun the configuration and benchmark cells below.</p>"
                 "<p><b>General controls</b> stay visible, and each algorithm has its own tab so the parameter boundaries are obvious.</p>"
-                "<p>Set <b>Argument mode</b> to an auto sweep if you want the notebook to benchmark multiple parameter combinations for you. Use <b>auto_ablation</b> when you need one-knob-at-a-time evidence for a defense. In <b>manual</b> mode, the subtab bar behaves like a browser: <b>+</b> duplicates the current argument set so you can compare variants yourself.</p>"
+                "<p>Use <b>final_paper_tuning</b> for the main paper: it runs the compact tuning grid, selects one configuration per method on a tuning split, and reports only those choices on the final-evaluation split. Use <b>auto_ablation</b> only when you need one-knob-at-a-time sensitivity evidence.</p>"
             ),
             general_box,
             algorithm_tabs,
@@ -4726,8 +4910,7 @@ def build_preset_reference_table(preset_name: str) -> pd.DataFrame:
     rows = []
     for algorithm_key in preset["enabled_algorithms"]:
         for index, variant in enumerate(preset["variants"].get(algorithm_key, []), start=1):
-            params = {key: value for key, value in variant.items() if key not in {
-                "variant_name", "focus"}}
+            params = _variant_param_payload(variant)
             rows.append(
                 {
                     "preset_name": preset_name,
@@ -5573,6 +5756,356 @@ def build_algorithm_parameter_effect_table(results_frame: pd.DataFrame, algorith
         .reset_index(drop=True)
     )
     return summary
+
+
+def add_paper_split_column(
+    frame: pd.DataFrame,
+    tuning_fraction: float = PAPER_TUNING_FRACTION,
+) -> pd.DataFrame:
+    enriched = frame.copy()
+    if enriched.empty or "dataset_name" not in enriched.columns:
+        enriched["paper_split"] = pd.Series(dtype="object")
+        return enriched
+
+    dataset_columns = [
+        column
+        for column in ("dataset_name", "dataset_sequence", "variant", "family")
+        if column in enriched.columns
+    ]
+    dataset_rows = (
+        enriched[dataset_columns]
+        .drop_duplicates("dataset_name")
+        .sort_values([column for column in ("variant", "family", "dataset_sequence", "dataset_name") if column in dataset_columns])
+        .reset_index(drop=True)
+    )
+
+    tuning_names: set[str] = set()
+    group_column = "variant" if "variant" in dataset_rows.columns else None
+    grouped = dataset_rows.groupby(group_column, dropna=False, sort=False) if group_column else [(None, dataset_rows)]
+    for _group_value, group in grouped:
+        if group.empty:
+            continue
+        group_size = len(group)
+        tuning_count = max(1, int(math.ceil(group_size * tuning_fraction)))
+        if group_size > 1:
+            tuning_count = min(tuning_count, group_size - 1)
+        positions = np.linspace(0, group_size - 1, num=tuning_count, dtype=int)
+        tuning_names.update(str(name) for name in group.iloc[positions]["dataset_name"])
+
+    enriched["paper_split"] = np.where(
+        enriched["dataset_name"].astype(str).isin(tuning_names),
+        PAPER_SPLIT_TUNING,
+        PAPER_SPLIT_FINAL,
+    )
+    return enriched
+
+
+def build_paper_dataset_split_summary(results_frame: pd.DataFrame) -> pd.DataFrame:
+    if results_frame.empty:
+        return pd.DataFrame()
+    catalog = add_paper_split_column(build_dataset_catalog(results_frame))
+    summary = (
+        catalog.groupby(["paper_split", "variant"], as_index=False)
+        .agg(
+            dataset_count=("dataset_name", "nunique"),
+            min_series_length=("series_length", "min"),
+            median_series_length=("series_length", "median"),
+            max_series_length=("series_length", "max"),
+            median_anomaly_ratio=("anomaly_ratio", "median"),
+            min_train_end=("train_end", "min"),
+            max_train_end=("train_end", "max"),
+        )
+        .sort_values(["paper_split", "variant"])
+        .reset_index(drop=True)
+    )
+    return summary
+
+
+def build_final_tuned_configuration_table(results_frame: pd.DataFrame) -> pd.DataFrame:
+    successful = _successful_results_frame(results_frame)
+    if successful.empty:
+        return pd.DataFrame()
+    enriched = add_paper_split_column(successful)
+    metric_spec = _evaluation_metric_spec(enriched)
+    rows: list[dict[str, Any]] = []
+
+    present_algorithms = [
+        algorithm_key
+        for algorithm_key in FINAL_PAPER_METHOD_ORDER
+        if algorithm_key in set(enriched["algorithm"].astype(str))
+    ]
+    present_algorithms.extend(
+        algorithm_key
+        for algorithm_key in ALGORITHM_ORDER
+        if algorithm_key in set(enriched["algorithm"].astype(str)) and algorithm_key not in present_algorithms
+    )
+
+    group_columns = [
+        "algorithm",
+        "algorithm_base_display",
+        "algorithm_superfamily",
+        "algorithm_category",
+        "algorithm_display",
+        "algorithm_variant",
+        "algorithm_run_id",
+        "variant_focus",
+        "params_json",
+    ]
+
+    for algorithm_key in present_algorithms:
+        algorithm_rows = enriched.loc[enriched["algorithm"] == algorithm_key].copy()
+        tuning_rows = algorithm_rows.loc[algorithm_rows["paper_split"] == PAPER_SPLIT_TUNING].copy()
+        if tuning_rows.empty:
+            tuning_rows = algorithm_rows
+            selection_source = "all_available_rows"
+        else:
+            selection_source = PAPER_SPLIT_TUNING
+
+        tuning_summary = (
+            tuning_rows.groupby(group_columns, as_index=False)
+            .agg(
+                tuning_dataset_count=("dataset_name", "nunique"),
+                tuning_mean_evaluation_f1=("evaluation_f1", "mean"),
+                tuning_mean_roc_auc=("roc_auc", "mean"),
+                tuning_mean_average_precision=("average_precision", "mean"),
+                tuning_mean_runtime_seconds=("runtime_seconds", "mean"),
+            )
+            .sort_values(
+                ["tuning_mean_evaluation_f1", "tuning_mean_roc_auc", "tuning_mean_runtime_seconds"],
+                ascending=[False, False, True],
+            )
+            .reset_index(drop=True)
+        )
+        if tuning_summary.empty:
+            continue
+
+        selected = tuning_summary.iloc[0].to_dict()
+        final_rows = algorithm_rows.loc[
+            (algorithm_rows["paper_split"] == PAPER_SPLIT_FINAL)
+            & (algorithm_rows["algorithm_run_id"] == selected["algorithm_run_id"])
+        ].copy()
+        final_source = PAPER_SPLIT_FINAL
+        if final_rows.empty:
+            final_rows = algorithm_rows.loc[
+                algorithm_rows["algorithm_run_id"] == selected["algorithm_run_id"]
+            ].copy()
+            final_source = "all_available_rows"
+
+        rows.append(
+            {
+                "algorithm": selected["algorithm"],
+                "algorithm_base_display": selected["algorithm_base_display"],
+                "algorithm_superfamily": selected["algorithm_superfamily"],
+                "algorithm_category": selected["algorithm_category"],
+                "selected_algorithm_display": selected["algorithm_display"],
+                "selected_configuration": selected["algorithm_variant"],
+                "algorithm_run_id": selected["algorithm_run_id"],
+                "selection_metric": metric_spec["label"],
+                "selection_source": selection_source,
+                "final_source": final_source,
+                "tuning_dataset_count": int(selected["tuning_dataset_count"]),
+                "tuning_mean_evaluation_f1": selected["tuning_mean_evaluation_f1"],
+                "tuning_mean_roc_auc": selected["tuning_mean_roc_auc"],
+                "tuning_mean_average_precision": selected["tuning_mean_average_precision"],
+                "tuning_mean_runtime_seconds": selected["tuning_mean_runtime_seconds"],
+                "final_dataset_count": int(final_rows["dataset_name"].nunique()),
+                "final_mean_evaluation_precision": final_rows["evaluation_precision"].mean(),
+                "final_mean_evaluation_recall": final_rows["evaluation_recall"].mean(),
+                "final_mean_evaluation_f1": final_rows["evaluation_f1"].mean(),
+                "final_median_evaluation_f1": final_rows["evaluation_f1"].median(),
+                "final_mean_roc_auc": final_rows["roc_auc"].mean(),
+                "final_mean_average_precision": final_rows["average_precision"].mean(),
+                "final_mean_f1": final_rows["f1"].mean(),
+                "final_mean_range_f1": final_rows["range_f1"].mean(),
+                "final_mean_affiliation_precision": final_rows["affiliation_precision"].mean(),
+                "final_mean_affiliation_recall": final_rows["affiliation_recall"].mean(),
+                "final_mean_runtime_seconds": final_rows["runtime_seconds"].mean(),
+                "variant_focus": selected["variant_focus"],
+                "params_json": selected["params_json"],
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame()
+    order = {algorithm_key: index for index, algorithm_key in enumerate(FINAL_PAPER_METHOD_ORDER)}
+    table = pd.DataFrame(rows)
+    table["_method_order"] = table["algorithm"].map(order).fillna(len(order)).astype(int)
+    return (
+        table.sort_values(["_method_order", "final_mean_evaluation_f1", "final_mean_roc_auc"], ascending=[True, False, False])
+        .drop(columns="_method_order")
+        .reset_index(drop=True)
+    )
+
+
+def build_final_tuned_results(results_frame: pd.DataFrame) -> pd.DataFrame:
+    selection = build_final_tuned_configuration_table(results_frame)
+    if selection.empty:
+        return pd.DataFrame()
+    enriched = add_paper_split_column(_successful_results_frame(results_frame))
+    selected_run_ids = set(selection["algorithm_run_id"].astype(str))
+    final_rows = enriched.loc[
+        (enriched["paper_split"] == PAPER_SPLIT_FINAL)
+        & (enriched["algorithm_run_id"].astype(str).isin(selected_run_ids))
+    ].copy()
+    if final_rows.empty:
+        final_rows = enriched.loc[
+            enriched["algorithm_run_id"].astype(str).isin(selected_run_ids)
+        ].copy()
+    return final_rows.reset_index(drop=True)
+
+
+def build_final_tuned_regime_summary(results_frame: pd.DataFrame) -> pd.DataFrame:
+    selected_results = add_analysis_regime_columns(build_final_tuned_results(results_frame))
+    if selected_results.empty:
+        return pd.DataFrame()
+    rows = []
+    for regime_column in ("variant", "length_bucket", "anomaly_ratio_bucket"):
+        summary = (
+            selected_results.groupby(["algorithm_base_display", "algorithm_variant", regime_column], as_index=False)
+            .agg(
+                dataset_count=("dataset_name", "nunique"),
+                mean_evaluation_f1=("evaluation_f1", "mean"),
+                mean_roc_auc=("roc_auc", "mean"),
+                mean_runtime_seconds=("runtime_seconds", "mean"),
+            )
+            .rename(columns={regime_column: "regime_value"})
+        )
+        summary["regime_dimension"] = regime_column
+        rows.append(summary)
+    return (
+        pd.concat(rows, ignore_index=True)
+        .sort_values(["regime_dimension", "regime_value", "mean_evaluation_f1"], ascending=[True, True, False])
+        .reset_index(drop=True)
+    )
+
+
+def build_final_tuned_benchmark(results_frame: pd.DataFrame) -> dict[str, Any]:
+    selected_results = build_final_tuned_results(results_frame)
+    if selected_results.empty:
+        empty = pd.DataFrame()
+        return {
+            "results": selected_results,
+            "dataset_catalog": empty,
+            "algorithm_summary": empty,
+            "family_summary": empty,
+            "overall_regime_summary": empty,
+            "best_by_evaluation": empty,
+            "best_by_f1": empty,
+            "best_by_auc": empty,
+            "errors": empty,
+            "overview": empty,
+        }
+    dataset_catalog = build_dataset_catalog(selected_results)
+    algorithm_summary = summarize_algorithms(selected_results)
+    family_summary = summarize_families(selected_results)
+    overall_regime_summary = build_final_tuned_regime_summary(results_frame)
+    best_by_evaluation = build_best_algorithm_table(selected_results, "evaluation_f1")
+    best_by_f1 = build_best_algorithm_table(selected_results, "f1")
+    best_by_auc = build_best_algorithm_table(selected_results, "roc_auc")
+    return {
+        "results": selected_results,
+        "dataset_catalog": dataset_catalog,
+        "algorithm_summary": algorithm_summary,
+        "family_summary": family_summary,
+        "overall_regime_summary": overall_regime_summary,
+        "best_by_evaluation": best_by_evaluation,
+        "best_by_f1": best_by_f1,
+        "best_by_auc": best_by_auc,
+        "errors": selected_results.loc[selected_results["error"] != ""].copy(),
+        "overview": pd.DataFrame(
+            [
+                {
+                    "dataset_count": dataset_catalog["dataset_name"].nunique(),
+                    "algorithm_count": algorithm_summary["algorithm"].nunique(),
+                    "configuration_count": algorithm_summary["algorithm_run_id"].nunique(),
+                    "run_count": len(selected_results),
+                    "paper_split": PAPER_SPLIT_FINAL,
+                }
+            ]
+        ),
+    }
+
+
+def build_final_paper_tables(results_frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    final_results = build_final_tuned_results(results_frame)
+    return {
+        "paper_dataset_split_summary": build_paper_dataset_split_summary(results_frame),
+        "paper_tuned_configuration_selection": build_final_tuned_configuration_table(results_frame),
+        "paper_final_results": final_results,
+        "paper_final_method_comparison": summarize_algorithms(final_results) if not final_results.empty else pd.DataFrame(),
+        "paper_final_regime_summary": build_final_tuned_regime_summary(results_frame),
+        "paper_final_dataset_winners": build_best_algorithm_table(final_results, "evaluation_f1") if not final_results.empty else pd.DataFrame(),
+    }
+
+
+def write_final_paper_tables(results_frame: pd.DataFrame, session_id: str | None = None) -> dict[str, pd.DataFrame]:
+    tables = build_final_paper_tables(results_frame)
+    for table_name, table in tables.items():
+        _write_table_artifact(table, f"{table_name}.csv", session_id)
+    return tables
+
+
+def plot_final_tuned_method_comparison(
+    selection_table: pd.DataFrame,
+    save_path: Path | None = None,
+) -> plt.Figure | None:
+    if selection_table.empty:
+        return None
+    plt = _load_plotting_module()
+    frame = (
+        selection_table.sort_values("final_mean_evaluation_f1", ascending=False)
+        .reset_index(drop=True)
+    )
+    labels = frame["algorithm_base_display"].astype(str).tolist()
+    positions = np.arange(len(frame))
+    bar_width = 0.36
+
+    fig, axes = plt.subplots(1, 2, figsize=(15.5, 5.8), constrained_layout=True)
+    axes[0].bar(
+        positions - bar_width / 2,
+        frame["final_mean_evaluation_f1"],
+        width=bar_width,
+        color="#4c78a8",
+        label="Final mean evaluation F1",
+    )
+    axes[0].bar(
+        positions + bar_width / 2,
+        frame["final_mean_roc_auc"],
+        width=bar_width,
+        color="#54a24b",
+        label="Final mean ROC AUC",
+    )
+    axes[0].set_xticks(positions)
+    axes[0].set_xticklabels(labels, rotation=20, ha="right")
+    axes[0].set_ylim(0.0, 1.05)
+    axes[0].set_title("Final method comparison after tuning")
+    axes[0].set_ylabel("Metric value")
+    axes[0].legend(loc="upper right")
+
+    axes[1].scatter(
+        frame["final_mean_runtime_seconds"],
+        frame["final_mean_evaluation_f1"],
+        s=100,
+        color="#f58518",
+        alpha=0.9,
+    )
+    for row in frame.itertuples():
+        axes[1].annotate(
+            row.algorithm_base_display,
+            (row.final_mean_runtime_seconds, row.final_mean_evaluation_f1),
+            textcoords="offset points",
+            xytext=(6, 6),
+            fontsize=9,
+        )
+    axes[1].set_title("Runtime versus final evaluation F1")
+    axes[1].set_xlabel("Mean runtime per dataset (seconds)")
+    axes[1].set_ylabel("Final mean evaluation F1")
+    axes[1].set_ylim(0.0, max(1.0, float(frame["final_mean_evaluation_f1"].max()) + 0.05))
+
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=160)
+    return fig
 
 
 def build_algorithm_report_narrative(results_frame: pd.DataFrame, algorithm_key: str) -> str:
@@ -7611,6 +8144,183 @@ def export_algorithm_section_artifacts(
     }
 
 
+def export_final_paper_figure_pack(
+    notebook_state: dict[str, Any],
+    *,
+    session_id: str | None = None,
+    write_global: bool = True,
+    max_figures: int = PAPER_FIGURE_LIMIT,
+) -> dict[str, Any]:
+    notebook_state = ensure_notebook_state_benchmark(
+        notebook_state,
+        refresh_from_saved_run=True,
+        persist_tables=True,
+        write_global=False,
+    )
+    config = notebook_state.get("config")
+    benchmark = notebook_state.get("benchmark")
+    if config is None or benchmark is None:
+        raise ValueError("Run the benchmark cells before exporting the paper figure pack.")
+
+    resolved_session_id = session_id or config.get("session_id")
+    figure_dir = RESULT_THESIS_FIGURES_DIR if write_global or not resolved_session_id else saved_run_session_thesis_figures_dir(resolved_session_id)
+    figure_dir.mkdir(parents=True, exist_ok=True)
+
+    results = benchmark["results"]
+    paper_tables = write_final_paper_tables(results, resolved_session_id)
+    selection = paper_tables["paper_tuned_configuration_selection"]
+    final_benchmark = build_final_tuned_benchmark(results)
+    metric_spec = _evaluation_metric_spec(final_benchmark["results"] if not final_benchmark["results"].empty else results)
+    rows: list[dict[str, Any]] = []
+    plt = _load_plotting_module()
+
+    def add_figure(
+        fig: Any,
+        *,
+        filename: str,
+        figure_id: str,
+        figure_group: str,
+        title: str,
+        caption: str,
+    ) -> None:
+        if fig is None or len(rows) >= max_figures:
+            _close_figure(fig)
+            return
+        paths = _save_figure_bundle(
+            fig,
+            _snapshot_thesis_figure_path(
+                filename,
+                resolved_session_id,
+                write_global=write_global,
+            ),
+        )
+        _append_thesis_figure_row(
+            rows,
+            figure_id=figure_id,
+            figure_group=figure_group,
+            title=title,
+            caption=caption,
+            saved_paths=paths,
+        )
+        plt.close(fig)
+
+    with plt.rc_context(THESIS_PLOT_STYLE):
+        best_row = selection.sort_values("final_mean_evaluation_f1", ascending=False).iloc[0] if not selection.empty else None
+        add_figure(
+            plot_final_tuned_method_comparison(selection),
+            filename="paper_final_tuned_method_comparison.png",
+            figure_id="paper_final_tuned_method_comparison",
+            figure_group="final",
+            title="Final tuned-method comparison",
+            caption=(
+                f"Final comparison after hyperparameter tuning. Each method contributes one configuration selected on the tuning split and evaluated on the held-out final-evaluation split. "
+                + (
+                    f"The strongest final method was {best_row['algorithm_base_display']} ({best_row['selected_configuration']}) with mean {metric_spec['label']} {best_row['final_mean_evaluation_f1']:.3f} and mean ROC AUC {best_row['final_mean_roc_auc']:.3f}."
+                    if best_row is not None
+                    else ""
+                )
+            ),
+        )
+
+        if not final_benchmark["results"].empty:
+            add_figure(
+                plot_benchmark_overview_panel(final_benchmark),
+                filename="paper_final_overview.png",
+                figure_id="paper_final_overview",
+                figure_group="final",
+                title="Final evaluation overview",
+                caption=(
+                    f"Overview of the final-evaluation split for the selected tuned configurations. The panels show dataset length, anomaly ratio, runtime versus {metric_spec['label']}, and average final metrics."
+                ),
+            )
+            add_figure(
+                plot_metric_heatmap_panel(final_benchmark),
+                filename="paper_final_metric_heatmap.png",
+                figure_id="paper_final_metric_heatmap",
+                figure_group="final",
+                title="Final metric heatmap",
+                caption=(
+                    "Metric heatmap for the selected tuned configurations on the final-evaluation split. This is the compact table-to-figure view for the main paper."
+                ),
+            )
+            add_figure(
+                plot_family_evaluation_heatmap_panel(final_benchmark),
+                filename="paper_final_family_heatmap.png",
+                figure_id="paper_final_family_heatmap",
+                figure_group="final",
+                title="Final performance by dataset family",
+                caption=(
+                    f"Mean {metric_spec['label']} by dataset family for the selected tuned configurations, showing where each method succeeds or weakens after configuration selection."
+                ),
+            )
+            add_figure(
+                plot_algorithm_wins_panel(final_benchmark),
+                filename="paper_final_algorithm_wins.png",
+                figure_id="paper_final_algorithm_wins",
+                figure_group="final",
+                title="Final per-dataset wins",
+                caption=(
+                    f"Per-dataset wins on the final-evaluation split, comparing the selected tuned configurations by {metric_spec['label']} and ROC AUC."
+                ),
+            )
+
+    catalog = pd.DataFrame(rows)
+    catalog_path = _snapshot_thesis_catalog_path(
+        resolved_session_id,
+        write_global=write_global,
+    )
+    captions_path = _snapshot_thesis_captions_path(
+        resolved_session_id,
+        write_global=write_global,
+    )
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    captions_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog.to_csv(catalog_path, index=False)
+    captions_path.write_text(
+        build_thesis_figure_caption_markdown(catalog),
+        encoding="utf-8",
+    )
+    return {
+        "catalog": catalog,
+        "catalog_path": catalog_path,
+        "captions_path": captions_path,
+        "figure_dir": figure_dir,
+        "figure_limit": max_figures,
+    }
+
+
+def export_paper_figure_pack(
+    notebook_state: dict[str, Any],
+    *,
+    context_points: int = 1200,
+    session_id: str | None = None,
+    write_global: bool = True,
+    max_figures: int = PAPER_FIGURE_LIMIT,
+) -> dict[str, Any]:
+    config = notebook_state.get("config") if isinstance(notebook_state.get("config"), dict) else None
+    if config is not None and config.get("variant_mode") == "final_paper_tuning":
+        return export_final_paper_figure_pack(
+            notebook_state,
+            session_id=session_id,
+            write_global=write_global,
+            max_figures=max_figures,
+        )
+    payload = export_thesis_figure_pack(
+        notebook_state,
+        context_points=context_points,
+        session_id=session_id,
+        write_global=write_global,
+    )
+    catalog = payload.get("catalog")
+    if isinstance(catalog, pd.DataFrame) and len(catalog) > max_figures:
+        print(
+            f"Warning: legacy export produced {len(catalog)} figures. "
+            f"Use final_paper_tuning to enforce the {max_figures}-figure paper cap."
+        )
+    payload["figure_limit"] = max_figures
+    return payload
+
+
 def export_thesis_figure_pack(
     notebook_state: dict[str, Any],
     context_points: int = 1200,
@@ -8115,6 +8825,68 @@ def export_saved_run_snapshot_artifacts(
         "thesis_payload": thesis_payload,
         "snapshot_extracted_at": notebook_state["snapshot_extracted_at"],
     }
+
+
+def render_final_paper_comparison(notebook_state: dict[str, Any]) -> None:
+    notebook_state = ensure_notebook_state_benchmark(
+        notebook_state,
+        refresh_from_saved_run=True,
+        persist_tables=True,
+        write_global=False,
+    )
+    ns = notebook_state["ns"]
+    config = notebook_state["config"]
+    benchmark = notebook_state["benchmark"]
+    results = benchmark["results"]
+
+    if config["variant_mode"] != "final_paper_tuning":
+        print(
+            "Final paper comparison is intended for Argument mode = final_paper_tuning. "
+            "The tables below still use the deterministic tuning/final split on the current results."
+        )
+
+    paper_tables = ns.write_final_paper_tables(results, config.get("session_id"))
+    selection = paper_tables["paper_tuned_configuration_selection"]
+    split_summary = paper_tables["paper_dataset_split_summary"]
+    final_summary = paper_tables["paper_final_method_comparison"]
+    regime_summary = paper_tables["paper_final_regime_summary"]
+    final_benchmark = ns.build_final_tuned_benchmark(results)
+    notebook_state["paper"] = {
+        "tables": paper_tables,
+        "benchmark": final_benchmark,
+    }
+
+    selected_count = int(selection["algorithm"].nunique()) if not selection.empty else 0
+    final_dataset_count = int(selection["final_dataset_count"].max()) if not selection.empty else 0
+    display(
+        HTML(
+            "<div style='line-height:1.45; margin:8px 0 12px 0;'>"
+            "<p style='margin:0 0 8px 0;'><b>Final paper protocol</b></p>"
+            "<ul style='margin:0 0 0 18px; padding:0;'>"
+            "<li>The notebook first benchmarks a compact hyperparameter grid for each main-paper method.</li>"
+            f"<li>A deterministic stratified split reserves about {PAPER_TUNING_FRACTION:.0%} of datasets for configuration selection and the remaining datasets for final evaluation.</li>"
+            "<li>For each method, the selected configuration is the one with the best mean evaluation F1 on the tuning split; ROC AUC and runtime break ties.</li>"
+            "<li>The final comparison reports only one selected configuration per method on the held-out final-evaluation split.</li>"
+            "</ul>"
+            f"<p style='margin:8px 0 0 0;'>Selected methods: <b>{selected_count}</b>; final-evaluation datasets per selected method: <b>{final_dataset_count}</b>.</p>"
+            "</div>"
+        )
+    )
+    display(split_summary)
+    display(selection)
+    display(final_summary)
+    display(regime_summary)
+
+    fig = ns.plot_final_tuned_method_comparison(
+        selection,
+        save_path=ns.result_figure_path("paper_final_tuned_method_comparison.png"),
+    )
+    if fig is not None:
+        plt = ns._load_plotting_module()
+        plt.show()
+
+    print(f"Saved paper tables to: {ns.RESULT_TABLES_DIR}")
+    print(f"Saved final comparison figure to: {ns.result_figure_path('paper_final_tuned_method_comparison.png')}")
 
 
 def render_ablation_overview(notebook_state: dict[str, Any]) -> None:
@@ -8920,6 +9692,8 @@ def run_benchmark(
     _write_table_artifact(best_by_f1, "best_algorithm_by_dataset_f1.csv", config["session_id"])
     _write_table_artifact(best_by_auc, "best_algorithm_by_dataset_auc.csv", config["session_id"])
     _write_table_artifact(errors, "error_report.csv", config["session_id"])
+    if config.get("variant_mode") == "final_paper_tuning":
+        write_final_paper_tables(results, config["session_id"])
 
     for algorithm_key in config["selected_algorithms"]:
         algorithm_results = results.loc[results["algorithm"] == algorithm_key]

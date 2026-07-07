@@ -11,10 +11,7 @@ ALGORITHM_SECTIONS = [
     ("local_outlier_factor", "Local Outlier Factor"),
     ("sand", "SAND"),
     ("matrix_profile", "Matrix Profile"),
-    ("damp", "DAMP"),
-    ("hbos", "HBOS"),
     ("ocsvm", "OCSVM"),
-    ("pca", "PCA"),
 ]
 
 
@@ -36,7 +33,7 @@ def _algorithm_cells(algorithm_key: str, display_name: str) -> list[dict]:
             f"""
             ## On Run: Show {display_name} Paper Report
 
-            This next cell renders the paper-facing report for {display_name}: a plain-language interpretation block, the configured variants, parameter-effect tables, regime-aware summaries by dataset type, the benchmark panel, the paper panel, and, when `Argument mode = auto_ablation`, paired baseline-vs-knob delta tables plus an ablation panel that shows effect size, confidence intervals, runtime tradeoff, and regime sensitivity. It also renders a fixed-layout side-by-side variant comparison graph on one shared dataset and the best showcase plot.
+            This next cell renders the method report for {display_name}: the tested hyperparameter configurations, the parameter-effect table, regime-aware summaries, and the qualitative score trace used for inspection. In the main paper, use these cells as supporting evidence; the final comparison cell below is the authoritative one-method-one-configuration result.
             """
         ),
         code(
@@ -54,26 +51,26 @@ def build_notebook() -> dict:
             """
             # Simple Anomaly Detection Analysis
 
-            This notebook is organized for paper-facing experiments rather than one-off benchmarking.
+            This notebook is organized around one paper objective: compare selected time-series anomaly-detection methods after hyperparameter tuning, then report one selected configuration per method on held-out final-evaluation datasets.
 
             Main ideas:
 
             - All cross-cell state stays inside `NOTEBOOK_STATE`.
-            - The paper presets create multiple named variants per algorithm so the notebook can show parameter effects instead of a single baseline.
-            - `Argument mode` can now switch between manual subtabs and automatic preset sweeps.
-            - `auto_ablation` creates one baseline plus one-knob-at-a-time variants so each parameter claim is paired against a fixed reference.
-            - Paper-facing sweeps vary only score-driving parameters; backend-only or threshold-only knobs stay fixed inside the presets.
+            - `final_paper_tuning` runs the compact hyperparameter grid for the main paper methods.
+            - The final comparison uses a deterministic tuning/final split: tune configurations first, then compare only the selected configuration per method.
+            - `auto_ablation` remains available for appendix sensitivity checks, but it is not the main paper result.
+            - Optional methods such as DAMP, HBOS, and PCA remain available in the control panel for appendix experiments only.
             - Benchmark outputs are saved into `results/tables/`, `results/figures/`, and `results/scores/`.
-            - The notebook can export a fixed-style thesis figure pack with matching caption text in one step.
+            - The paper export writes a figure catalog and keeps the final-mode figure pack under 10 figures.
 
             Default workflow:
 
             1. Run the dependency and setup cells.
-            2. Optionally apply `paper_high_roi`, `paper_full_suite`, or `auto_ablation`.
+            2. Apply `final_paper_tuning` unless you intentionally need an appendix/sensitivity run.
             3. Run the preparation and benchmark cells.
-            4. Inspect the regime summary and winner tables.
-            5. Open the per-algorithm report cells for the paper figures.
-            6. Run the thesis export cell to write PNG/PDF figures and captions.
+            4. Run the final paper comparison cell.
+            5. Inspect per-method report cells only as supporting evidence.
+            6. Run the paper export cell to write PNG/PDF figures and captions.
             """
         ),
         markdown(
@@ -96,22 +93,21 @@ def build_notebook() -> dict:
             - `Rebuild normalized datasets`: regenerates cached prepared datasets.
             - `Save per-dataset scores`: writes raw score traces to `results/scores/`.
 
-            **Paper sweep rules**
-            - `paper_high_roi`: short, paper-friendly sweep on the highest-return methods plus Isolation Forest for calibration discussion.
+            **Paper experiment rules**
+            - `final_paper_tuning`: compact tuning grid for Isolation Forest, Local Outlier Factor, SAND, Matrix Profile, and OCSVM. It selects the best configuration per method on the tuning split and reports final metrics only on the final-evaluation split.
+            - `paper_high_roi`: short exploratory sweep on high-return methods plus Isolation Forest for calibration discussion.
             - `paper_full_suite`: broader appendix-ready sweep across every implemented method.
-            - `auto_ablation`: one baseline plus one-knob-at-a-time variants, intended for defensible sensitivity claims and presentation-ready parameter analysis.
-            - In auto modes, the notebook ignores the live subtab values at run time and uses the preset variants instead.
-            - Presets keep runtime-only knobs fixed and vary only parameters that materially change each algorithm's scoring behavior in this framework.
+            - `auto_ablation`: one baseline plus one-knob-at-a-time configurations, intended for sensitivity claims rather than the final method comparison.
+            - In auto modes, the notebook ignores the live subtab values at run time and uses the preset configurations instead.
+            - The final paper tables avoid reporting every tried configuration as a result; they report only the selected configuration for each method.
 
             **Algorithm sweep highlights**
             - Isolation Forest: `Trees`, `Max samples`, `Max feat.`, `Bootstrap`.
             - Local Outlier Factor: `Neighbors`, `Metric`, `p`.
             - SAND: `Alpha`, `Init length`, `Batch size`, `k`, `Subseq x`, `Overlap`.
             - Matrix Profile: `Subseq x`.
-            - DAMP: `Start x`, `x_lag x`.
-            - HBOS: `Bins`, `Alpha`, `Tol`.
             - OCSVM: `Kernel`, `Nu`, `Gamma`, `Train frac`.
-            - PCA: `Components`, `Score comps`, `Whiten`, `Weighted`, `Standardize`.
+            - Appendix/optional only: DAMP (`Start x`, `x_lag x`), HBOS (`Bins`, `Alpha`, `Tol`), PCA (`Components`, `Score comps`, `Whiten`, `Weighted`, `Standardize`).
             """
         ),
         markdown(
@@ -213,12 +209,12 @@ def build_notebook() -> dict:
             """
             ## Optional: Apply A Reproducible Automatic Experiment Layout
 
-            Edit `preset_name` below if you want a different automatic experiment layout. This also switches `Argument mode` to the selected auto sweep, then rerun the preparation and benchmark cells.
+            The recommended paper mode is `final_paper_tuning`. Edit `preset_name` only if you intentionally want an exploratory or appendix run. This switches `Argument mode` to the selected automatic configuration set, then rerun the preparation and benchmark cells.
             """
         ),
         code(
             """
-            preset_name = "auto_ablation"
+            preset_name = "final_paper_tuning"
             state = NOTEBOOK_STATE
             state["ns"].apply_paper_experiment_preset(state["controls"], preset_name)
             display(state["ns"].build_preset_reference_table(preset_name))
@@ -275,22 +271,22 @@ def build_notebook() -> dict:
         ),
         markdown(
             """
-            ## On Run: Explain How To Read The Ablation Outputs
+            ## On Run: Build The Final Tuned Paper Comparison
 
-            This next cell is most useful when `Argument mode = auto_ablation`. It explains that each non-baseline variant changes one knob at a time, shows paired delta tables against the baseline on the same dataset, adds a short written summary of the strongest global gain/loss, and renders a high-level ablation overview figure with confidence intervals so you can defend which controls materially help, hurt, or mainly affect runtime.
+            This next cell implements the main paper result. It creates the deterministic tuning/final split, selects the best configuration per method using the tuning split, reports final metrics only for those selected configurations, writes the paper CSV artifacts, and saves the final comparison figure.
             """
         ),
         code(
             """
             state = NOTEBOOK_STATE
-            state["ns"].render_ablation_overview(state)
+            state["ns"].render_final_paper_comparison(state)
             """
         ),
         markdown(
             """
-            ## On Run: Show The Paper-Oriented Regime Summaries And Winners
+            ## On Run: Show The Supporting Regime Summaries And Winners
 
-            This next cell displays the family summary, the regime-aware summary table, the best configuration by the selected evaluation metric, and the ROC-AUC winners table.
+            This next cell displays the full benchmark summaries across all tested configurations. Use it for diagnostic/supporting evidence; the final paper comparison cell above is the concise one-configuration-per-method result.
             """
         ),
         code(
@@ -311,9 +307,9 @@ def build_notebook() -> dict:
         [
             markdown(
                 """
-                ## On Run: Build The Cross-Configuration Comparison Charts And Save The Final Overview Images
+                ## On Run: Build Supporting Comparison Charts
 
-                This next cell builds the overall comparison charts across all selected configurations by calling the reusable plotting helpers in `notebook_support.py`, saves the overview images into `results/figures/`, and displays the winner tables together with the regime-aware benchmark table.
+                This next cell builds supporting charts. In `final_paper_tuning` mode it charts only the selected tuned configurations; in other modes it charts all selected configurations.
                 """
             ),
             code(
@@ -321,15 +317,22 @@ def build_notebook() -> dict:
                 state = NOTEBOOK_STATE
                 ns = state["ns"]
                 benchmark = state["benchmark"]
+                chart_benchmark = (
+                    state.get("paper", {}).get("benchmark")
+                    if state["config"]["variant_mode"] == "final_paper_tuning" and state.get("paper")
+                    else benchmark
+                )
+                if chart_benchmark is None:
+                    chart_benchmark = ns.build_final_tuned_benchmark(benchmark["results"])
                 plt = ns._load_plotting_module()
 
                 figure_jobs = [
-                    ("benchmark_overview.png", lambda: ns.plot_benchmark_overview_panel(benchmark, ns.result_figure_path("benchmark_overview.png"))),
-                    ("pareto_frontier.png", lambda: ns.plot_pareto_frontier_panel(benchmark, ns.result_figure_path("pareto_frontier.png"))),
-                    ("runtime_tail_detail.png", lambda: ns.plot_runtime_tail_detail_panel(benchmark, ns.result_figure_path("runtime_tail_detail.png"))),
-                    ("metric_heatmap.png", lambda: ns.plot_metric_heatmap_panel(benchmark, ns.result_figure_path("metric_heatmap.png"))),
-                    ("family_evaluation_heatmap.png", lambda: ns.plot_family_evaluation_heatmap_panel(benchmark, ns.result_figure_path("family_evaluation_heatmap.png"))),
-                    ("algorithm_wins.png", lambda: ns.plot_algorithm_wins_panel(benchmark, ns.result_figure_path("algorithm_wins.png"))),
+                    ("benchmark_overview.png", lambda: ns.plot_benchmark_overview_panel(chart_benchmark, ns.result_figure_path("benchmark_overview.png"))),
+                    ("pareto_frontier.png", lambda: ns.plot_pareto_frontier_panel(chart_benchmark, ns.result_figure_path("pareto_frontier.png"))),
+                    ("runtime_tail_detail.png", lambda: ns.plot_runtime_tail_detail_panel(chart_benchmark, ns.result_figure_path("runtime_tail_detail.png"))),
+                    ("metric_heatmap.png", lambda: ns.plot_metric_heatmap_panel(chart_benchmark, ns.result_figure_path("metric_heatmap.png"))),
+                    ("family_evaluation_heatmap.png", lambda: ns.plot_family_evaluation_heatmap_panel(chart_benchmark, ns.result_figure_path("family_evaluation_heatmap.png"))),
+                    ("algorithm_wins.png", lambda: ns.plot_algorithm_wins_panel(chart_benchmark, ns.result_figure_path("algorithm_wins.png"))),
                 ]
 
                 for filename, builder in figure_jobs:
@@ -339,26 +342,27 @@ def build_notebook() -> dict:
                         plt.close(fig)
                         print(f"Saved: {ns.result_figure_path(filename)}")
 
-                display(benchmark["best_by_evaluation"].head(15))
-                display(benchmark["best_by_auc"].head(15))
-                display(benchmark["overall_regime_summary"])
+                display(chart_benchmark["best_by_evaluation"].head(15))
+                display(chart_benchmark["best_by_auc"].head(15))
+                display(chart_benchmark["overall_regime_summary"])
                 """
             ),
             markdown(
                 """
-                ## Optional: Export A Thesis-Ready Figure Pack
+                ## Optional: Export The Paper Figure Pack
 
-                This next cell exports a fixed-style set of thesis-ready figures into `results/figures/thesis/` as both PNG and PDF, then writes a figure catalog plus ready-to-paste caption text into `results/tables/thesis_figure_catalog.csv` and `results/tables/thesis_figure_captions.md`.
+                This next cell exports the paper figure pack into `results/figures/thesis/` as both PNG and PDF, then writes a figure catalog plus ready-to-paste caption text into `results/tables/thesis_figure_catalog.csv` and `results/tables/thesis_figure_captions.md`. In `final_paper_tuning` mode it stays under the 10-figure cap.
                 """
             ),
             code(
                 """
                 state = NOTEBOOK_STATE
-                thesis_export = state["ns"].export_thesis_figure_pack(state)
+                thesis_export = state["ns"].export_paper_figure_pack(state)
                 display(thesis_export["catalog"])
                 print(f"Saved thesis figures to: {thesis_export['figure_dir']}")
                 print(f"Saved figure catalog to: {thesis_export['catalog_path']}")
                 print(f"Saved captions to: {thesis_export['captions_path']}")
+                print(f"Figure cap: {thesis_export['figure_limit']}")
                 """
             ),
         ]
