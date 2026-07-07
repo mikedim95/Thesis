@@ -4,8 +4,8 @@ Local Outlier Factor | Search brute,algorithm,backend,medium,84,0.0,0.0,1.000244
 Local Outlier Factor | Metric manhattan,metric,score_driver,medium,84,-0.0062037909107205665,0.007164665176250344,9.245520635238032
 Local Outlier Factor | p = 1,p,score_driver,medium,84,-0.0062037909107205665,0.007164665176250344,9.317389559535064
 Local Outlier Factor | Neighbors 10,n_neighbors,score_driver,medium,84,-0.05241248376942888,-0.0761203701305818,0.9592164700743628
-Local Outlier Factor | Leaf size 60,leaf_size,backend,long,44,0.0,0.0,1.0164995288000798
-Local Outlier Factor | Search brute,algorithm,backend,long,44,0.0,0.0,1.0047830621659186
-Local Outlier Factor | Neighbors 10,n_neighbors,score_driver,long,44,-0.00470023940594268,-0.098389723992631,1.0102818901572923
-Local Outlier Factor | Metric manhattan,metric,score_driver,long,43,-0.01981307754328399,-0.050389308853962526,9.631477035449132
-Local Outlier Factor | p = 1,p,score_driver,long,43,-0.01981307754328399,-0.050389308853962526,9.589445638682262
+Local Outlier Factor | Leaf size 60,leaf_size,backend,long,78,0.0,-2.5744700433732292e-05,1.043786070987084
+Local Outlier Factor | Search brute,algorithm,backend,long,78,-2.4711505165640845e-07,-5.907264974208681e-06,1.0582472999497123
+Local Outlier Factor | Neighbors 10,n_neighbors,score_driver,long,78,-0.0033269157683953787,-0.08166097017200499,0.9937688724690193
+Local Outlier Factor | p = 1,p,score_driver,long,77,-0.018429879402727854,-0.026331015786159723,9.36736118331685
+Local Outlier Factor | Metric manhattan,metric,score_driver,long,78,-0.019943144488303987,-0.028592451524147834,9.473136292427593

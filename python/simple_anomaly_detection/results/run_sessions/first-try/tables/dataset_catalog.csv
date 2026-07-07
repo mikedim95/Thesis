@@ -53,6 +53,9 @@ dataset_name,dataset_sequence,family,variant,series_length,anomaly_count,anomaly
 056_UCR_Anomaly_DISTORTEDapneaecg3_5000_11111_11211,56,apneaecg,distorted,38379,101,0.00263164751556841,5000,11111,11211,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 057_UCR_Anomaly_DISTORTEDapneaecg4_6000_16000_16100,57,apneaecg,distorted,38269,101,0.002639211894745094,6000,16000,16100,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 058_UCR_Anomaly_DISTORTEDapneaecg_10000_12240_12308,58,apneaecg,distorted,38501,69,0.0017921612425651282,10000,12240,12308,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+062_UCR_Anomaly_DISTORTEDgaitHunt1_18500_33070_33180,62,gaitHunt,distorted,64000,111,0.001734375,18500,33070,33180,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+063_UCR_Anomaly_DISTORTEDgaitHunt2_18500_31200_31850,63,gaitHunt,distorted,64000,651,0.010171875,18500,31200,31850,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+064_UCR_Anomaly_DISTORTEDgaitHunt3_23400_38400_39200,64,gaitHunt,distorted,64000,801,0.012515625,23400,38400,39200,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 065_UCR_Anomaly_DISTORTEDinsectEPG1_3000_7000_7030,65,insectEPG,distorted,10001,31,0.0030996900309969004,3000,7000,7030,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 066_UCR_Anomaly_DISTORTEDinsectEPG2_3700_8000_8025,66,insectEPG,distorted,9998,26,0.002600520104020804,3700,8000,8025,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 067_UCR_Anomaly_DISTORTEDinsectEPG3_5200_7000_7050,67,insectEPG,distorted,9998,51,0.005101020204040808,5200,7000,7050,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
@@ -65,6 +68,7 @@ dataset_name,dataset_sequence,family,variant,series_length,anomaly_count,anomaly
 075_UCR_Anomaly_DISTORTEDqtdbSel100MLII_4000_13400_13800,75,qtdbSel100MLII,distorted,30000,401,0.013366666666666667,4000,13400,13800,189,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 084_UCR_Anomaly_DISTORTEDs20101mML2_12000_35774_35874,84,s20101mML,distorted,40000,101,0.002525,12000,35774,35874,108,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 085_UCR_Anomaly_DISTORTEDs20101m_10000_35774_35874,85,s20101m,distorted,40000,101,0.002525,10000,35774,35874,108,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+087_UCR_Anomaly_DISTORTEDsel840mECG1_17000_51370_51740,87,sel840mECG,distorted,60000,371,0.006183333333333333,17000,51370,51740,172,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 088_UCR_Anomaly_DISTORTEDsel840mECG2_20000_49370_49740,88,sel840mECG,distorted,57001,371,0.006508657742846617,20000,49370,49740,173,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 094_UCR_Anomaly_NOISEBIDMC1_2500_5400_5600,94,BIDMC,noise,11000,201,0.018272727272727274,2500,5400,5600,81,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 095_UCR_Anomaly_NOISECIMIS44AirTemperature4_4000_5549_5597,95,CIMIS44AirTemperature,noise,8184,49,0.005987292277614858,4000,5549,5597,24,1,zscore,sigma,3.0,range,datasets\normalized\zscore
@@ -77,6 +81,8 @@ dataset_name,dataset_sequence,family,variant,series_length,anomaly_count,anomaly
 102_UCR_Anomaly_NOISEMesoplodonDensirostris_10000_19280_19440,102,MesoplodonDensirostris,noise,24667,161,0.006526938825151011,10000,19280,19440,46,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 103_UCR_Anomaly_NOISETkeepThirdMARS_3500_4711_4809,103,TkeepThirdMARS,noise,11308,99,0.008754863813229572,3500,4711,4809,98,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 104_UCR_Anomaly_NOISEapneaecg4_6000_16000_16100,104,apneaecg,noise,38269,101,0.002639211894745094,6000,16000,16100,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+105_UCR_Anomaly_NOISEgait3_24500_59900_60500,105,gait,noise,65000,601,0.009246153846153847,24500,59900,60500,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+106_UCR_Anomaly_NOISEgaitHunt2_18500_31200_31850,106,gaitHunt,noise,64000,651,0.010171875,18500,31200,31850,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 107_UCR_Anomaly_NOISEinsectEPG3_5200_7000_7050,107,insectEPG,noise,9998,51,0.005101020204040808,5200,7000,7050,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 112_UCR_Anomaly_BIDMC1_2500_5400_5600,112,BIDMC,raw,11000,201,0.018272727272727274,2500,5400,5600,81,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 113_UCR_Anomaly_CIMIS44AirTemperature1_4000_5391_5392,113,CIMIS44AirTemperature,raw,8184,2,0.00024437927663734115,4000,5391,5392,24,1,zscore,sigma,3.0,range,datasets\normalized\zscore
@@ -132,6 +138,12 @@ dataset_name,dataset_sequence,family,variant,series_length,anomaly_count,anomaly
 164_UCR_Anomaly_apneaecg3_5000_11111_11211,164,apneaecg,raw,38379,101,0.00263164751556841,5000,11111,11211,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 165_UCR_Anomaly_apneaecg4_6000_16000_16100,165,apneaecg,raw,38269,101,0.002639211894745094,6000,16000,16100,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 166_UCR_Anomaly_apneaecg_10000_12240_12308,166,apneaecg,raw,38501,69,0.0017921612425651282,10000,12240,12308,40,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+167_UCR_Anomaly_gait1_20000_38500_38800,167,gait,raw,65000,301,0.004630769230769231,20000,38500,38800,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+168_UCR_Anomaly_gait2_22000_46500_46800,168,gait,raw,65000,301,0.004630769230769231,22000,46500,46800,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+169_UCR_Anomaly_gait3_24500_59900_60500,169,gait,raw,65000,601,0.009246153846153847,24500,59900,60500,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+170_UCR_Anomaly_gaitHunt1_18500_33070_33180,170,gaitHunt,raw,64000,111,0.001734375,18500,33070,33180,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+171_UCR_Anomaly_gaitHunt2_18500_31200_31850,171,gaitHunt,raw,64000,651,0.010171875,18500,31200,31850,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+172_UCR_Anomaly_gaitHunt3_23400_38400_39200,172,gaitHunt,raw,64000,801,0.012515625,23400,38400,39200,125,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 173_UCR_Anomaly_insectEPG1_3000_7000_7030,173,insectEPG,raw,10001,31,0.0030996900309969004,3000,7000,7030,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 174_UCR_Anomaly_insectEPG2_3700_8000_8025,174,insectEPG,raw,9998,26,0.002600520104020804,3700,8000,8025,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 175_UCR_Anomaly_insectEPG3_5200_7000_7050,175,insectEPG,raw,9998,51,0.005101020204040808,5200,7000,7050,26,1,zscore,sigma,3.0,range,datasets\normalized\zscore
@@ -144,6 +156,7 @@ dataset_name,dataset_sequence,family,variant,series_length,anomaly_count,anomaly
 183_UCR_Anomaly_qtdbSel100MLII_4000_13400_13800,183,qtdbSel100MLII,raw,30000,401,0.013366666666666667,4000,13400,13800,189,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 192_UCR_Anomaly_s20101mML2_12000_35774_35874,192,s20101mML,raw,40000,101,0.002525,12000,35774,35874,108,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 193_UCR_Anomaly_s20101m_10000_35774_35874,193,s20101m,raw,40000,101,0.002525,10000,35774,35874,108,1,zscore,sigma,3.0,range,datasets\normalized\zscore
+195_UCR_Anomaly_sel840mECG1_17000_51370_51740,195,sel840mECG,raw,60000,371,0.006183333333333333,17000,51370,51740,172,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 196_UCR_Anomaly_sel840mECG2_20000_49370_49740,196,sel840mECG,raw,57001,371,0.006508657742846617,20000,49370,49740,173,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 201_UCR_Anomaly_CHARISfive_10000_17001_17016,201,CHARISfive,raw,41347,16,0.0003869688248240501,10000,17001,17016,33,1,zscore,sigma,3.0,range,datasets\normalized\zscore
 202_UCR_Anomaly_CHARISfive_10411_10998_11028,202,CHARISfive,raw,41790,31,0.0007418042593921991,10411,10998,11028,33,1,zscore,sigma,3.0,range,datasets\normalized\zscore

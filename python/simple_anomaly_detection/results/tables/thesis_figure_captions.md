@@ -7,7 +7,7 @@ This file is generated automatically from the current benchmark state.
 - PNG: results\figures\thesis\benchmark_overview.png
 - PDF: results\figures\thesis\benchmark_overview.pdf
 
-Benchmark overview across 128 benchmarked datasets and 40 algorithm configurations. The top row summarizes dataset coverage in series length and anomaly ratio. The bottom-left panel shows the runtime versus Mean Range F1 tradeoff with the Pareto frontier, and the bottom-right panel compares mean Range F1 and mean ROC AUC across configurations. In this run, the strongest average configuration was SAND | Init 3000 with mean Range F1 0.270 and mean ROC AUC 0.946.
+Benchmark overview across 162 benchmarked datasets and 40 algorithm configurations. The top row summarizes dataset coverage in series length and anomaly ratio. The bottom-left panel shows the runtime versus Mean Range F1 tradeoff with the Pareto frontier, and the bottom-right panel compares mean Range F1 and mean ROC AUC across configurations. In this run, the strongest average configuration was SAND | Init 3000 with mean Range F1 0.243 and mean ROC AUC 0.932.
 
 ## pareto_frontier
 - Title: Pareto frontier
@@ -35,21 +35,21 @@ Mean Range F1 by dataset family and configuration. This view shows where each me
 - PNG: results\figures\thesis\algorithm_wins.png
 - PDF: results\figures\thesis\algorithm_wins.pdf
 
-Per-dataset win counts for the two most defensible leaderboard views in this notebook: best Range F1 and best ROC AUC. OCSVM | Gamma 0.1 won the most datasets by Range F1 with 18 wins.
+Per-dataset win counts for the two most defensible leaderboard views in this notebook: best Range F1 and best ROC AUC. OCSVM | Gamma 0.1 won the most datasets by Range F1 with 21 wins.
 
 ## ablation_overview
 - Title: Global one-factor-at-a-time ablation overview
 - PNG: results\figures\thesis\ablation_overview.png
 - PDF: results\figures\thesis\ablation_overview.pdf
 
-One-factor-at-a-time ablation overview across all enabled algorithms. Each non-baseline variant changes one visible algorithm control while preprocessing, thresholding, and evaluation remain fixed. Bar-chart error bars show bootstrap 95% confidence intervals over paired dataset deltas, and the scatter plot separates runtime cost from accuracy shift. The strongest positive shift in this run was OCSVM | Gamma 0.1 with mean Range F1 delta +0.065.
+One-factor-at-a-time ablation overview across all enabled algorithms. Each non-baseline variant changes one visible algorithm control while preprocessing, thresholding, and evaluation remain fixed. Bar-chart error bars show bootstrap 95% confidence intervals over paired dataset deltas, and the scatter plot separates runtime cost from accuracy shift. The strongest positive shift in this run was OCSVM | Gamma 0.1 with mean Range F1 delta +0.056.
 
 ## isolation_forest_paper_panel
 - Title: Isolation Forest paper panel
 - PNG: results\figures\thesis\isolation_forest_paper_panel.png
 - PDF: results\figures\thesis\isolation_forest_paper_panel.pdf
 
-Paper panel for Isolation Forest. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest Isolation Forest variant was Isolation Forest | Trees 400 with mean Range F1 0.118 and mean ROC AUC 0.640.
+Paper panel for Isolation Forest. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest Isolation Forest variant was Isolation Forest | Trees 400 with mean Range F1 0.100 and mean ROC AUC 0.632.
 
 ## isolation_forest_ablation_panel
 - Title: Isolation Forest ablation panel
@@ -77,7 +77,7 @@ Showcase deep dive for Isolation Forest on 054_UCR_Anomaly_DISTORTEDWalkingAcele
 - PNG: results\figures\thesis\local_outlier_factor_paper_panel.png
 - PDF: results\figures\thesis\local_outlier_factor_paper_panel.pdf
 
-Paper panel for Local Outlier Factor. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest Local Outlier Factor variant was Local Outlier Factor | Search brute with mean Range F1 0.138 and mean ROC AUC 0.807.
+Paper panel for Local Outlier Factor. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest Local Outlier Factor variant was Local Outlier Factor | Baseline with mean Range F1 0.122 and mean ROC AUC 0.800.
 
 ## local_outlier_factor_ablation_panel
 - Title: Local Outlier Factor ablation panel
@@ -105,14 +105,14 @@ Showcase deep dive for Local Outlier Factor on 137_UCR_Anomaly_InternalBleeding1
 - PNG: results\figures\thesis\sand_paper_panel.png
 - PDF: results\figures\thesis\sand_paper_panel.pdf
 
-Paper panel for SAND. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest SAND variant was SAND | Init 3000 with mean Range F1 0.270 and mean ROC AUC 0.946.
+Paper panel for SAND. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest SAND variant was SAND | Init 3000 with mean Range F1 0.243 and mean ROC AUC 0.932.
 
 ## sand_ablation_panel
 - Title: SAND ablation panel
 - PNG: results\figures\thesis\sand_ablation_panel.png
 - PDF: results\figures\thesis\sand_ablation_panel.pdf
 
-One-factor-at-a-time ablation panel for SAND. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for SAND in this run was Init 3000 with mean Range F1 delta +0.012.
+One-factor-at-a-time ablation panel for SAND. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for SAND in this run was Init 3000 with mean Range F1 delta +0.014.
 
 ## sand_variant_comparison
 - Title: SAND side-by-side variant comparison
@@ -133,14 +133,14 @@ Showcase deep dive for SAND on 130_UCR_Anomaly_GP711MarkerLFM5z4_4000_6527_6645.
 - PNG: results\figures\thesis\matrix_profile_paper_panel.png
 - PDF: results\figures\thesis\matrix_profile_paper_panel.pdf
 
-Paper panel for Matrix Profile. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest Matrix Profile variant was Matrix Profile | Subseq x1 with mean Range F1 0.265 and mean ROC AUC 0.919.
+Paper panel for Matrix Profile. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest Matrix Profile variant was Matrix Profile | Subseq x1 with mean Range F1 0.219 and mean ROC AUC 0.909.
 
 ## matrix_profile_ablation_panel
 - Title: Matrix Profile ablation panel
 - PNG: results\figures\thesis\matrix_profile_ablation_panel.png
 - PDF: results\figures\thesis\matrix_profile_ablation_panel.pdf
 
-One-factor-at-a-time ablation panel for Matrix Profile. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for Matrix Profile in this run was Subseq x1 with mean Range F1 delta +0.018.
+One-factor-at-a-time ablation panel for Matrix Profile. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for Matrix Profile in this run was Subseq x1 with mean Range F1 delta +0.008.
 
 ## matrix_profile_variant_comparison
 - Title: Matrix Profile side-by-side variant comparison
@@ -161,14 +161,14 @@ Showcase deep dive for Matrix Profile on 031_UCR_Anomaly_DISTORTEDInternalBleedi
 - PNG: results\figures\thesis\damp_paper_panel.png
 - PDF: results\figures\thesis\damp_paper_panel.pdf
 
-Paper panel for DAMP. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest DAMP variant was DAMP | Start x2 with mean Range F1 0.169 and mean ROC AUC 0.858.
+Paper panel for DAMP. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest DAMP variant was DAMP | Start x2 with mean Range F1 0.142 and mean ROC AUC 0.844.
 
 ## damp_ablation_panel
 - Title: DAMP ablation panel
 - PNG: results\figures\thesis\damp_ablation_panel.png
 - PDF: results\figures\thesis\damp_ablation_panel.pdf
 
-One-factor-at-a-time ablation panel for DAMP. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for DAMP in this run was Start x2 with mean Range F1 delta +0.004.
+One-factor-at-a-time ablation panel for DAMP. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for DAMP in this run was Start x2 with mean Range F1 delta +0.006.
 
 ## damp_variant_comparison
 - Title: DAMP side-by-side variant comparison
@@ -189,21 +189,21 @@ Showcase deep dive for DAMP on 031_UCR_Anomaly_DISTORTEDInternalBleeding20_2700_
 - PNG: results\figures\thesis\hbos_paper_panel.png
 - PDF: results\figures\thesis\hbos_paper_panel.pdf
 
-Paper panel for HBOS. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest HBOS variant was HBOS | Bins 20 with mean Range F1 0.087 and mean ROC AUC 0.576.
+Paper panel for HBOS. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest HBOS variant was HBOS | Tol 0.2 with mean Range F1 0.079 and mean ROC AUC 0.579.
 
 ## hbos_ablation_panel
 - Title: HBOS ablation panel
 - PNG: results\figures\thesis\hbos_ablation_panel.png
 - PDF: results\figures\thesis\hbos_ablation_panel.pdf
 
-One-factor-at-a-time ablation panel for HBOS. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for HBOS in this run was Bins 20 with mean Range F1 delta +0.002.
+One-factor-at-a-time ablation panel for HBOS. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for HBOS in this run was Tol 0.2 with mean Range F1 delta +0.000.
 
 ## hbos_variant_comparison
 - Title: HBOS side-by-side variant comparison
-- PNG: results\figures\thesis\hbos_variant_comparison_133_ucr_anomaly_internalbleeding14_2800_5607_5634.png
-- PDF: results\figures\thesis\hbos_variant_comparison_133_ucr_anomaly_internalbleeding14_2800_5607_5634.pdf
+- PNG: results\figures\thesis\hbos_variant_comparison_179_ucr_anomaly_ltstdbs30791as_23000_52600_52800.png
+- PDF: results\figures\thesis\hbos_variant_comparison_179_ucr_anomaly_ltstdbs30791as_23000_52600_52800.pdf
 
-Side-by-side comparison of 4 HBOS variants on the shared dataset 133_UCR_Anomaly_InternalBleeding14_2800_5607_5634. The top two panels show the raw and normalized signal with the ground-truth anomaly, and the lower panels compare per-variant score traces and threshold crossings on exactly the same time range.
+Side-by-side comparison of 4 HBOS variants on the shared dataset 179_UCR_Anomaly_ltstdbs30791AS_23000_52600_52800. The top two panels show the raw and normalized signal with the ground-truth anomaly, and the lower panels compare per-variant score traces and threshold crossings on exactly the same time range.
 
 ## hbos_showcase
 - Title: HBOS showcase deep dive
@@ -217,14 +217,14 @@ Showcase deep dive for HBOS on 162_UCR_Anomaly_WalkingAceleration5_2700_5920_597
 - PNG: results\figures\thesis\ocsvm_paper_panel.png
 - PDF: results\figures\thesis\ocsvm_paper_panel.pdf
 
-Paper panel for OCSVM. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest OCSVM variant was OCSVM | Gamma 0.1 with mean Range F1 0.243 and mean ROC AUC 0.720.
+Paper panel for OCSVM. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest OCSVM variant was OCSVM | Gamma 0.1 with mean Range F1 0.205 and mean ROC AUC 0.720.
 
 ## ocsvm_ablation_panel
 - Title: OCSVM ablation panel
 - PNG: results\figures\thesis\ocsvm_ablation_panel.png
 - PDF: results\figures\thesis\ocsvm_ablation_panel.pdf
 
-One-factor-at-a-time ablation panel for OCSVM. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for OCSVM in this run was Gamma 0.1 with mean Range F1 delta +0.065.
+One-factor-at-a-time ablation panel for OCSVM. Horizontal bars report paired deltas against the algorithm baseline, error bars show bootstrap 95% confidence intervals, the runtime scatter isolates cost, and the heatmap shows regime sensitivity by dataset variant. The strongest positive ablation for OCSVM in this run was Gamma 0.1 with mean Range F1 delta +0.056.
 
 ## ocsvm_variant_comparison
 - Title: OCSVM side-by-side variant comparison
@@ -245,7 +245,7 @@ Showcase deep dive for OCSVM on 014_UCR_Anomaly_DISTORTEDECG3_8000_17000_17100. 
 - PNG: results\figures\thesis\pca_paper_panel.png
 - PDF: results\figures\thesis\pca_paper_panel.pdf
 
-Paper panel for PCA. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest PCA variant was PCA | Weighted off with mean Range F1 0.090 and mean ROC AUC 0.529.
+Paper panel for PCA. The three heatmaps summarize mean Range F1 by dataset variant, series length, and anomaly-ratio regime, while the runtime scatter shows which configured variants convert extra cost into measurable gains. In this run, the strongest PCA variant was PCA | Weighted off with mean Range F1 0.088 and mean ROC AUC 0.536.
 
 ## pca_ablation_panel
 - Title: PCA ablation panel
@@ -263,7 +263,7 @@ Side-by-side comparison of 6 PCA variants on the shared dataset 175_UCR_Anomaly_
 
 ## pca_showcase
 - Title: PCA showcase deep dive
-- PNG: results\figures\thesis\pca_showcase_131_ucr_anomaly_gp711markerlfm5z5_5000_8612_8716.png
-- PDF: results\figures\thesis\pca_showcase_131_ucr_anomaly_gp711markerlfm5z5_5000_8612_8716.pdf
+- PNG: results\figures\thesis\pca_showcase_071_ucr_anomaly_distortedltstdbs30791as_23000_52600_52800.png
+- PDF: results\figures\thesis\pca_showcase_071_ucr_anomaly_distortedltstdbs30791as_23000_52600_52800.pdf
 
-Showcase deep dive for PCA on 131_UCR_Anomaly_GP711MarkerLFM5z5_5000_8612_8716. The panels align the raw signal, normalized signal, and anomaly score for the strongest selected variant on that dataset, making it possible to show exactly where the detector crosses threshold relative to the ground-truth anomaly interval. The selected showcase variant was PCA | Components 0.95 with Range F1 0.658, ROC AUC 0.993, and runtime 0.051s.
+Showcase deep dive for PCA on 071_UCR_Anomaly_DISTORTEDltstdbs30791AS_23000_52600_52800. The panels align the raw signal, normalized signal, and anomaly score for the strongest selected variant on that dataset, making it possible to show exactly where the detector crosses threshold relative to the ground-truth anomaly interval. The selected showcase variant was PCA | Standardize off with Range F1 0.796, ROC AUC 1.000, and runtime 1.788s.
