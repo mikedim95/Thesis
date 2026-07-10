@@ -5,3 +5,43 @@ Many buildings over the years become more and more structurally unstable. Even t
 ## Manage multiple deployments of edge computing devices at large scale.
 ## Integrate Anomaly Detection ML Algorithm on each device for better data manipulation
 
+# Repository Overview
+
+This repository contains the code and resources used throughout the thesis
+project. It brings together several subprojects that implement and evaluate
+anomaly detection techniques as well as a dashboard and a small hardware demo.
+
+## Directory layout
+
+- `python/` – Python implementations of multiple anomaly detection methods and
+  dataset utilities.
+- `cool_dashboard/` – Next.js + Tailwind CSS dashboard for visualising metrics
+  and anomalies.
+- `rust/` – Sample Rust application that interacts with hardware on edge
+  devices.
+- `Untitled-2024-03-25-1047.excalidraw` – Architecture diagram created with
+  Excalidraw.
+
+### Python projects
+The `python/` directory hosts several standalone projects:
+- `IFORESTAnomalyDetection`, `LOFAnomalyDetection` and `SANDAnomalyDetection`
+  showcase isolation forest, local outlier factor and subsequence anomaly
+  detection models.
+- `newSANDEffort` provides a Docker based training and evaluation pipeline.
+- `Results` includes scripts for plotting and analysing evaluation metrics.
+- `datasets` contains sample time‑series data.
+Experimental code lives under the `playground` folder.
+
+### Dashboard
+To start the web dashboard locally:
+```bash
+cd cool_dashboard
+npm install
+npm run dev
+```
+
+### Rust demo
+The Rust project is a small example that blinks an LED on a Raspberry Pi.
+Run it with `cargo run` or see `rust/README.Docker.md` for running inside
+a container.
+
